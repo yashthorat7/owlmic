@@ -12,8 +12,8 @@ pub struct Decoder {
     mft: IMFTransform,
     /// Reused output sample when the decoder doesn't provide its own.
     out: Option<IMFSample>,
-    /// Coded width and height (rows are padded to 16) and the visible height.
-    size: (usize, usize, usize),
+    /// Coded (w, h) and visible (w, h) (macroblock rows/cols are padded to 16).
+    size: (usize, usize, usize, usize),
     picture: Nv12,
 }
 
@@ -30,7 +30,7 @@ impl Decoder {
             let mut d = Self {
                 mft,
                 out: None,
-                size: (0, 0, 0),
+                size: (0, 0, 0, 0),
                 picture: Nv12::black(2, 2),
             };
             d.choose_output()?;
@@ -55,8 +55,9 @@ impl Decoder {
             };
             self.mft.SetOutputType(0, &chosen, 0)?;
             let packed = chosen.GetUINT64(&MF_MT_FRAME_SIZE).unwrap_or(0);
-            let (w, h) = ((packed >> 32) as usize, (packed & 0xFFFF_FFFF) as usize);
-            let mut visible = h;
+            let (coded_w, coded_h) = ((packed >> 32) as usize, (packed & 0xFFFF_FFFF) as usize);
+            let mut visible_w = coded_w;
+            let mut visible_h = coded_h;
             let mut area = MFVideoArea::default();
             if chosen
                 .GetBlob(
@@ -68,18 +69,22 @@ impl Decoder {
                     None,
                 )
                 .is_ok()
-                && area.Area.cy > 0
             {
-                visible = (area.Area.cy as usize).min(h);
+                if area.Area.cx > 0 {
+                    visible_w = (area.Area.cx as usize).min(coded_w);
+                }
+                if area.Area.cy > 0 {
+                    visible_h = (area.Area.cy as usize).min(coded_h);
+                }
             }
-            self.size = (w, h, visible & !1);
+            self.size = (coded_w, coded_h, visible_w & !1, visible_h & !1);
             let info = self.mft.GetOutputStreamInfo(0)?;
             self.out = if info.dwFlags & MFT_OUTPUT_STREAM_PROVIDES_SAMPLES.0 as u32 != 0 {
                 None
             } else {
                 let sample = MFCreateSample()?;
                 sample.AddBuffer(&MFCreateMemoryBuffer(
-                    info.cbSize.max((w * h * 3 / 2) as u32),
+                    info.cbSize.max((coded_w * coded_h * 3 / 2) as u32),
                 )?)?;
                 Some(sample)
             };
@@ -142,12 +147,12 @@ impl Decoder {
     }
 
     fn copy_out(&mut self, sample: &IMFSample) -> Result<()> {
-        let (w, h, visible) = self.size;
-        if w == 0 || visible == 0 {
+        let (coded_w, coded_h, visible_w, visible_h) = self.size;
+        if visible_w == 0 || visible_h == 0 {
             return Err(E_FAIL.into());
         }
-        if (self.picture.width, self.picture.height) != (w, visible) {
-            self.picture = Nv12::black(w, visible);
+        if (self.picture.width, self.picture.height) != (visible_w, visible_h) {
+            self.picture = Nv12::black(visible_w, visible_h);
         }
         unsafe {
             let buffer = sample.GetBufferByIndex(0)?;
@@ -158,23 +163,24 @@ impl Decoder {
                 .is_some_and(|p| p.Lock2D(&mut base, &mut pitch).is_ok());
             if !locked_2d {
                 buffer.Lock(&mut base, None, None)?;
-                pitch = w as i32;
+                pitch = coded_w as i32;
             }
             let pitch = pitch.unsigned_abs() as usize;
             let dst = &mut self.picture.data;
-            for row in 0..visible {
+            for row in 0..visible_h {
                 std::ptr::copy_nonoverlapping(
                     base.add(row * pitch),
-                    dst.as_mut_ptr().add(row * w),
-                    w,
+                    dst.as_mut_ptr().add(row * visible_w),
+                    visible_w,
                 );
             }
-            let uv = base.add(pitch * h);
-            for row in 0..visible / 2 {
+            let uv = base.add(pitch * coded_h);
+            for row in 0..visible_h / 2 {
                 std::ptr::copy_nonoverlapping(
                     uv.add(row * pitch),
-                    dst.as_mut_ptr().add(w * visible + row * w),
-                    w,
+                    dst.as_mut_ptr()
+                        .add(visible_w * visible_h + row * visible_w),
+                    visible_w,
                 );
             }
             if locked_2d {

@@ -71,7 +71,10 @@ class CameraPipeline(
             if (next != rotation) {
                 val flipped = (next % 2) != (rotation % 2)
                 rotation = next
-                preview?.targetRotation = next
+                val targetRot = targetRotationFor(config?.orientation ?: Orientation.AUTO, next)
+                if (preview?.targetRotation != targetRot) {
+                    preview?.targetRotation = targetRot
+                }
                 if (flipped && config?.orientation == Orientation.AUTO) post { newEncoder() }
             }
         }
@@ -136,21 +139,27 @@ class CameraPipeline(
             if (needsEncoder) newEncoder() else encoder?.requestKeyframe()
             previewSurface?.let { (s, w, h) -> r.setPreview(s, w, h) }
         }
-        if (!needsCamera) return
+        val targetRot = targetRotationFor(next.orientation, rotation)
+        if (!needsCamera) {
+            preview?.targetRotation = targetRot
+            return
+        }
         captured = next.plan
         val ready = ProcessCameraProvider.getInstance(context)
         ready.addListener({
             if (config !== next || lifecycle !== owner) return@addListener
             val provider = ready.get()
             provider.unbindAll()
+            val isTargetLandscape = targetRot == Surface.ROTATION_90 || targetRot == Surface.ROTATION_270
+            val boundSize = if (isTargetLandscape) Size(next.plan.longSide, next.plan.shortSide) else Size(next.plan.shortSide, next.plan.longSide)
             val selector = ResolutionSelector.Builder()
                 .setAspectRatioStrategy(AspectRatioStrategy.RATIO_16_9_FALLBACK_AUTO_STRATEGY)
-                .setResolutionStrategy(ResolutionStrategy(Size(next.plan.longSide, next.plan.shortSide), ResolutionStrategy.FALLBACK_RULE_CLOSEST_HIGHER_THEN_LOWER))
+                .setResolutionStrategy(ResolutionStrategy(boundSize, ResolutionStrategy.FALLBACK_RULE_CLOSEST_HIGHER_THEN_LOWER))
                 .build()
             val glExecutor = Executor { r.handler.post(it) }
             fun build(highFps: Boolean): Preview = Preview.Builder()
                 .setResolutionSelector(selector)
-                .setTargetRotation(rotation)
+                .setTargetRotation(targetRot)
                 .apply { if (highFps) setTargetFrameRate(Range(next.plan.fps, next.plan.fps)) }
                 .build()
                 .apply {
@@ -280,4 +289,11 @@ fun surfaceRotationFor(degrees: Int, current: Int): Int {
     }
     val distance = minOf((degrees - center + 360) % 360, (center - degrees + 360) % 360)
     return if (distance > 65) candidate else current
+}
+
+/** The target rotation that matches the requested [orientation] given the physical [sensorRotation]. */
+fun targetRotationFor(orientation: Orientation, sensorRotation: Int): Int = when (orientation) {
+    Orientation.LANDSCAPE -> if (sensorRotation == Surface.ROTATION_270) Surface.ROTATION_270 else Surface.ROTATION_90
+    Orientation.PORTRAIT -> if (sensorRotation == Surface.ROTATION_180) Surface.ROTATION_180 else Surface.ROTATION_0
+    Orientation.AUTO -> sensorRotation
 }

@@ -103,6 +103,17 @@ class VideoPlanTest {
     }
 
     @Test
+    fun targetRotationMatchesLandscapePortraitAndAuto() {
+        assertEquals(Surface.ROTATION_90, targetRotationFor(Orientation.LANDSCAPE, Surface.ROTATION_0))
+        assertEquals(Surface.ROTATION_270, targetRotationFor(Orientation.LANDSCAPE, Surface.ROTATION_270))
+        assertEquals(Surface.ROTATION_0, targetRotationFor(Orientation.PORTRAIT, Surface.ROTATION_0))
+        assertEquals(Surface.ROTATION_180, targetRotationFor(Orientation.PORTRAIT, Surface.ROTATION_180))
+        assertEquals(Surface.ROTATION_0, targetRotationFor(Orientation.PORTRAIT, Surface.ROTATION_90))
+        assertEquals(Surface.ROTATION_90, targetRotationFor(Orientation.AUTO, Surface.ROTATION_90))
+        assertEquals(Surface.ROTATION_0, targetRotationFor(Orientation.AUTO, Surface.ROTATION_0))
+    }
+
+    @Test
     fun heatDrops1080pTo720pOnlyAtCritical() {
         val p1080 = VideoPlan.of("1080p", 30, LinkKind.USB_TETHERING)
         assertEquals(p1080, thermalPlan(p1080, 3))

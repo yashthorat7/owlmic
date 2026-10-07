@@ -71,6 +71,7 @@ This document describes the capture, encoding, transmission, jitter compensation
 
 ### Android Camera Capture & GPU Processing
 - **CameraX Pipeline**: Captures camera frames into a private `SurfaceTexture`.
+- **Target Rotation & Aspect Ratio**: Maps orientation (`landscape`, `portrait`, `auto`) to CameraX `targetRotation` and matching resolution bounds, preserving the natural sensor field of view without squash or stretch distortion.
 - **OpenGL Shaders**: Renders the preview and encoder frames using a dedicated GPU frame-buffer.
   - Handles rotation with 20° gravity orientation hysteresis so flipping the phone does not jitter the video.
   - Applies user-selected framing: **Fill** (center-cropped to 16:9) or **Fit** (letterboxed with clean black bars).
@@ -84,8 +85,9 @@ This document describes the capture, encoding, transmission, jitter compensation
   - Collects slices into full frames based on `frame_id`, `fragment_index`, and `fragment_count`.
   - If a fragment is lost, the entire frame is dropped and LinkHub throttles a `KEYFRAME_REQUEST` back to the phone (max once every 500 ms).
 - **Backpressure & Drop Policy**: Queue depth is strictly 1 (`KEEP_ONLY_LATEST`). Intermediate frames are dropped immediately if the decoder falls behind.
+- **Visible Aperture Decoding (`decoder.rs`)**: Decodes H.264 into NV12 buffers, clipping to `MF_MT_MINIMUM_DISPLAY_APERTURE` visible width to eliminate 16-byte macroblock stride skew and preserve exact aspect ratio.
 - **Shared Memory Ring (`shared.rs`)**:
-  - The PC app decodes H.264 into NV12 buffers and writes them to a lock-free, atomic shared memory ring buffer.
+  - Writes decoded NV12 frames to a lock-free, atomic shared memory ring buffer.
   - Windows 11 Media Foundation (`owlmic_vcam.dll`) or Windows 10 DirectShow (`softcam.dll`) reads the newest buffer and serves it to client applications (Zoom, Teams, Discord, OBS).
 
 ---

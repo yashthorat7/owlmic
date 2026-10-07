@@ -93,10 +93,6 @@ impl Source {
             .clone()
             .ok_or_else(|| MF_E_SHUTDOWN.into())
     }
-
-    fn now() -> PROPVARIANT {
-        PROPVARIANT::from(unsafe { MFGetSystemTime() })
-    }
 }
 
 impl IMFMediaEventGenerator_Impl for Source_Impl {
@@ -142,7 +138,11 @@ impl IMFMediaSource_Impl for Source_Impl {
         if !time_format.is_null() && unsafe { *time_format } != GUID::zeroed() {
             return Err(MF_E_UNSUPPORTED_TIME_FORMAT.into());
         }
-        let now = Source::now();
+        let start_pos = if _start.is_null() {
+            PROPVARIANT::default()
+        } else {
+            unsafe { (*_start).clone() }
+        };
         unsafe {
             for i in 0..presentation.GetStreamDescriptorCount()? {
                 let mut selected = Default::default();
@@ -164,7 +164,7 @@ impl IMFMediaSource_Impl for Source_Impl {
                         HRESULT(0),
                         &stream.to_interface::<IUnknown>(),
                     )?;
-                    stream.start(&descriptor, &now)?;
+                    stream.start(&descriptor, &start_pos)?;
                 } else if stream.is_running() {
                     stream.stop()?;
                 }
@@ -173,7 +173,7 @@ impl IMFMediaSource_Impl for Source_Impl {
                 MESourceStarted.0 as u32,
                 &GUID::zeroed(),
                 HRESULT(0),
-                &now,
+                &start_pos,
             )
         }
     }
@@ -183,12 +183,13 @@ impl IMFMediaSource_Impl for Source_Impl {
         if stream.is_running() {
             stream.stop()?;
         }
+        let empty = PROPVARIANT::default();
         unsafe {
             self.queue.QueueEventParamVar(
                 MESourceStopped.0 as u32,
                 &GUID::zeroed(),
                 HRESULT(0),
-                &Source::now(),
+                &empty,
             )
         }
     }

@@ -48,7 +48,8 @@ Owlmic provides dual virtual camera implementations to support both modern and l
 - Implemented in `pc/vcam` using Rust and native Windows Media Foundation APIs.
 - Registers as a system virtual camera using Windows 11's `MFCreateVirtualCamera` API (`MF_VIRTUALCAMERA_TYPE_SOFTWARE_CAMERA_ADD`).
 - Streams NV12 frames directly from the shared memory ring buffer into Windows Media Foundation pipelines.
-- Supports instant frame resolution matching (720p, 1080p, 24/30/60 fps) and delivers pristine picture quality in modern browsers (Chrome, Edge) and desktop apps (Teams, Zoom).
+- Delivers 0-based monotonic presentation timestamps (`inner.frame_count * inner.duration`), keyframe clean points (`MFSampleExtension_CleanPoint`), and system reference time (`MFSampleExtension_DeviceReferenceSystemTime`) on every sample for smooth, freeze-free streaming in Chromium WebRTC (Google Meet, Chrome, Edge) and desktop apps (Teams, Zoom).
+- Supports instant frame resolution matching (720p, 1080p, 24/30/60 fps) and delivers pristine picture quality in modern browsers and desktop conferencing apps.
 
 ### Windows 10: DirectShow Filter (`softcam.dll`)
 - A DirectShow capture source filter for backward compatibility on Windows 10 and older 32-bit capture software.

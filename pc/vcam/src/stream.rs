@@ -28,6 +28,7 @@ struct Inner {
     allocator: Option<IMFVideoSampleAllocatorEx>,
     /// Frame duration in 100 ns units.
     duration: i64,
+    frame_count: u64,
     mapping: Option<Mapping>,
     picker: Option<Picker>,
 }
@@ -43,6 +44,7 @@ impl Stream {
                 running: false,
                 allocator: None,
                 duration: 333_333,
+                frame_count: 0,
                 mapping: None,
                 picker: None,
             }),
@@ -83,6 +85,7 @@ impl Stream {
         if inner.mapping.is_none() {
             inner.mapping = Mapping::create();
         }
+        inner.frame_count = 0;
         inner.running = true;
         unsafe {
             self.queue.QueueEventParamVar(
@@ -98,7 +101,7 @@ impl Stream {
         let mut inner = self.inner();
         inner.running = false;
         inner.allocator = None;
-        let now = PROPVARIANT::from(unsafe { MFGetSystemTime() });
+        let now = PROPVARIANT::default();
         unsafe {
             self.queue.QueueEventParamVar(
                 MEStreamStopped.0 as u32,
@@ -174,6 +177,7 @@ impl IMFMediaStream_Impl for Stream_Impl {
             mapping,
             picker: Some(picker),
             duration,
+            frame_count,
             ..
         } = &mut *inner
         else {
@@ -196,9 +200,16 @@ impl IMFMediaStream_Impl for Stream_Impl {
                 std::ptr::copy_nonoverlapping(picture.as_ptr(), data, FRAME_BYTES);
                 buffer.Unlock()?;
             }
-            buffer.SetCurrentLength(FRAME_BYTES as u32)?;
-            sample.SetSampleTime(MFGetSystemTime())?;
+            let _ = buffer.SetCurrentLength(FRAME_BYTES as u32);
+            let sample_time = (*frame_count as i64) * *duration;
+            *frame_count += 1;
+            sample.SetSampleTime(sample_time)?;
             sample.SetSampleDuration(*duration)?;
+            sample.SetUINT32(&MFSampleExtension_CleanPoint, 1)?;
+            let _ = sample.SetUINT64(
+                &MFSampleExtension_DeviceReferenceSystemTime,
+                MFGetSystemTime() as u64,
+            );
             if let Some(token) = token.as_ref() {
                 sample.SetUnknown(&MFSampleExtension_Token, token)?;
             }
@@ -218,7 +229,7 @@ impl IMFMediaStream2_Impl for Stream_Impl {
             if self.is_running() {
                 return Ok(());
             }
-            let now = PROPVARIANT::from(unsafe { MFGetSystemTime() });
+            let now = PROPVARIANT::default();
             return self.start(&self.descriptor, &now);
         }
         if state == MF_STREAM_STATE_STOPPED {
