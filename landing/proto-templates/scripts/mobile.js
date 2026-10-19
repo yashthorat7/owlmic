@@ -224,29 +224,66 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Playground Drawer elements (Connection Settings & Help)
+    // Playground Drawer elements (Connection Settings, Help & Mic Controls)
     const playgroundDrawer = root.querySelector('.js-playground-drawer');
     const drawerScreenWifi = root.querySelector('.js-drawer-screen-wifi');
     const drawerScreenHelp = root.querySelector('.js-drawer-screen-help');
+    const drawerScreenMic = root.querySelector('.js-drawer-screen-mic');
     const drawerBackBtns = root.querySelectorAll('.js-drawer-back-btn');
     const connTypeBtns = root.querySelectorAll('.js-conn-type-btn');
     const drawerPcName = root.querySelector('.js-drawer-pc-name');
 
+    // Floating Camera Controls (Eye, Mirror, Flip)
+    const mobileCameraControls = root.querySelector('.js-mobile-camera-controls');
+    const mobileBtnWatch = root.querySelector('.js-mobile-btn-watch');
+    const mobileIconWatchOn = mobileBtnWatch ? mobileBtnWatch.querySelector('.icon-watch-on') : null;
+    const mobileIconWatchOff = mobileBtnWatch ? mobileBtnWatch.querySelector('.icon-watch-off') : null;
+    const mobileBtnMirror = root.querySelector('.js-mobile-btn-mirror');
+    const mobileBtnFlip = root.querySelector('.js-mobile-btn-flip');
+
+    // Floating Mic Settings Button
+    const mobileBtnMicSettings = root.querySelector('.js-mobile-btn-mic-settings');
+
+    // Mobile Mic Drawer Controls
+    const mobileSliderNoise = root.querySelector('.js-mobile-slider-noise');
+    const mobileNoiseVal = root.querySelector('.js-mobile-noise-val');
+    const mobileSliderVolume = root.querySelector('.js-mobile-slider-volume');
+    const mobileVolumeVal = root.querySelector('.js-mobile-volume-val');
+    const mobileToggleRowIsolation = root.querySelector('.js-mobile-toggle-row-isolation');
+    const mobileSwitchIsolation = root.querySelector('.js-mobile-switch-isolation');
+    const mobileToggleRowAutolevel = root.querySelector('.js-mobile-toggle-row-autolevel');
+    const mobileSwitchAutolevel = root.querySelector('.js-mobile-switch-autolevel');
+
     function openWifiDrawer() {
         if (!playgroundDrawer) return;
         if (helpBtn) helpBtn.classList.remove('is-on');
+        if (mobileBtnMicSettings) mobileBtnMicSettings.classList.remove('is-on');
         if (statusTile) statusTile.classList.add('is-on');
         if (drawerScreenWifi) drawerScreenWifi.style.display = 'flex';
         if (drawerScreenHelp) drawerScreenHelp.style.display = 'none';
+        if (drawerScreenMic) drawerScreenMic.style.display = 'none';
         playgroundDrawer.classList.add('is-open');
     }
 
     function openHelpDrawer() {
         if (!playgroundDrawer) return;
         if (statusTile) statusTile.classList.remove('is-on');
+        if (mobileBtnMicSettings) mobileBtnMicSettings.classList.remove('is-on');
         if (helpBtn) helpBtn.classList.add('is-on');
         if (drawerScreenHelp) drawerScreenHelp.style.display = 'flex';
         if (drawerScreenWifi) drawerScreenWifi.style.display = 'none';
+        if (drawerScreenMic) drawerScreenMic.style.display = 'none';
+        playgroundDrawer.classList.add('is-open');
+    }
+
+    function openMobileMicDrawer() {
+        if (!playgroundDrawer) return;
+        if (statusTile) statusTile.classList.remove('is-on');
+        if (helpBtn) helpBtn.classList.remove('is-on');
+        if (mobileBtnMicSettings) mobileBtnMicSettings.classList.add('is-on');
+        if (drawerScreenMic) drawerScreenMic.style.display = 'flex';
+        if (drawerScreenWifi) drawerScreenWifi.style.display = 'none';
+        if (drawerScreenHelp) drawerScreenHelp.style.display = 'none';
         playgroundDrawer.classList.add('is-open');
     }
 
@@ -255,6 +292,86 @@ document.addEventListener('DOMContentLoaded', () => {
         playgroundDrawer.classList.remove('is-open');
         if (statusTile) statusTile.classList.remove('is-on');
         if (helpBtn) helpBtn.classList.remove('is-on');
+        if (mobileBtnMicSettings) mobileBtnMicSettings.classList.remove('is-on');
+    }
+
+    // Camera Controls Event Listeners
+    if (mobileBtnWatch) {
+        mobileBtnWatch.addEventListener('click', (e) => {
+            e.stopPropagation();
+            OwlmicStore.toggleWatching();
+        });
+    }
+
+    if (mobileBtnMirror) {
+        mobileBtnMirror.addEventListener('click', (e) => {
+            e.stopPropagation();
+            OwlmicStore.toggleMirror();
+        });
+    }
+
+    if (mobileBtnFlip) {
+        mobileBtnFlip.addEventListener('click', (e) => {
+            e.stopPropagation();
+            OwlmicStore.flipLens();
+        });
+    }
+
+    // Mic Settings Button & Waveform Dock Click
+    if (mobileBtnMicSettings) {
+        mobileBtnMicSettings.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const isMicOpen = playgroundDrawer && playgroundDrawer.classList.contains('is-open') &&
+                              drawerScreenMic && drawerScreenMic.style.display !== 'none';
+            if (isMicOpen) {
+                closeDrawer();
+            } else {
+                openMobileMicDrawer();
+            }
+        });
+    }
+
+    if (waveformDock) {
+        waveformDock.addEventListener('click', (e) => {
+            const state = OwlmicStore.getState();
+            if (state.mic) {
+                e.stopPropagation();
+                const isMicOpen = playgroundDrawer && playgroundDrawer.classList.contains('is-open') &&
+                                  drawerScreenMic && drawerScreenMic.style.display !== 'none';
+                if (isMicOpen) {
+                    closeDrawer();
+                } else {
+                    openMobileMicDrawer();
+                }
+            }
+        });
+    }
+
+    // Sliders & Switches Event Listeners
+    if (mobileSliderNoise) {
+        mobileSliderNoise.addEventListener('input', (e) => {
+            OwlmicStore.setNoiseReduction(e.target.value);
+        });
+    }
+
+    if (mobileSliderVolume) {
+        mobileSliderVolume.addEventListener('input', (e) => {
+            OwlmicStore.setVolume(e.target.value);
+        });
+    }
+
+    if (mobileToggleRowIsolation) {
+        mobileToggleRowIsolation.addEventListener('click', (e) => {
+            e.stopPropagation();
+            OwlmicStore.toggleIsolation();
+        });
+    }
+
+    if (mobileToggleRowAutolevel) {
+        mobileToggleRowAutolevel.addEventListener('click', (e) => {
+            e.stopPropagation();
+            OwlmicStore.toggleAutoLevel();
+        });
     }
 
     // Status/WiFi tile tap: toggles Wi-Fi drawer (Connection Settings)
@@ -364,7 +481,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (cameraTile) {
             if (isCameraLive) {
                 cameraTile.classList.add('is-on');
-                if (cameraCanvas) cameraCanvas.style.display = 'block';
+                if (cameraCanvas) cameraCanvas.style.display = state.cameraWatching ? 'block' : 'none';
                 if (cameraOverlay) cameraOverlay.style.display = 'flex';
                 if (cameraOffFace) cameraOffFace.style.display = 'none';
                 if (cameraCaption) cameraCaption.textContent = `${state.cameraQuality} · ${state.cameraFps} fps`;
@@ -375,6 +492,41 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (cameraOffFace) cameraOffFace.style.display = 'flex';
             }
         }
+
+        // Floating Camera Controls State & Visibility
+        if (mobileCameraControls) {
+            mobileCameraControls.style.display = isCameraLive ? 'flex' : 'none';
+        }
+        if (mobileBtnWatch) {
+            mobileBtnWatch.classList.toggle('is-off', !state.cameraWatching);
+            if (mobileIconWatchOn) mobileIconWatchOn.style.display = state.cameraWatching ? 'block' : 'none';
+            if (mobileIconWatchOff) mobileIconWatchOff.style.display = state.cameraWatching ? 'none' : 'block';
+        }
+        if (mobileBtnMirror) {
+            mobileBtnMirror.classList.toggle('is-on', Boolean(state.cameraMirror));
+        }
+        if (mobileBtnFlip) {
+            mobileBtnFlip.title = `Flip Lens: ${state.cameraLens}`;
+        }
+
+        // Floating Mic Settings Button
+        if (mobileBtnMicSettings) {
+            mobileBtnMicSettings.style.display = (isMicLive && !isCameraLive) ? 'inline-flex' : 'none';
+        }
+
+        // Mic Drawer Values Synchronization
+        if (mobileSliderNoise) mobileSliderNoise.value = state.micNoiseReduction ?? 5;
+        if (mobileNoiseVal) {
+            const nr = state.micNoiseReduction ?? 5;
+            mobileNoiseVal.textContent = nr === 0 ? 'Off' : String(nr);
+        }
+        if (mobileSliderVolume) mobileSliderVolume.value = state.micVolume ?? 0;
+        if (mobileVolumeVal) {
+            const v = state.micVolume ?? 0;
+            mobileVolumeVal.textContent = (v > 0 ? `+${v}` : `${v}`) + ' dB';
+        }
+        if (mobileSwitchIsolation) mobileSwitchIsolation.classList.toggle('is-on', Boolean(state.micIsolation));
+        if (mobileSwitchAutolevel) mobileSwitchAutolevel.classList.toggle('is-on', Boolean(state.micAutoLevel));
 
         // Owl Watermark visibility:
         // "whem mic ison the wol in teh pa lygroudn removes"

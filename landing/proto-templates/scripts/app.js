@@ -14,11 +14,16 @@
         camera: false,
         cameraQuality: '1080p',
         cameraFps: 30,
-        cameraLens: 'Back',      // 'Back' | 'Front'
+        cameraLens: 'Front',     // 'Front' | 'Back' (default Front matching Android)
         cameraFraming: 'Fill',   // 'Fill' | 'Fit'
         cameraMirror: false,
+        cameraWatching: true,    // Eye toggle for preview visibility
         cameraOrientation: 'Auto',
         mic: false,
+        micNoiseReduction: 5,    // 0 to 10 (0 is Off, 5 default)
+        micVolume: 0,            // -12 to +12 dB (steps of 3 dB)
+        micIsolation: true,      // Voice isolation on/off (default: true)
+        micAutoLevel: true,      // Auto level on/off (default: true)
         micBoost: 'Off',
         micNoise: 'Phone',
         audioLevel: 0.0,
@@ -74,7 +79,7 @@
     let frameCount = 0;
     function renderCameras() {
         frameCount++;
-        if (state.appPowered && state.pcPowered && state.camera && (state.connection === 'connected' || state.connection === 'repair')) {
+        if (state.appPowered && state.pcPowered && state.camera && state.cameraWatching && (state.connection === 'connected' || state.connection === 'repair')) {
             const time = frameCount * 0.03;
             registeredCanvases.forEach(canvas => {
                 if (!canvas.isConnected) return;
@@ -96,10 +101,14 @@
                     ctx.rotate(Math.PI / 2); // 90deg counter-rotation for rotating phone chassis
                 }
 
+                // If back lens, simulate slightly wider focal length and different ambient tint
+                const isBackLens = state.cameraLens === 'Back';
+                const lensFactor = isBackLens ? 0.92 : 1.0;
+
                 // Smooth organic breathing and micro-drift
                 const drift = Math.sin(time * 0.45) * 2.0;
                 const breath = 1.0 + Math.sin(time * 0.8) * 0.008;
-                const scale = (Math.min(w, h) / 360.0) * (isPhoneLandscape ? 1.08 : 1.0);
+                const scale = (Math.min(w, h) / 360.0) * (isPhoneLandscape ? 1.08 : 1.0) * lensFactor;
                 
                 // Prominent, well-proportioned portrait framing (larger realistic face)
                 const R = 66.0 * scale * breath;
@@ -107,8 +116,8 @@
 
                 // 1. Soft atmospheric glow behind silhouette
                 const glow = ctx.createRadialGradient(0, headCy, R * 0.25, 0, headCy + R * 0.5, R * 2.8);
-                glow.addColorStop(0, 'rgba(255, 255, 255, 0.09)');
-                glow.addColorStop(0.5, 'rgba(255, 255, 255, 0.025)');
+                glow.addColorStop(0, isBackLens ? 'rgba(255, 255, 255, 0.06)' : 'rgba(255, 255, 255, 0.09)');
+                glow.addColorStop(0.5, isBackLens ? 'rgba(255, 255, 255, 0.018)' : 'rgba(255, 255, 255, 0.025)');
                 glow.addColorStop(1, 'rgba(0, 0, 0, 0)');
                 ctx.fillStyle = glow;
                 ctx.beginPath();
@@ -238,6 +247,10 @@
             state.speaker = !state.speaker;
             notify();
         },
+        toggleWatching: () => {
+            state.cameraWatching = !state.cameraWatching;
+            notify();
+        },
         flipLens: () => {
             state.cameraLens = state.cameraLens === 'Back' ? 'Front' : 'Back';
             notify();
@@ -262,10 +275,26 @@
             state.cameraFps = fpsList[(idx + 1) % fpsList.length];
             notify();
         },
-        cycleNoiseReduction: () => {
-            const opts = ['Phone', 'Off'];
-            state.micNoise = state.micNoise === 'Phone' ? 'Off' : 'Phone';
+        setNoiseReduction: (val) => {
+            state.micNoiseReduction = Math.max(0, Math.min(10, parseInt(val, 10)));
+            state.micNoise = state.micNoiseReduction === 0 ? 'Off' : 'Phone';
             notify();
+        },
+        setVolume: (val) => {
+            state.micVolume = Math.max(-12, Math.min(12, parseInt(val, 10)));
+            notify();
+        },
+        toggleIsolation: () => {
+            state.micIsolation = !state.micIsolation;
+            notify();
+        },
+        toggleAutoLevel: () => {
+            state.micAutoLevel = !state.micAutoLevel;
+            notify();
+        },
+        cycleNoiseReduction: () => {
+            const next = (state.micNoiseReduction + 1) % 11;
+            window.OwlmicStore.setNoiseReduction(next);
         },
         cycleBoost: () => {
             const opts = ['Off', '+6 dB', '+12 dB'];
