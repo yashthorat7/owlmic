@@ -67,10 +67,17 @@ The phone uses no colour: green, yellow and red are the PC panel's. On the phone
 ## 3. Windows Native Flyout Panel (`pc/crates/owlmic-ui`)
 
 Rather than shipping Chromium/Electron or bloated webview engines, Owlmic PC uses a **100% native Win32 Direct2D / DirectWrite hardware-accelerated renderer**:
-- **Geometry**: Compact Bento 6-square layout (312 × 374 px window with a 1 px `#7E7E7E` seam) positioned above the taskbar system tray:
-  - **Playground Tile**: Fixed 310 × 310 px top area displaying an 18 px dot matrix, faint watermark owl, live camera preview, audio waveform, and slide-down drawers.
+- **Geometry & Positioning**: Compact Bento 6-square layout (312 × 374 px window with a 1 px `#7E7E7E` seam).
+  - Dynamically positioned relative to the clicked tray icon or cursor: its bottom edge rests ~20 px above the tray icon (or 20 px below for top-mounted taskbars), clamped safely inside the display work area.
+  - Smooth appear/disappear animation using Win32 `AnimateWindow` with `AW_BLEND` fade transition.
+  - **Playground Tile**: Fixed 310 × 310 px top area displaying an 18 px dot matrix, faint watermark owl, live camera preview, audio waveform, and slide-down drawers. Never obscured by rogue offline banners or centered disconnection text.
   - **Bottom Row**: Five 61 × 61 px square button tiles: Setup & Help (`?`), Camera, Mic, Speaker, and Connection / Link (`Wi-Fi`/`USB`/`BT`/`Globe`).
+  - **Unified Camera Icon**: Standardized across both Android and PC on the 24px Lucide camera glyph (body, top notch, and lens aperture).
 - **Instant Response**: Panel opens in < 15 ms with zero cold-start delay, rendering directly with hardware Direct2D double-buffering.
+- **Logo Variants**:
+  1. `icon.svg`: Transparent background standalone owl (white body, black eyes, black beak).
+  2. `icon-badge.svg`: Black squircle background (`rx="112"`, `#000000`) with padding and centered owl.
+  3. `icon-adaptive.svg`: Adaptive light/dark palette matching OS appearance preferences.
 - **Drawers & Controls**:
   - **Connection Drawer**: Displays active phone, standby/blocked phones, direct IP info, and 5 link transport toggles (USB debugging, USB tethering, Wi-Fi, Bluetooth, Direct IP).
   - **Help Drawer**: Step-by-step setup guide, quick links (Website, Privacy, Donate, GitHub), and build version.
