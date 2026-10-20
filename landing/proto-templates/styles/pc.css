@@ -1023,34 +1023,6 @@
     cursor: not-allowed;
 }
 
-/* --- PC DISCONNECTED OVERLAY --- */
-.pc-disconnected-overlay {
-    position: absolute;
-    inset: 0;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 4px;
-    z-index: 5;
-    pointer-events: none;
-}
-
-.pc-disconnected-icon {
-    color: #555558;
-    margin-bottom: 4px;
-}
-
-.pc-disconnected-title {
-    font-size: 13px;
-    font-weight: 600;
-    color: #E6E6E6;
-}
-
-.pc-disconnected-sub {
-    font-size: 10px;
-    color: #8E8E93;
-}
 
 /* --- LINK INDICATOR PULSE & ALERT --- */
 @keyframes pcLinkPulse {

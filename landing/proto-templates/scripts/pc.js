@@ -594,10 +594,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
 
-        // Disconnected Overlay
-        if (pcDisconnectedOverlay) {
-            pcDisconnectedOverlay.style.display = (state.connection === 'not_connected') ? 'flex' : 'none';
-        }
 
         // Wi-Fi Indicator Icon (Pulsing when approving/reconnecting, Alert when offline/repair)
         if (indicatorIcon && btnWifi) {
