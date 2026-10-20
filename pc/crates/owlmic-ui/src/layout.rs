@@ -1,5 +1,9 @@
-//! The panel's grid (SYSTEM_DESIGN sections 33 and 35) in pixels at 100% scale, and what a
-//! click lands on. Every gap is the 1 px hairline the background shows through.
+//! The panel's compact Bento 6-Square layout (312 x 374 px) in physical pixels at 100% scale,
+//! conforming to landing/proto-templates and android design language.
+//!
+//! - Top: 1 Big Playground tile (310 x 310 px) with 12 px rounded corners.
+//! - Bottom: 5 Square Bento Buttons in a single line (61 x 61 px) with 12 px rounded corners.
+//! - Hairline seams: 1 px gap (#7E7E7E) throughout.
 
 use crate::panel as p;
 
@@ -32,152 +36,289 @@ impl Rect {
         Rect::new(
             self.x + by,
             self.y + by,
-            self.w - 2.0 * by,
-            self.h - 2.0 * by,
+            (self.w - 2.0 * by).max(0.0),
+            (self.h - 2.0 * by).max(0.0),
         )
     }
 }
 
-const GAP: f32 = 1.0;
 pub const WIDTH: f32 = p::WIDTH_PX;
 pub const HEIGHT: f32 = p::HEIGHT_PX;
+pub const GAP: f32 = 1.0;
+pub const PAD: f32 = 1.0;
 
-pub const CAMERA: Rect = Rect::new(0.0, 0.0, p::CAMERA_WIDTH_PX, p::CAMERA_HEIGHT_PX);
-pub const MIC: Rect = Rect::new(
-    p::CAMERA_WIDTH_PX + GAP,
-    0.0,
-    p::FEATURE_TILE_PX,
-    p::FEATURE_ROW_PX,
-);
-pub const SPEAKER: Rect = Rect::new(
-    MIC.x + p::FEATURE_TILE_PX + GAP,
-    0.0,
-    p::FEATURE_TILE_PX,
-    p::FEATURE_ROW_PX,
-);
-pub const PHONE: Rect = Rect::new(
-    MIC.x,
-    p::FEATURE_ROW_PX + GAP,
-    WIDTH - MIC.x,
-    p::PHONE_TILE_HEIGHT_PX,
-);
-const BOTTOM_Y: f32 = HEIGHT - p::BOTTOM_ROW_PX;
+/// The top 1:1 square playground box (310 x 310 px).
+pub const PLAYGROUND: Rect = Rect::new(PAD, PAD, 310.0, 310.0);
 
-/// Fill or Fit, Mirror, Lens, Settings, the connection indicator.
-pub fn bottom(i: usize) -> Rect {
-    const WIDTHS: [f32; 5] = [111.0, 111.0, 111.0, 111.0, 112.0];
-    let x: f32 = WIDTHS[..i].iter().map(|w| w + GAP).sum();
-    Rect::new(x, BOTTOM_Y, WIDTHS[i], p::BOTTOM_ROW_PX)
+/// The bottom bento row (310 x 61 px).
+pub const BOTTOM_BAR: Rect = Rect::new(PAD, 312.0, 310.0, 61.0);
+
+/// The 5 square buttons across the bottom row.
+pub const BTN_HELP: Rect = Rect::new(1.0, 312.0, 61.0, 61.0);
+pub const BTN_CAM: Rect = Rect::new(63.0, 312.0, 61.0, 61.0);
+pub const BTN_MIC: Rect = Rect::new(125.0, 312.0, 61.0, 61.0);
+pub const BTN_SPK: Rect = Rect::new(187.0, 312.0, 61.0, 61.0);
+pub const BTN_WIFI: Rect = Rect::new(249.0, 312.0, 62.0, 61.0);
+
+pub fn btn_bottom(i: usize) -> Rect {
+    match i {
+        0 => BTN_HELP,
+        1 => BTN_CAM,
+        2 => BTN_MIC,
+        3 => BTN_SPK,
+        _ => BTN_WIFI,
+    }
 }
 
-/// The Repair tile over the top of the camera area.
-pub const REPAIR: Rect = Rect::new(0.0, 0.0, CAMERA.w, 64.0);
-pub fn repair_button() -> Rect {
-    Rect::new(
-        REPAIR.right() - 12.0 - 80.0,
-        REPAIR.y + (REPAIR.h - 32.0) / 2.0,
-        80.0,
-        32.0,
-    )
+// Floating Camera Controls over Playground (Top-Right)
+pub const BTN_WATCH: Rect = Rect::new(197.0, 11.0, 32.0, 32.0);
+pub const BTN_MIRROR: Rect = Rect::new(233.0, 11.0, 32.0, 32.0);
+pub const BTN_FLIP: Rect = Rect::new(269.0, 11.0, 32.0, 32.0);
+
+// Floating Mic Settings Button over Playground (Bottom-Right)
+pub const BTN_MIC_SETTINGS: Rect = Rect::new(269.0, 269.0, 32.0, 32.0);
+
+// Waveform Docks
+pub const WAVEFORM_CENTER: Rect = Rect::new(46.0, 105.0, 220.0, 70.0);
+pub const WAVEFORM_DOCKED: Rect = Rect::new(81.0, 269.0, 150.0, 32.0);
+
+// Repair Banner over Playground
+pub const REPAIR_BANNER: Rect = Rect::new(9.0, 9.0, 294.0, 40.0);
+pub const REPAIR_BTN: Rect = Rect::new(229.0, 16.0, 64.0, 26.0);
+
+// Drawer Navigation & Header (Shared across all drawers)
+pub const DRAWER_HEADER: Rect = Rect::new(1.0, 1.0, 310.0, 42.0);
+pub const DRAWER_BACK: Rect = Rect::new(11.0, 8.0, 28.0, 28.0);
+pub const DRAWER_BODY: Rect = Rect::new(1.0, 43.0, 310.0, 268.0);
+
+// Connection Drawer (Footer with 5 link buttons)
+pub const CONN_FOOTER: Rect = Rect::new(1.0, 267.0, 310.0, 44.0);
+pub fn conn_type_btn(i: usize) -> Rect {
+    let x = 9.0 + (i.min(4) as f32) * 60.0;
+    Rect::new(x, 273.0, 54.0, 32.0)
 }
+pub const PHONE_ROW_H: f32 = 48.0;
+pub const PHONE_BTN_W: f32 = 54.0;
 
-/// The approve gate: a message tile over Allow and Deny.
-pub const GATE: Rect = Rect::new(0.0, 0.0, WIDTH, BOTTOM_Y - GAP);
-pub const ALLOW: Rect = Rect::new(0.0, BOTTOM_Y, (WIDTH - GAP) / 2.0 - 0.5, p::BOTTOM_ROW_PX);
-pub const DENY: Rect = Rect::new(
-    ALLOW.w + GAP,
-    BOTTOM_Y,
-    WIDTH - ALLOW.w - GAP,
-    p::BOTTOM_ROW_PX,
-);
+// Mic Drawer (Sliders & Switches)
+pub const SLIDER_NOISE_TRACK: Rect = Rect::new(15.0, 74.0, 282.0, 24.0);
+pub const SLIDER_VOLUME_TRACK: Rect = Rect::new(15.0, 132.0, 282.0, 24.0);
+pub const TOGGLE_ISOLATION_ROW: Rect = Rect::new(1.0, 175.0, 310.0, 48.0);
+pub const TOGGLE_ISOLATION_SWITCH: Rect = Rect::new(255.0, 187.0, 42.0, 24.0);
+pub const TOGGLE_AUTOLEVEL_ROW: Rect = Rect::new(1.0, 227.0, 310.0, 48.0);
+pub const TOGGLE_AUTOLEVEL_SWITCH: Rect = Rect::new(255.0, 239.0, 42.0, 24.0);
 
-/// The settings view: a back row, then a scrolling list.
-pub const BACK: Rect = Rect::new(0.0, 0.0, WIDTH, 40.0);
-pub const LIST: Rect = Rect::new(0.0, BACK.h + GAP, WIDTH, HEIGHT - BACK.h - GAP);
-pub const ROW: f32 = 32.0;
-/// Phone rows end in two buttons: Remove, then Block or Unblock.
-pub const ROW_BUTTON: f32 = 88.0;
+// Help Drawer Rows
+pub const HELP_STEP_1: Rect = Rect::new(1.0, 43.0, 310.0, 48.0);
+pub const HELP_STEP_2: Rect = Rect::new(1.0, 91.0, 310.0, 48.0);
+pub const HELP_STEP_3: Rect = Rect::new(1.0, 139.0, 310.0, 48.0);
+pub const HELP_PRIVACY: Rect = Rect::new(1.0, 187.0, 310.0, 40.0);
+pub const HELP_DONATE: Rect = Rect::new(1.0, 227.0, 310.0, 40.0);
+pub const HELP_VERSION: Rect = Rect::new(1.0, 267.0, 310.0, 40.0);
+
+// Approval Gate Screen
+pub const GATE_BODY: Rect = Rect::new(1.0, 1.0, 310.0, 316.0);
+pub const GATE_DENY: Rect = Rect::new(1.0, 318.0, 154.0, 55.0);
+pub const GATE_ALLOW: Rect = Rect::new(156.0, 318.0, 155.0, 55.0);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Target {
-    Camera,
+pub enum Drawer {
+    Connection,
+    Help,
     Mic,
-    Speaker,
-    Phone,
-    Framing,
-    Mirror,
-    Lens,
-    Settings,
-    Indicator,
-    Repair,
-    Allow,
-    Deny,
-    Back,
-    /// A settings row, and which of its buttons (0 for the row itself).
-    Row(usize, u8),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Screen {
-    Main { repair: bool },
+    Main {
+        repair: bool,
+        drawer: Option<Drawer>,
+        camera_on: bool,
+        mic_on: bool,
+    },
     Gate,
-    Settings,
 }
 
-/// What sits under (x, y) in panel pixels at 100%, with the settings list scrolled by `scroll`.
-pub fn hit(screen: Screen, x: f32, y: f32, scroll: f32, rows: usize) -> Option<Target> {
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum Target {
+    // Bottom Bento Buttons
+    Help,
+    Camera,
+    Mic,
+    Speaker,
+    Wifi,
+
+    // Floating Camera Controls
+    Watch,
+    Mirror,
+    Flip,
+
+    // Floating Mic Controls
+    MicSettings,
+    Waveform,
+
+    // Repair Banner
+    Repair,
+
+    // Drawer Header
+    DrawerBack,
+
+    // Connection Drawer
+    PhoneRow(usize, u8),
+    ConnType(u8),
+
+    // Mic Drawer
+    NoiseSlider(f32),
+    VolumeSlider(f32),
+    ToggleIsolation,
+    ToggleAutoLevel,
+
+    // Help Drawer
+    HelpStepDownload,
+    HelpStepConnect,
+    HelpStepStream,
+    HelpPrivacy,
+    HelpDonate,
+
+    // Approval Gate
+    Allow,
+    Deny,
+}
+
+/// What sits under (x, y) in panel coordinates at 100% scale.
+pub fn hit(screen: Screen, x: f32, y: f32, phone_count: usize) -> Option<Target> {
     match screen {
-        Screen::Gate => [(ALLOW, Target::Allow), (DENY, Target::Deny)]
-            .into_iter()
-            .find(|(r, _)| r.contains(x, y))
-            .map(|(_, t)| t),
-        Screen::Settings => {
-            if BACK.contains(x, y) {
-                return Some(Target::Back);
-            }
-            if !LIST.contains(x, y) {
-                return None;
-            }
-            let row = ((y - LIST.y + scroll) / (ROW + GAP)) as usize;
-            if row >= rows {
-                return None;
-            }
-            let from_right = WIDTH - x;
-            let button = if from_right < ROW_BUTTON {
-                2
-            } else if from_right < 2.0 * ROW_BUTTON + GAP {
-                1
+        Screen::Gate => {
+            if GATE_ALLOW.contains(x, y) {
+                Some(Target::Allow)
+            } else if GATE_DENY.contains(x, y) {
+                Some(Target::Deny)
             } else {
-                0
-            };
-            Some(Target::Row(row, button))
+                None
+            }
         }
-        Screen::Main { repair } => {
-            if repair && repair_button().contains(x, y) {
+        Screen::Main {
+            repair,
+            drawer,
+            camera_on,
+            mic_on,
+        } => {
+            // 1. Bottom Bento Buttons are always active and interactive
+            if BTN_HELP.contains(x, y) {
+                return Some(Target::Help);
+            }
+            if BTN_CAM.contains(x, y) {
+                return Some(Target::Camera);
+            }
+            if BTN_MIC.contains(x, y) {
+                return Some(Target::Mic);
+            }
+            if BTN_SPK.contains(x, y) {
+                return Some(Target::Speaker);
+            }
+            if BTN_WIFI.contains(x, y) {
+                return Some(Target::Wifi);
+            }
+
+            // 2. If a drawer is open inside Playground
+            if let Some(d) = drawer {
+                if DRAWER_BACK.contains(x, y) || DRAWER_HEADER.contains(x, y) {
+                    return Some(Target::DrawerBack);
+                }
+
+                match d {
+                    Drawer::Connection => {
+                        // Check footer connection types (USB adb, Tethering, Wi-Fi, BT, Direct IP)
+                        for i in 0..5 {
+                            if conn_type_btn(i).contains(x, y) {
+                                return Some(Target::ConnType(i as u8));
+                            }
+                        }
+                        // Check phone list rows
+                        let list_y = DRAWER_BODY.y;
+                        if y >= list_y && y < CONN_FOOTER.y {
+                            let idx = ((y - list_y) / PHONE_ROW_H) as usize;
+                            if idx < phone_count.max(1) {
+                                let from_right = PLAYGROUND.right() - x;
+                                let btn = if from_right < PHONE_BTN_W {
+                                    2 // Block/Unblock
+                                } else if from_right < 2.0 * PHONE_BTN_W {
+                                    1 // Remove
+                                } else {
+                                    0 // Row itself
+                                };
+                                return Some(Target::PhoneRow(idx, btn));
+                            }
+                        }
+                    }
+                    Drawer::Help => {
+                        if HELP_STEP_1.contains(x, y) {
+                            return Some(Target::HelpStepDownload);
+                        }
+                        if HELP_STEP_2.contains(x, y) {
+                            return Some(Target::HelpStepConnect);
+                        }
+                        if HELP_STEP_3.contains(x, y) {
+                            return Some(Target::HelpStepStream);
+                        }
+                        if HELP_PRIVACY.contains(x, y) {
+                            return Some(Target::HelpPrivacy);
+                        }
+                        if HELP_DONATE.contains(x, y) {
+                            return Some(Target::HelpDonate);
+                        }
+                    }
+                    Drawer::Mic => {
+                        if SLIDER_NOISE_TRACK.inset(-6.0).contains(x, y) {
+                            let frac =
+                                ((x - SLIDER_NOISE_TRACK.x) / SLIDER_NOISE_TRACK.w).clamp(0.0, 1.0);
+                            return Some(Target::NoiseSlider(frac));
+                        }
+                        if SLIDER_VOLUME_TRACK.inset(-6.0).contains(x, y) {
+                            let frac = ((x - SLIDER_VOLUME_TRACK.x) / SLIDER_VOLUME_TRACK.w)
+                                .clamp(0.0, 1.0);
+                            return Some(Target::VolumeSlider(frac));
+                        }
+                        if TOGGLE_ISOLATION_ROW.contains(x, y) {
+                            return Some(Target::ToggleIsolation);
+                        }
+                        if TOGGLE_AUTOLEVEL_ROW.contains(x, y) {
+                            return Some(Target::ToggleAutoLevel);
+                        }
+                    }
+                }
+                return None;
+            }
+
+            // 3. Normal Playground (no drawer open)
+            if repair && REPAIR_BTN.inset(-4.0).contains(x, y) {
                 return Some(Target::Repair);
             }
-            let tiles = [
-                (CAMERA, Target::Camera),
-                (MIC, Target::Mic),
-                (SPEAKER, Target::Speaker),
-                (PHONE, Target::Phone),
-                (bottom(0), Target::Framing),
-                (bottom(1), Target::Mirror),
-                (bottom(2), Target::Lens),
-                (bottom(3), Target::Settings),
-                (bottom(4), Target::Indicator),
-            ];
-            tiles
-                .into_iter()
-                .find(|(r, _)| r.contains(x, y))
-                .map(|(_, t)| t)
+
+            if camera_on {
+                if BTN_WATCH.contains(x, y) {
+                    return Some(Target::Watch);
+                }
+                if BTN_MIRROR.contains(x, y) {
+                    return Some(Target::Mirror);
+                }
+                if BTN_FLIP.contains(x, y) {
+                    return Some(Target::Flip);
+                }
+                if mic_on && WAVEFORM_DOCKED.contains(x, y) {
+                    return Some(Target::Waveform);
+                }
+            } else if mic_on && WAVEFORM_CENTER.contains(x, y) {
+                return Some(Target::Waveform);
+            }
+
+            if mic_on && BTN_MIC_SETTINGS.contains(x, y) {
+                return Some(Target::MicSettings);
+            }
+
+            None
         }
     }
-}
-
-/// The settings list's full height, for scrolling.
-pub fn list_height(rows: usize) -> f32 {
-    rows as f32 * (ROW + GAP)
 }
 
 /// Where the panel opens, in screen pixels: centred over the tray icon `anchor`, kept inside the
@@ -210,73 +351,96 @@ mod tests {
     fn the_panel_opens_above_the_tray_inside_the_screen() {
         let work = (0, 0, 1920, 1040);
         assert_eq!(
-            place((1800, 1050, 1824, 1074), work, (560, 255), 12),
-            (1348, 773)
+            place((1800, 1050, 1824, 1074), work, (312, 374), 12),
+            (1596, 654)
         );
         assert_eq!(
-            place((100, 1050, 124, 1074), work, (560, 255), 12),
-            (12, 773)
+            place((100, 1050, 124, 1074), work, (312, 374), 12),
+            (12, 654)
         );
         let top = (0, 40, 1920, 1080);
-        assert_eq!(place((1800, 8, 1824, 32), top, (560, 255), 12).1, 52);
+        assert_eq!(place((1800, 8, 1824, 32), top, (312, 374), 12).1, 52);
     }
 
     #[test]
-    fn the_grid_fills_560_by_255_with_1_px_gaps() {
-        assert_eq!(SPEAKER.right(), WIDTH);
-        assert_eq!(PHONE.bottom(), CAMERA.bottom());
-        assert_eq!(bottom(4).right(), WIDTH);
-        assert_eq!(bottom(0).y, CAMERA.bottom() + 1.0);
-        assert_eq!(bottom(0).bottom(), HEIGHT);
-        for i in 0..4 {
-            assert_eq!(bottom(i + 1).x, bottom(i).right() + 1.0);
-        }
-        assert_eq!(DENY.right(), WIDTH);
-        assert_eq!(DENY.x, ALLOW.right() + 1.0);
+    fn the_grid_fills_312_by_374_with_1_px_gaps() {
+        assert_eq!(PLAYGROUND.x, 1.0);
+        assert_eq!(PLAYGROUND.y, 1.0);
+        assert_eq!(PLAYGROUND.w, 310.0);
+        assert_eq!(PLAYGROUND.h, 310.0);
+        assert_eq!(BOTTOM_BAR.y, PLAYGROUND.bottom() + 1.0);
+        assert_eq!(BOTTOM_BAR.bottom(), HEIGHT - 1.0);
+        assert_eq!(BTN_HELP.x, 1.0);
+        assert_eq!(BTN_CAM.x, BTN_HELP.right() + 1.0);
+        assert_eq!(BTN_MIC.x, BTN_CAM.right() + 1.0);
+        assert_eq!(BTN_SPK.x, BTN_MIC.right() + 1.0);
+        assert_eq!(BTN_WIFI.x, BTN_SPK.right() + 1.0);
+        assert_eq!(BTN_WIFI.right(), WIDTH - 1.0);
+        assert_eq!(GATE_DENY.right() + 1.0, GATE_ALLOW.x);
     }
 
     #[test]
     fn clicks_find_their_tile() {
-        let main = Screen::Main { repair: false };
-        assert_eq!(hit(main, 10.0, 10.0, 0.0, 0), Some(Target::Camera));
-        assert_eq!(hit(main, 400.0, 50.0, 0.0, 0), Some(Target::Mic));
-        assert_eq!(hit(main, 500.0, 50.0, 0.0, 0), Some(Target::Speaker));
-        assert_eq!(hit(main, 352.5, 50.0, 0.0, 0), None, "the hairline");
-        assert_eq!(hit(main, 555.0, 250.0, 0.0, 0), Some(Target::Indicator));
-        let r = repair_button();
-        assert_eq!(
-            hit(Screen::Main { repair: true }, r.x + 1.0, r.y + 1.0, 0.0, 0),
-            Some(Target::Repair)
-        );
-        assert_eq!(hit(Screen::Gate, 100.0, 220.0, 0.0, 0), Some(Target::Allow));
-        assert_eq!(hit(Screen::Gate, 100.0, 100.0, 0.0, 0), None);
-    }
+        let main = Screen::Main {
+            repair: false,
+            drawer: None,
+            camera_on: false,
+            mic_on: false,
+        };
+        assert_eq!(hit(main, 30.0, 330.0, 0), Some(Target::Help));
+        assert_eq!(hit(main, 90.0, 330.0, 0), Some(Target::Camera));
+        assert_eq!(hit(main, 150.0, 330.0, 0), Some(Target::Mic));
+        assert_eq!(hit(main, 210.0, 330.0, 0), Some(Target::Speaker));
+        assert_eq!(hit(main, 280.0, 330.0, 0), Some(Target::Wifi));
 
-    #[test]
-    fn settings_rows_scroll_and_have_buttons_on_the_right() {
+        let with_repair = Screen::Main {
+            repair: true,
+            drawer: None,
+            camera_on: false,
+            mic_on: false,
+        };
+        assert_eq!(hit(with_repair, 240.0, 24.0, 0), Some(Target::Repair));
+
+        let with_cam = Screen::Main {
+            repair: false,
+            drawer: None,
+            camera_on: true,
+            mic_on: true,
+        };
+        assert_eq!(hit(with_cam, 280.0, 20.0, 0), Some(Target::Flip));
+        assert_eq!(hit(with_cam, 245.0, 20.0, 0), Some(Target::Mirror));
+        assert_eq!(hit(with_cam, 210.0, 20.0, 0), Some(Target::Watch));
+        assert_eq!(hit(with_cam, 280.0, 280.0, 0), Some(Target::MicSettings));
+        assert_eq!(hit(with_cam, 150.0, 280.0, 0), Some(Target::Waveform));
+
+        let with_mic_drawer = Screen::Main {
+            repair: false,
+            drawer: Some(Drawer::Mic),
+            camera_on: false,
+            mic_on: true,
+        };
         assert_eq!(
-            hit(Screen::Settings, 10.0, 10.0, 0.0, 5),
-            Some(Target::Back)
+            hit(with_mic_drawer, 20.0, 20.0, 0),
+            Some(Target::DrawerBack)
+        );
+        assert!(matches!(
+            hit(with_mic_drawer, 100.0, 80.0, 0),
+            Some(Target::NoiseSlider(_))
+        ));
+        assert!(matches!(
+            hit(with_mic_drawer, 100.0, 140.0, 0),
+            Some(Target::VolumeSlider(_))
+        ));
+        assert_eq!(
+            hit(with_mic_drawer, 260.0, 190.0, 0),
+            Some(Target::ToggleIsolation)
         );
         assert_eq!(
-            hit(Screen::Settings, 10.0, LIST.y + 1.0, 0.0, 5),
-            Some(Target::Row(0, 0))
+            hit(with_mic_drawer, 260.0, 245.0, 0),
+            Some(Target::ToggleAutoLevel)
         );
-        assert_eq!(
-            hit(Screen::Settings, 10.0, LIST.y + 1.0, ROW + 1.0, 5),
-            Some(Target::Row(1, 0))
-        );
-        assert_eq!(
-            hit(Screen::Settings, WIDTH - 10.0, LIST.y + 1.0, 0.0, 5),
-            Some(Target::Row(0, 2))
-        );
-        assert_eq!(
-            hit(Screen::Settings, WIDTH - 100.0, LIST.y + 1.0, 0.0, 5),
-            Some(Target::Row(0, 1))
-        );
-        assert_eq!(
-            hit(Screen::Settings, 10.0, LIST.y + 1.0, 10.0 * ROW, 5),
-            None
-        );
+
+        assert_eq!(hit(Screen::Gate, 100.0, 340.0, 0), Some(Target::Deny));
+        assert_eq!(hit(Screen::Gate, 200.0, 340.0, 0), Some(Target::Allow));
     }
 }

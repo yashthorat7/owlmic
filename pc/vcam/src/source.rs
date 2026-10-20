@@ -195,7 +195,17 @@ impl IMFMediaSource_Impl for Source_Impl {
     }
 
     fn Pause(&self) -> Result<()> {
-        Err(MF_E_INVALID_STATE_TRANSITION.into())
+        let stream = self.stream()?;
+        stream.pause()?;
+        let empty = PROPVARIANT::default();
+        unsafe {
+            self.queue.QueueEventParamVar(
+                MESourcePaused.0 as u32,
+                &GUID::zeroed(),
+                HRESULT(0),
+                &empty,
+            )
+        }
     }
 
     fn Shutdown(&self) -> Result<()> {

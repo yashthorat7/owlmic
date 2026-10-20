@@ -21,6 +21,7 @@ pc/softcam.dll
 # Windows installer: driver files downloaded by CI, and the build output
 pc/installer/driver/
 pc/installer/Output/
+landing/proto-templates/downloads/
 
 # IDE
 .idea/

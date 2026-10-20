@@ -10,6 +10,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 1. Top Playground Elements
     const playgroundTile = root.querySelector('.pc-playground-tile');
+    const cameraBackdropCanvas = root.querySelector('.js-pc-camera-backdrop');
     const cameraCanvas = root.querySelector('.js-pc-camera-canvas');
     const cameraWatermark = root.querySelector('.js-pc-camera-watermark');
 
@@ -25,7 +26,26 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnWifi = root.querySelector('.js-pc-btn-wifi');
     const indicatorIcon = root.querySelector('.js-pc-indicator-icon');
 
-    // Register canvas with central renderer
+    // Screens (Main Bento vs Approval Gate)
+    const pcScreenMain = root.querySelector('.js-pc-screen-main');
+    const pcScreenGate = root.querySelector('.js-pc-screen-gate');
+    const pcGateTitle = root.querySelector('.js-pc-gate-title');
+    const pcGateCode = root.querySelector('.js-pc-gate-code');
+    const btnGateAllow = root.querySelector('.js-pc-gate-allow');
+    const btnGateDeny = root.querySelector('.js-pc-gate-deny');
+
+    // Repair Banner & Disconnected Overlay
+    const pcRepairBanner = root.querySelector('.js-pc-repair-banner');
+    const btnRepair = root.querySelector('.js-pc-repair-btn');
+    const repairText = root.querySelector('.js-pc-repair-text');
+    const pcDisconnectedOverlay = root.querySelector('.js-pc-disconnected-overlay');
+
+    // Register canvases with central renderer
+    if (cameraBackdropCanvas) {
+        cameraBackdropCanvas.width = 340;
+        cameraBackdropCanvas.height = 340;
+        OwlmicStore.registerCameraCanvas(cameraBackdropCanvas);
+    }
     if (cameraCanvas) {
         cameraCanvas.width = 340;
         cameraCanvas.height = 340;
@@ -86,9 +106,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const pcDrawerScreenWifi = root.querySelector('.js-pc-drawer-screen-wifi');
     const pcDrawerScreenHelp = root.querySelector('.js-pc-drawer-screen-help');
     const pcDrawerScreenMic = root.querySelector('.js-pc-drawer-screen-mic');
-    const pcDrawerBackBtns = root.querySelectorAll('.js-pc-drawer-back-btn');
     const pcConnTypeBtns = root.querySelectorAll('.js-pc-conn-type-btn');
     const pcDrawerPhoneName = root.querySelector('.js-pc-drawer-phone-name');
+    const pcReconnectBtn = root.querySelector('.js-pc-footer-btn-reconnect');
+    const pcReconnectSpinIcon = root.querySelector('.js-pc-reconnect-spin');
 
     // Floating Camera Controls (Eye, Mirror, Flip)
     const pcCameraControls = root.querySelector('.js-pc-camera-controls');
@@ -110,6 +131,18 @@ document.addEventListener('DOMContentLoaded', () => {
     const switchIsolation = root.querySelector('.js-pc-switch-isolation');
     const toggleRowAutolevel = root.querySelector('.js-pc-toggle-row-autolevel');
     const switchAutolevel = root.querySelector('.js-pc-switch-autolevel');
+
+    // PC Capsule Elements inside PC Waveform Dock
+    const pcCapsuleDrawer = root.querySelector('.js-pc-capsule-drawer');
+    const pcCapsuleWaveArea = root.querySelector('.js-pc-capsule-wave-area');
+    const pcCapsuleSliderNoise = root.querySelector('.js-pc-capsule-slider-noise');
+    const pcCapsuleNoiseVal = root.querySelector('.js-pc-capsule-noise-val');
+    const pcCapsuleSliderVolume = root.querySelector('.js-pc-capsule-slider-volume');
+    const pcCapsuleVolumeVal = root.querySelector('.js-pc-capsule-volume-val');
+    const pcCapsuleToggleIsolation = root.querySelector('.js-pc-capsule-toggle-isolation');
+    const pcCapsuleSwitchIsolation = root.querySelector('.js-pc-capsule-switch-isolation');
+    const pcCapsuleToggleAutolevel = root.querySelector('.js-pc-capsule-toggle-autolevel');
+    const pcCapsuleSwitchAutolevel = root.querySelector('.js-pc-capsule-switch-autolevel');
 
     function openPcWifiDrawer() {
         if (!pcDrawer) return;
@@ -174,6 +207,25 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // Event listeners - Approval Gate & Repair Actions
+    if (btnGateAllow) {
+        btnGateAllow.addEventListener('click', () => {
+            OwlmicStore.allowApproval();
+        });
+    }
+
+    if (btnGateDeny) {
+        btnGateDeny.addEventListener('click', () => {
+            OwlmicStore.denyApproval();
+        });
+    }
+
+    if (btnRepair) {
+        btnRepair.addEventListener('click', () => {
+            OwlmicStore.repairNow();
+        });
+    }
+
     // Event listeners - Mic Settings Button & Waveform Click
     if (btnMicSettings) {
         btnMicSettings.addEventListener('click', (e) => {
@@ -191,15 +243,50 @@ document.addEventListener('DOMContentLoaded', () => {
     if (waveformDock) {
         waveformDock.addEventListener('click', (e) => {
             const state = OwlmicStore.getState();
-            if (state.mic) {
+            if (state.camera && state.mic) {
                 e.stopPropagation();
-                const isMicOpen = pcDrawer && pcDrawer.classList.contains('is-open') &&
-                                  pcDrawerScreenMic && pcDrawerScreenMic.style.display !== 'none';
-                if (isMicOpen) {
-                    closePcDrawer();
-                } else {
-                    openPcMicDrawer();
-                }
+                waveformDock.classList.toggle('is-expanded');
+            }
+        });
+    }
+
+    if (pcCapsuleDrawer) {
+        pcCapsuleDrawer.addEventListener('click', (e) => {
+            e.stopPropagation();
+        });
+    }
+
+    if (pcCapsuleSliderNoise) {
+        pcCapsuleSliderNoise.addEventListener('input', (e) => {
+            OwlmicStore.setNoiseReduction(e.target.value);
+        });
+    }
+
+    if (pcCapsuleSliderVolume) {
+        pcCapsuleSliderVolume.addEventListener('input', (e) => {
+            OwlmicStore.setVolume(e.target.value);
+        });
+    }
+
+    if (pcCapsuleToggleIsolation) {
+        pcCapsuleToggleIsolation.addEventListener('click', (e) => {
+            e.stopPropagation();
+            OwlmicStore.toggleIsolation();
+        });
+    }
+
+    if (pcCapsuleToggleAutolevel) {
+        pcCapsuleToggleAutolevel.addEventListener('click', (e) => {
+            e.stopPropagation();
+            OwlmicStore.toggleAutoLevel();
+        });
+    }
+
+    const pcPlaygroundTile = root.querySelector('.js-pc-camera-tile');
+    if (pcPlaygroundTile) {
+        pcPlaygroundTile.addEventListener('click', () => {
+            if (waveformDock && waveformDock.classList.contains('is-expanded')) {
+                waveformDock.classList.remove('is-expanded');
             }
         });
     }
@@ -281,12 +368,80 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
+    if (pcReconnectBtn) {
+        pcReconnectBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (pcReconnectSpinIcon) {
+                pcReconnectSpinIcon.classList.remove('is-spinning');
+                void pcReconnectSpinIcon.offsetWidth;
+                pcReconnectSpinIcon.classList.add('is-spinning');
+            }
+            OwlmicStore.reconnect();
+        });
+    }
+
     pcConnTypeBtns.forEach(btn => {
         btn.addEventListener('click', (e) => {
             e.stopPropagation();
-            btn.classList.toggle('is-on');
+            const type = btn.getAttribute('data-type');
+            if (type) {
+                OwlmicStore.toggleLink(type);
+            }
         });
     });
+
+    // Drawer PC expand/collapse rows (Matching Compose Drawers.kt accordion behavior)
+    const pcDrawerRows = root.querySelectorAll('.js-pc-drawer-pc-toggle');
+    pcDrawerRows.forEach(toggle => {
+        toggle.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const parent = toggle.closest('.drawer-pc-entry');
+            if (!parent) return;
+            const expand = parent.querySelector('.drawer-entry-expand');
+            if (!expand) return;
+            const isCurrentlyOpen = expand.style.display !== 'none';
+
+            // Close all other rows
+            root.querySelectorAll('.js-pc-drawer-screen-wifi .drawer-pc-entry').forEach(entry => {
+                entry.classList.remove('is-open');
+                const rowExpand = entry.querySelector('.drawer-entry-expand');
+                if (rowExpand) rowExpand.style.display = 'none';
+            });
+
+            if (!isCurrentlyOpen) {
+                expand.style.display = 'flex';
+                parent.classList.add('is-open');
+            }
+        });
+    });
+
+    // Wire PC Connection Drawer Actions
+    const pcActionBlock = root.querySelector('.js-pc-action-block');
+    if (pcActionBlock) {
+        pcActionBlock.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const isBlocked = pcActionBlock.textContent === 'Unblock';
+            pcActionBlock.textContent = isBlocked ? 'Block' : 'Unblock';
+            pcActionBlock.style.color = isBlocked ? '#FF453A' : '#8E8E93';
+        });
+    }
+
+    const pcActionConnect = root.querySelector('.js-pc-action-connect');
+    if (pcActionConnect) {
+        pcActionConnect.addEventListener('click', (e) => {
+            e.stopPropagation();
+            OwlmicStore.reconnect();
+        });
+    }
+
+    const pcActionRemove = root.querySelector('.js-pc-action-remove');
+    if (pcActionRemove) {
+        pcActionRemove.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const parentEntry = pcActionRemove.closest('.drawer-pc-entry');
+            if (parentEntry) parentEntry.style.display = 'none';
+        });
+    }
 
     // State subscriber
     OwlmicStore.subscribe((state) => {
@@ -303,7 +458,10 @@ document.addEventListener('DOMContentLoaded', () => {
             playgroundTile.classList.toggle('is-mirror', Boolean(state.cameraMirror));
         }
 
-        // Camera Preview Canvas & Eye State
+        // Camera Preview Canvas, Backdrop & Eye State
+        if (cameraBackdropCanvas) {
+            cameraBackdropCanvas.style.display = (isCameraLive && state.cameraWatching) ? 'block' : 'none';
+        }
         if (cameraCanvas) {
             cameraCanvas.style.display = (isCameraLive && state.cameraWatching) ? 'block' : 'none';
         }
@@ -377,30 +535,98 @@ document.addEventListener('DOMContentLoaded', () => {
                     waveformDock.classList.add('is-docked');
                     waveformDock.classList.remove('is-centered');
                     waveformDock.title = 'Click to open microphone settings';
+                    // When camera is on, close top mic drawer if it was open
+                    if (pcDrawer && pcDrawer.classList.contains('is-open') &&
+                        pcDrawerScreenMic && pcDrawerScreenMic.style.display !== 'none') {
+                        closePcDrawer();
+                    }
                 } else {
                     waveformDock.classList.add('is-centered');
-                    waveformDock.classList.remove('is-docked');
+                    waveformDock.classList.remove('is-docked', 'is-expanded');
                     waveformDock.title = '';
                 }
             } else {
-                waveformDock.classList.remove('is-animating');
-                waveformDock.classList.remove('is-active');
-                waveformDock.classList.remove('is-centered');
-                waveformDock.classList.remove('is-docked');
+                waveformDock.classList.remove('is-animating', 'is-active', 'is-centered', 'is-docked', 'is-expanded');
                 waveformDock.title = '';
             }
         }
 
+        // PC Capsule Controls Synchronization
+        if (pcCapsuleSliderNoise) pcCapsuleSliderNoise.value = state.micNoiseReduction ?? 5;
+        if (pcCapsuleNoiseVal) {
+            const nr = state.micNoiseReduction ?? 5;
+            pcCapsuleNoiseVal.textContent = nr === 0 ? 'Off' : String(nr);
+        }
+        if (pcCapsuleSliderVolume) pcCapsuleSliderVolume.value = state.micVolume ?? 0;
+        if (pcCapsuleVolumeVal) {
+            const v = state.micVolume ?? 0;
+            pcCapsuleVolumeVal.textContent = (v > 0 ? `+${v}` : `${v}`) + ' dB';
+        }
+        if (pcCapsuleSwitchIsolation) pcCapsuleSwitchIsolation.classList.toggle('is-on', Boolean(state.micIsolation));
+        if (pcCapsuleSwitchAutolevel) pcCapsuleSwitchAutolevel.classList.toggle('is-on', Boolean(state.micAutoLevel));
+
         if (pcDrawerPhoneName) pcDrawerPhoneName.textContent = state.phoneName;
 
-        // Wi-Fi Indicator Icon (Never dimmed, follows button state)
-        if (indicatorIcon) {
-            if (btnWifi && btnWifi.classList.contains('is-on')) {
-                indicatorIcon.style.color = '#000000';
+        // Screen switching: Gate vs Main
+        if (pcScreenGate && pcScreenMain) {
+            const isGate = state.pcScreen === 'gate' || state.connection === 'approving';
+            if (isGate) {
+                pcScreenGate.classList.add('active');
+                pcScreenMain.classList.remove('active');
+                if (pcGateTitle) pcGateTitle.textContent = `${state.phoneName} wants to connect`;
+                if (pcGateCode) pcGateCode.textContent = state.code || '4821';
             } else {
-                indicatorIcon.style.color = '#E6E6E6';
+                pcScreenGate.classList.remove('active');
+                pcScreenMain.classList.add('active');
             }
-            indicatorIcon.style.opacity = '1';
+        }
+
+        // Repair Banner
+        if (pcRepairBanner) {
+            const isRepair = state.connection === 'repair' || state.repairing;
+            pcRepairBanner.style.display = isRepair ? 'flex' : 'none';
+            if (btnRepair) {
+                btnRepair.textContent = state.repairing ? 'Repairing...' : 'Repair';
+                btnRepair.disabled = Boolean(state.repairing);
+            }
+            if (repairText) {
+                repairText.textContent = state.repairing ? 'Repairing audio/video bridges...' : 'Owlmic Mic needs a repair';
+            }
+        }
+
+        // Disconnected Overlay
+        if (pcDisconnectedOverlay) {
+            pcDisconnectedOverlay.style.display = (state.connection === 'not_connected') ? 'flex' : 'none';
+        }
+
+        // Wi-Fi Indicator Icon (Pulsing when approving/reconnecting, Alert when offline/repair)
+        if (indicatorIcon && btnWifi) {
+            btnWifi.classList.remove('is-pulsing', 'is-alert');
+            if (state.connection === 'approving' || state.connection === 'reconnecting') {
+                btnWifi.classList.add('is-pulsing');
+            } else if (state.connection === 'not_connected') {
+                btnWifi.classList.add('is-alert');
+            } else if (state.connection === 'repair') {
+                indicatorIcon.style.color = '#FFD60A';
+                indicatorIcon.style.opacity = '1';
+            } else {
+                if (btnWifi.classList.contains('is-on')) {
+                    indicatorIcon.style.color = '#000000';
+                } else {
+                    indicatorIcon.style.color = '#E6E6E6';
+                }
+                indicatorIcon.style.opacity = '1';
+            }
+        }
+
+        // Connection links synchronization
+        if (state.links) {
+            pcConnTypeBtns.forEach(btn => {
+                const type = btn.getAttribute('data-type');
+                if (type && state.links[type] !== undefined) {
+                    btn.classList.toggle('is-on', Boolean(state.links[type]));
+                }
+            });
         }
     });
 });

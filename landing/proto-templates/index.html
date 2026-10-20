@@ -4,11 +4,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Owlmic UI Prototype Sandbox</title>
+    <link rel="icon" type="image/svg+xml" href="assets/icon.svg">
     
     <!-- Base & Device Styles -->
-    <link rel="stylesheet" href="styles/main.css?v=22">
-    <link rel="stylesheet" href="styles/mobile.css?v=22">
-    <link rel="stylesheet" href="styles/pc.css?v=22">
+    <link rel="stylesheet" href="styles/main.css?v=33">
+    <link rel="stylesheet" href="styles/mobile.css?v=33">
+    <link rel="stylesheet" href="styles/pc.css?v=33">
 </head>
 <body>
     <!-- Sandbox Control Bar -->
@@ -70,6 +71,7 @@
                     </svg>
                 </span>
             </button>
+
         </div>
     </div>
 
@@ -80,81 +82,47 @@
         <div id="view-phone" class="view active">
             <div class="phone-view-stage">
                 <div class="device-mobile is-portrait js-device-mobile">
+                    <!-- Physical Phone Hardware: Earpiece speaker slit at top of phone frame -->
+                    <div class="phone-speaker-slit" aria-hidden="true"></div>
+
+                    <!-- OLED Phone Screen Display (375x812) -->
                     <div class="mobile-phone-screen">
-                        <!-- iPhone X Sensor Notch -->
-                        <div class="phone-notch">
-                            <div class="phone-speaker-slit"></div>
-                            <div class="phone-punch-hole"></div>
-                        </div>
-                        <!-- Left Safe Area Compartment for Landscape Mode -->
-                        <div class="phone-notch-compartment"></div>
-                        <!-- Legit Mobile Status Bar (Notification Bar Mockup) -->
-                        <div class="phone-status-bar js-phone-status-bar" title="Tap to toggle notification mockup">
+                        <!-- Selfie Camera Punch Hole -->
+                        <div class="phone-punch-hole" aria-hidden="true"></div>
+
+                        <!-- Upper Container: Android System Status Bar (Hidden in Landscape) -->
+                        <div class="phone-status-bar">
                             <div class="status-bar-left">
-                                <span class="status-time js-status-clock">9:41</span>
-                                <div class="status-notif-badge" title="Owlmic Active">
-                                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                                        <path d="M12 2C7.58 2 4 5.58 4 10c0 3.31 2.01 6.16 4.88 7.35L12 22l3.12-4.65C17.99 16.16 20 13.31 20 10c0-4.42-3.58-8-8-8z"/>
-                                        <circle cx="9" cy="9" r="1.5" fill="currentColor"/>
-                                        <circle cx="15" cy="9" r="1.5" fill="currentColor"/>
+                                <span class="status-time js-status-live-time">9:41</span>
+                                <span class="status-notif-badge" title="Owlmic Running">
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                        <circle cx="12" cy="12" r="9"/>
+                                        <circle cx="9" cy="11" r="1.5" fill="currentColor"/>
+                                        <circle cx="15" cy="11" r="1.5" fill="currentColor"/>
+                                        <path d="M12 14.5l-1.5 2h3L12 14.5z"/>
                                     </svg>
-                                </div>
-                            </div>
-                            <div class="status-drag-handle" title="Drag down to pull notification shade">
-                                <span class="drag-pill"></span>
+                                </span>
                             </div>
                             <div class="status-bar-right">
-                                <div class="status-signal" title="Cellular Signal">
+                                <div class="status-signal" title="Signal: Full">
                                     <span class="signal-bar bar-1"></span>
                                     <span class="signal-bar bar-2"></span>
                                     <span class="signal-bar bar-3"></span>
                                     <span class="signal-bar bar-4"></span>
                                 </div>
                                 <span class="status-network">5G</span>
-                                <div class="status-battery" title="Battery: 98%">
-                                    <div class="battery-body">
-                                        <div class="battery-fill"></div>
-                                    </div>
+                                <div class="status-battery" title="Battery: 92%">
+                                    <div class="battery-body"><div class="battery-fill"></div></div>
                                     <div class="battery-cap"></div>
                                 </div>
                             </div>
                         </div>
 
-                        <!-- Dropdown Notification Card Mockup -->
-                        <div class="phone-notif-shade js-phone-notif-shade">
-                            <div class="notif-card js-notif-card">
-                                <div class="notif-card-header">
-                                    <div class="notif-card-app">
-                                        <span class="notif-app-icon">
-                                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                                                <path d="M12 2C7.58 2 4 5.58 4 10c0 3.31 2.01 6.16 4.88 7.35L12 22l3.12-4.65C17.99 16.16 20 13.31 20 10c0-4.42-3.58-8-8-8z"/>
-                                                <circle cx="9" cy="9" r="1.5" fill="currentColor"/>
-                                                <circle cx="15" cy="9" r="1.5" fill="currentColor"/>
-                                            </svg>
-                                        </span>
-                                        <span class="notif-app-name">Owlmic</span>
-                                        <span class="notif-bullet">·</span>
-                                        <span class="notif-time">now</span>
-                                    </div>
-                                    <button class="notif-dismiss js-notif-dismiss" title="Close Notification">✕</button>
-                                </div>
-                                <div class="notif-card-content">
-                                    <div class="notif-title js-notif-title">Microphone Service Active</div>
-                                    <div class="notif-desc js-notif-desc">Streaming 48kHz PCM audio to Workstation over Wi-Fi</div>
-                                </div>
-                                <div class="notif-card-actions">
-                                    <button class="notif-btn js-notif-action-mute">Toggle Mic</button>
-                                    <button class="notif-btn js-notif-action-status">Cycle Link</button>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Unified Phone Layout (Exact same position in both portrait & landscape) -->
+                        <!-- 3-Band Bento App Layout (Compose MainScreen.kt) -->
                         <div class="phone-app-layout phone-portrait-layout">
-                            <!-- Top Bar: Left Wordmark, Square Question Mark, Right Square WiFi -->
+                            <!-- Band 1: Top Bar (72dp) - Wordmark, ? Help Tile, Connection Tile -->
                             <div class="phone-top-bar">
-                                <div class="top-wordmark-container">
-                                    <!-- Owlmic Vector Wordmark from Monoska font glyphs (zero runtime font import needed) -->
+                                <div class="top-wordmark-container" title="Owlmic">
                                     <span class="phone-wordmark" aria-label="owlmic">
                                         <svg class="char char-o" viewBox="0 0 610 700" fill="currentColor" aria-hidden="true"><path d="M450 603V97H208Q188 97 173.5 111.0Q159 125 159 145V603ZM189 0H389Q454 0 500.5 46.5Q547 93 547 158V542Q547 607 500.5 653.5Q454 700 389 700H220Q155 700 109.0 653.5Q63 607 63 542V152Q63 132 77.0 117.5Q91 103 111 103H124Q144 103 158.5 89.0Q173 75 173 55V16Q173 0 189 0Z" /></svg>
                                         <svg class="char char-w" viewBox="0 0 610 700" fill="currentColor" aria-hidden="true"><path d="M450 555V16Q450 0 466 0H531Q547 0 547 16V587Q547 603 531 603H498Q478 603 464.0 617.0Q450 631 450 651V684Q450 700 433 700H376Q360 700 360 684V638Q360 618 345.5 604.0Q331 590 311 590H298Q278 590 263.5 604.0Q249 618 249 638V684Q249 700 233 700H176Q160 700 160 684V651Q160 631 145.5 617.0Q131 603 111 603H79Q63 603 63 587V16Q63 0 79 0H143Q159 0 159 16V555Q159 575 173.5 589.0Q188 603 208.0 603.0Q228 603 242.0 588.5Q256 574 256 555V318Q256 301 272 301H337Q353 301 353 318V555Q353 575 368.0 589.5Q383 604 403 604Q416 604 433.0 591.5Q450 579 450 555Z" /></svg>
@@ -164,13 +132,13 @@
                                         <svg class="char char-c" viewBox="0 0 610 700" fill="currentColor" aria-hidden="true"><path d="M547 158V207Q547 223 531 223H466Q450 223 450 207V97H159V603H450V493Q450 477 466 477H531Q547 477 547 493V542Q547 607 500.5 653.5Q454 700 389 700H220Q155 700 109.0 653.5Q63 607 63 542V158Q63 93 109.0 46.5Q155 0 220 0H389Q454 0 500.5 46.5Q547 93 547 158Z" /></svg>
                                     </span>
                                 </div>
-                                <div class="top-help-tile js-mobile-help-btn" title="Help & Information">
+                                <div class="top-help-tile js-mobile-help-btn" title="Setup & Help" role="button" aria-label="Setup & Help">
                                     <svg class="orient-icon" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                                         <path d="M 9.09 9.5 a 3 3 0 0 1 5.82 1 c 0 2 -2.91 3 -2.91 3.5"/>
                                         <line x1="12" y1="17.5" x2="12.01" y2="17.5"/>
                                     </svg>
                                 </div>
-                                <div class="top-wifi-tile js-mobile-status-tile" title="Connection: Connected">
+                                <div class="top-wifi-tile js-mobile-status-tile" title="Connection" role="button" aria-label="Connection">
                                     <svg class="orient-icon js-mobile-indicator-icon" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                                         <path d="M5 10.36a10 10 0 0 1 14 0"/>
                                         <path d="M8.5 13.93a5 5 0 0 1 7 0"/>
@@ -179,162 +147,451 @@
                                 </div>
                             </div>
 
-                            <!-- Big Center Area (Blank) -->
-                            <div class="phone-playground">
+                            <!-- Band 2: Center Playground (Dot Grid, Owl, Camera Preview, Waveform, Drawers) -->
+                            <div class="phone-playground js-phone-playground">
                                 <canvas class="phone-camera-canvas js-mobile-camera-canvas" style="display: none;"></canvas>
                                 <div class="playground-watermark js-playground-watermark" aria-hidden="true">
-                                    <svg class="orient-icon" viewBox="0 0 100 100" fill="currentColor">
-                                        <path fill-rule="evenodd" d="M 50 24 C 36 24, 25 16, 17 10 C 13 22, 11 38, 13 50 C 16 68, 32 84, 50 84 C 68 84, 84 68, 87 50 C 89 38, 87 22, 83 10 C 75 16, 64 24, 50 24 Z M 34 35.5 A 13.5 13.5 0 1 0 34 62.5 A 13.5 13.5 0 1 0 34 35.5 Z M 34 41.5 A 7.5 7.5 0 1 1 34 56.5 A 7.5 7.5 0 1 1 34 41.5 Z M 66 35.5 A 13.5 13.5 0 1 0 66 62.5 A 13.5 13.5 0 1 0 66 35.5 Z M 66 41.5 A 7.5 7.5 0 1 1 66 56.5 A 7.5 7.5 0 1 1 66 41.5 Z" />
-                                    </svg>
-                                </div>
-                                <div class="playground-waveform-dock js-playground-waveform-dock" aria-label="Microphone Audio Waveform">
-                                    <div class="playground-waveform js-playground-waveform"></div>
+                                    <img src="assets/icon.svg" class="orient-icon" alt="" />
                                 </div>
 
-                                <!-- Playground Drawer Overlay (Exact full height & width of playground) -->
-                                <div class="playground-drawer js-playground-drawer" aria-hidden="true">
-                                    <!-- Screen 1: Connection Settings (Ultra-Minimal End-to-End List, No Containers) -->
-                                    <div class="drawer-screen drawer-screen-wifi js-drawer-screen-wifi">
-                                        <div class="drawer-header">
-                                            <button class="drawer-back-btn js-drawer-back-btn" title="Back" aria-label="Back">
-                                                <svg class="orient-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                                                    <line x1="19" y1="12" x2="5" y2="12"></line>
-                                                    <polyline points="12 19 5 12 12 5"></polyline>
-                                                </svg>
-                                            </button>
-                                            <span class="drawer-title">Connection</span>
-                                        </div>
-                                        <div class="drawer-list">
-                                            <!-- Active PC Row -->
-                                            <div class="drawer-row is-active">
-                                                <div class="drawer-row-left">
-                                                    <div class="drawer-device-name js-drawer-pc-name">Workstation</div>
-                                                    <div class="drawer-device-meta">192.168.1.15:7653 · Wi-Fi</div>
+                                <!-- Dynamic Audio Waveform Dock / Capsule (Exact Match to Compose Playground.kt WaveHost) -->
+                                <div class="playground-waveform-dock js-playground-waveform-dock" role="button" aria-label="Microphone Audio Waveform">
+                                    <!-- Expandable Controls Panel inside Capsule (Grows upward when docked capsule is tapped) -->
+                                    <div class="capsule-drawer js-capsule-drawer">
+                                        <div class="capsule-drawer-inner">
+                                            <div class="capsule-controls-body">
+                                                <!-- Noise Reduction Slider -->
+                                                <div class="capsule-control-row">
+                                                    <div class="capsule-control-header">
+                                                        <span class="capsule-control-label">Noise reduction</span>
+                                                        <span class="capsule-control-val js-capsule-noise-val">5</span>
+                                                    </div>
+                                                    <div class="capsule-slider-wrap">
+                                                        <input type="range" min="0" max="10" step="1" value="5" class="clean-slider js-capsule-slider-noise" aria-label="Noise reduction">
+                                                    </div>
                                                 </div>
-                                                <div class="drawer-badge is-live">
-                                                    <span class="pc-status-dot"></span>
-                                                    <span>Active</span>
+
+                                                <!-- Volume Slider -->
+                                                <div class="capsule-control-row">
+                                                    <div class="capsule-control-header">
+                                                        <span class="capsule-control-label">Volume</span>
+                                                        <span class="capsule-control-val js-capsule-volume-val">0 dB</span>
+                                                    </div>
+                                                    <div class="capsule-slider-wrap">
+                                                        <input type="range" min="-12" max="12" step="3" value="0" class="clean-slider js-capsule-slider-volume" aria-label="Volume">
+                                                    </div>
+                                                </div>
+
+                                                <!-- Voice Isolation Toggle -->
+                                                <div class="capsule-toggle-row js-capsule-toggle-isolation">
+                                                    <span class="capsule-control-label">Voice isolation</span>
+                                                    <div class="pill-switch is-on js-capsule-switch-isolation">
+                                                        <div class="switch-thumb">
+                                                            <svg class="switch-tick" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                                                                <polyline points="20 6 9 17 4 12"></polyline>
+                                                            </svg>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                <!-- Auto-Level Toggle -->
+                                                <div class="capsule-toggle-row js-capsule-toggle-autolevel">
+                                                    <span class="capsule-control-label">Auto-level</span>
+                                                    <div class="pill-switch is-on js-capsule-switch-autolevel">
+                                                        <div class="switch-thumb">
+                                                            <svg class="switch-tick" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                                                                <polyline points="20 6 9 17 4 12"></polyline>
+                                                            </svg>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="capsule-divider"></div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Waveform Area (Always visible at the bottom of the capsule, height 68px) -->
+                                    <div class="capsule-wave-area js-capsule-wave-area">
+                                        <div class="playground-waveform js-playground-waveform"></div>
+                                    </div>
+                                </div>
+
+                                <!-- Floating Camera Controls (Eye, Mirror, Flip Lens) -->
+                                <div class="mobile-camera-controls js-mobile-camera-controls" style="display: none;">
+                                    <button class="round-control-btn js-mobile-btn-watch" title="Camera Preview" aria-label="Toggle camera preview display">
+                                        <svg class="orient-icon icon-watch-on" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <path d="M2.06 12.35a1 1 0 0 1 0-.7 10.75 10.75 0 0 1 19.88 0 1 1 0 0 1 0 .7 10.75 10.75 0 0 1-19.88 0"/>
+                                            <circle cx="12" cy="12" r="3"/>
+                                        </svg>
+                                        <svg class="orient-icon icon-watch-off" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display: none;">
+                                            <path d="M10.73 5.08a10.74 10.74 0 0 1 11.2 6.57 1 1 0 0 1 0 .7 10.75 10.75 0 0 1-1.44 2.49"/>
+                                            <path d="M14.08 14.16a3 3 0 0 1-4.24-4.24"/>
+                                            <path d="M17.48 17.5a10.75 10.75 0 0 1-15.42-5.15 1 1 0 0 1 0-.7 10.75 10.75 0 0 1 4.45-5.14"/>
+                                            <line x1="2" y1="2" x2="22" y2="22"/>
+                                        </svg>
+                                    </button>
+                                    <button class="round-control-btn js-mobile-btn-mirror" title="Mirror Preview" aria-label="Mirror preview">
+                                        <svg class="orient-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <path d="m3 7 5 5-5 5V7"/>
+                                            <path d="m21 7-5 5 5 5V7"/>
+                                            <path d="M12 20v2"/>
+                                            <path d="M12 14v2"/>
+                                            <path d="M12 8v2"/>
+                                            <path d="M12 2v2"/>
+                                        </svg>
+                                    </button>
+                                    <button class="round-control-btn js-mobile-btn-flip" title="Flip Lens (Front / Back)" aria-label="Flip camera lens">
+                                        <svg class="orient-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <path d="M11 19H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h5"/>
+                                            <path d="M13 5h7a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-5"/>
+                                            <circle cx="12" cy="12" r="3"/>
+                                            <path d="m18 22-3-3 3-3"/>
+                                            <path d="m6 2 3 3-3 3"/>
+                                        </svg>
+                                    </button>
+                                </div>
+
+                                <!-- Floating Mic Settings Button (Sliders icon, appears when mic is on) -->
+                                <button class="round-control-btn mobile-mic-settings-btn js-mobile-btn-mic-settings" title="Microphone Settings" aria-label="Microphone settings" style="display: none;">
+                                    <svg class="orient-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <line x1="4" y1="21" x2="4" y2="14"/>
+                                        <line x1="4" y1="10" x2="4" y2="3"/>
+                                        <line x1="12" y1="21" x2="12" y2="12"/>
+                                        <line x1="12" y1="8" x2="12" y2="3"/>
+                                        <line x1="20" y1="21" x2="20" y2="16"/>
+                                        <line x1="20" y1="12" x2="20" y2="3"/>
+                                        <line x1="1" y1="14" x2="7" y2="14"/>
+                                        <line x1="9" y1="8" x2="15" y2="8"/>
+                                        <line x1="17" y1="16" x2="23" y2="16"/>
+                                    </svg>
+                                </button>
+
+                                <!-- Mobile Connection Status Strip (Approving Code, Searching, Reconnecting) -->
+                                <div class="mobile-status-strip js-mobile-status-strip" style="display: none;">
+                                    <div class="status-strip-content">
+                                        <span class="status-strip-device js-status-strip-device">Workstation</span>
+                                        <span class="status-strip-code js-status-strip-code" style="display: none;">4821</span>
+                                        <span class="status-strip-hint js-status-strip-hint">Check your PC to approve</span>
+                                    </div>
+                                </div>
+
+                                <!-- Playground Drawers (Slide down from top bar) -->
+                                <div class="playground-drawer js-playground-drawer" aria-hidden="true">
+                                    <!-- Drawer 1: Connection Drawer (Exact Compose Drawers.kt) -->
+                                    <div class="drawer-screen drawer-screen-wifi js-drawer-screen-wifi">
+                                        <div class="drawer-list">
+                                            <!-- Connected PC Row (Opens in place with Address, Link icon, Last connected, Actions) -->
+                                            <div class="drawer-pc-entry is-open js-drawer-entry-active">
+                                                <div class="drawer-row is-active js-drawer-pc-toggle">
+                                                    <div class="drawer-row-check">
+                                                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+                                                            <polyline points="20 6 9 17 4 12"/>
+                                                        </svg>
+                                                    </div>
+                                                    <div class="drawer-device-name js-drawer-pc-name">Workstation</div>
+                                                </div>
+                                                <div class="drawer-entry-expand">
+                                                    <div class="drawer-expand-line">
+                                                        <span class="drawer-expand-address">192.168.1.15:7653</span>
+                                                        <span class="drawer-expand-link-icon" title="Wi-Fi">
+                                                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#8E8E93" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                                                <path d="M5 10.36a10 10 0 0 1 14 0"/>
+                                                                <path d="M8.5 13.93a5 5 0 0 1 7 0"/>
+                                                                <line x1="12" y1="17.5" x2="12.01" y2="17.5"/>
+                                                            </svg>
+                                                        </span>
+                                                    </div>
+                                                    <div class="drawer-expand-line">
+                                                        <span class="drawer-expand-time">Connected now</span>
+                                                        <button class="drawer-action-text js-action-block">Block</button>
+                                                    </div>
                                                 </div>
                                             </div>
 
                                             <!-- Paired PC Row -->
-                                            <div class="drawer-row">
-                                                <div class="drawer-row-left">
+                                            <div class="drawer-pc-entry js-drawer-entry-paired">
+                                                <div class="drawer-row js-drawer-pc-toggle">
+                                                    <div class="drawer-row-check"></div>
                                                     <div class="drawer-device-name">ThinkPad X1</div>
-                                                    <div class="drawer-device-meta">Paired</div>
                                                 </div>
-                                                <span class="drawer-tag">Standby</span>
+                                                <div class="drawer-entry-expand" style="display: none;">
+                                                    <div class="drawer-expand-line">
+                                                        <span class="drawer-expand-address">192.168.1.42:7653</span>
+                                                        <span class="drawer-expand-link-icon" title="USB tethering">
+                                                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#8E8E93" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                                                <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+                                                                <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+                                                            </svg>
+                                                        </span>
+                                                    </div>
+                                                    <div class="drawer-expand-line">
+                                                        <span class="drawer-expand-time">Last connected 2 hours ago</span>
+                                                        <button class="drawer-action-text js-action-connect">Connect</button>
+                                                    </div>
+                                                </div>
                                             </div>
 
                                             <!-- Direct IP Row -->
-                                            <div class="drawer-row">
-                                                <div class="drawer-row-left">
+                                            <div class="drawer-pc-entry">
+                                                <div class="drawer-row js-drawer-pc-toggle">
+                                                    <div class="drawer-row-check"></div>
                                                     <div class="drawer-device-name">Direct IP</div>
-                                                    <div class="drawer-device-meta">Port 7653</div>
                                                 </div>
-                                                <span class="drawer-tag">Ready</span>
+                                                <div class="drawer-entry-expand" style="display: none;">
+                                                    <div class="drawer-expand-line">
+                                                        <span class="drawer-expand-address">Port 7653</span>
+                                                        <span class="drawer-expand-link-icon" title="Direct IP">
+                                                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#8E8E93" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                                                <circle cx="12" cy="12" r="9"/>
+                                                                <line x1="2" y1="12" x2="22" y2="12"/>
+                                                            </svg>
+                                                        </span>
+                                                    </div>
+                                                    <div class="drawer-expand-line">
+                                                        <span class="drawer-expand-time"></span>
+                                                        <button class="drawer-action-text js-action-remove">Remove</button>
+                                                    </div>
+                                                </div>
                                             </div>
                                         </div>
 
-                                        <!-- End-to-End Links Bar -->
+                                        <!-- Footer: 5 Equal Buttons (Reconnect, Rule, USB debugging, Wi-Fi, USB tethering, Bluetooth) -->
                                         <div class="drawer-links-bar">
-                                            <div class="drawer-conn-types">
-                                                <button class="conn-type-btn is-on js-conn-type-btn" data-type="usb_debugging" title="USB adb">
-                                                    <svg class="orient-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                                                        <path d="M10 13v5a2 2 0 0 0 4 0v-5"/>
-                                                        <rect width="8" height="6" x="8" y="7" rx="1"/>
-                                                        <path d="M9 7V4"/>
-                                                        <path d="M15 7V4"/>
+                                            <button class="footer-link-btn is-on js-footer-btn-reconnect" title="Reconnect">
+                                                <svg class="orient-icon js-reconnect-spin" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                                    <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/>
+                                                    <polyline points="21 3 21 8 16 8"/>
+                                                </svg>
+                                            </button>
+                                            <div class="drawer-links-divider"></div>
+                                            <button class="footer-link-btn is-on js-conn-type-btn" data-type="usb_debugging" title="USB debugging">
+                                                <svg class="orient-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                                    <path d="M10 13v5a2 2 0 0 0 4 0v-5"/>
+                                                    <rect width="8" height="6" x="8" y="7" rx="1"/>
+                                                    <path d="M9 7V4"/>
+                                                    <path d="M15 7V4"/>
+                                                </svg>
+                                            </button>
+                                            <button class="footer-link-btn is-on js-conn-type-btn" data-type="wifi" title="Wi-Fi">
+                                                <svg class="orient-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                                    <path d="M5 10.36a10 10 0 0 1 14 0"/>
+                                                    <path d="M8.5 13.93a5 5 0 0 1 7 0"/>
+                                                    <line x1="12" y1="17.5" x2="12.01" y2="17.5"/>
+                                                </svg>
+                                            </button>
+                                            <button class="footer-link-btn is-on js-conn-type-btn" data-type="usb_tethering" title="USB tethering">
+                                                <svg class="orient-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                                    <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+                                                    <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+                                                </svg>
+                                            </button>
+                                            <button class="footer-link-btn is-on js-conn-type-btn" data-type="bluetooth" title="Bluetooth">
+                                                <svg class="orient-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                                    <path d="m7 7 10 10-5 5V2l5 5L7 17"/>
+                                                </svg>
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <!-- Drawer 2: Setup & Help (Exact Compose Drawers.kt 2x3 Grid + Subpages) -->
+                                    <div class="drawer-screen drawer-screen-help js-drawer-screen-help" style="display: none;">
+                                        <!-- Main 2x3 Grid Page -->
+                                        <div class="help-subpage-main js-help-subpage-main">
+                                            <div class="help-grid-content">
+                                                <div class="help-tiles-grid">
+                                                    <button class="help-square-tile js-help-tile-howto" title="How-to">
+                                                        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                                            <line x1="10" y1="12" x2="21" y2="12"/>
+                                                            <line x1="10" y1="18" x2="21" y2="18"/>
+                                                            <line x1="10" y1="6" x2="21" y2="6"/>
+                                                            <path d="M4 10h2"/>
+                                                            <path d="M4 6h1v4"/>
+                                                            <path d="M6 18H4c0-1 2-2 2-3s-1-1.5-2-1"/>
+                                                        </svg>
+                                                        <span class="help-tile-label">How-to</span>
+                                                    </button>
+                                                    <button class="help-square-tile js-help-tile-privacy" title="Privacy Policy">
+                                                        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                                            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                                                        </svg>
+                                                        <span class="help-tile-label">Privacy</span>
+                                                    </button>
+                                                    <button class="help-square-tile js-help-tile-rate" title="Rate Owlmic">
+                                                        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                                            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+                                                        </svg>
+                                                        <span class="help-tile-label">Rate</span>
+                                                    </button>
+                                                    <button class="help-square-tile js-help-tile-github" title="GitHub">
+                                                        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                                            <path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.4 5.4 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4"/>
+                                                            <path d="M9 18c-4.51 2-5-2-7-2"/>
+                                                        </svg>
+                                                        <span class="help-tile-label">GitHub</span>
+                                                    </button>
+                                                    <button class="help-square-tile js-help-tile-donate" title="Donate">
+                                                        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                                            <path d="M10 2v2"/><path d="M14 2v2"/><path d="M6 2v2"/>
+                                                            <path d="M16 8a1 1 0 0 1 1 1v8a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4V9a1 1 0 0 1 1-1h14a4 4 0 1 1 0 8h-1"/>
+                                                        </svg>
+                                                        <span class="help-tile-label">Donate</span>
+                                                    </button>
+                                                    <button class="help-square-tile js-help-tile-credits" title="Credits">
+                                                        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                                            <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>
+                                                            <circle cx="9" cy="7" r="4"/>
+                                                            <path d="M22 21v-2a4 4 0 0 0-3-3.87"/>
+                                                            <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                                                        </svg>
+                                                        <span class="help-tile-label">Credits</span>
+                                                    </button>
+                                                </div>
+                                                <div class="help-version-footer">Owlmic v1.0.0 by Devesh Patil</div>
+                                            </div>
+                                        </div>
+
+                                        <!-- Subpage: How-to Setup Process -->
+                                        <div class="help-subpage-howto js-help-subpage-howto" style="display: none;">
+                                            <div class="drawer-subpage-header">
+                                                <button class="drawer-circle-back-btn js-howto-back-btn" title="Back" aria-label="Back">
+                                                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                                        <line x1="19" y1="12" x2="5" y2="12"></line>
+                                                        <polyline points="12 19 5 12 12 5"></polyline>
                                                     </svg>
                                                 </button>
-                                                <button class="conn-type-btn is-on js-conn-type-btn" data-type="usb_tethering" title="USB Tethering">
-                                                    <svg class="orient-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                                                        <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
-                                                        <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+                                            </div>
+                                            <div class="howto-steps-list">
+                                                <div class="howto-step-item">
+                                                    <div class="howto-step-node">
+                                                        <div class="step-circle">1</div>
+                                                        <div class="step-line"></div>
+                                                    </div>
+                                                    <div class="howto-step-text">
+                                                        <div class="step-name">Download Owlmic <span class="step-ext">↗</span></div>
+                                                        <div class="step-desc">Get Windows (.exe) & Android APK</div>
+                                                    </div>
+                                                </div>
+                                                <div class="howto-step-item">
+                                                    <div class="howto-step-node">
+                                                        <div class="step-circle">2</div>
+                                                        <div class="step-line"></div>
+                                                    </div>
+                                                    <div class="howto-step-text">
+                                                        <div class="step-name">Connect Devices</div>
+                                                        <div class="step-desc">Plug USB cable or join same Wi-Fi</div>
+                                                    </div>
+                                                </div>
+                                                <div class="howto-step-item">
+                                                    <div class="howto-step-node">
+                                                        <div class="step-circle">3</div>
+                                                    </div>
+                                                    <div class="howto-step-text">
+                                                        <div class="step-name">Start Streaming</div>
+                                                        <div class="step-desc">Tap mic or camera for real-time audio & video</div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <!-- Subpage: Credits -->
+                                        <div class="help-subpage-credits js-help-subpage-credits" style="display: none;">
+                                            <div class="drawer-subpage-header">
+                                                <button class="drawer-circle-back-btn js-credits-back-btn" title="Back" aria-label="Back">
+                                                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                                        <line x1="19" y1="12" x2="5" y2="12"></line>
+                                                        <polyline points="12 19 5 12 12 5"></polyline>
                                                     </svg>
                                                 </button>
-                                                <button class="conn-type-btn is-on js-conn-type-btn" data-type="wifi" title="Wi-Fi">
-                                                    <svg class="orient-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                                                        <path d="M5 12.55a11 11 0 0 1 14.08 0"/>
-                                                        <path d="M8.53 16.11a6 6 0 0 1 6.95 0"/>
-                                                        <line x1="12" y1="20" x2="12.01" y2="20"/>
-                                                    </svg>
-                                                </button>
-                                                <button class="conn-type-btn is-on js-conn-type-btn" data-type="bluetooth" title="Bluetooth">
-                                                    <svg class="orient-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                                                        <path d="m7 7 10 10-5 5V2l5 5L7 17"/>
-                                                    </svg>
-                                                </button>
-                                                <button class="conn-type-btn is-on js-conn-type-btn" data-type="direct_lan" title="LAN / Hotspot">
-                                                    <svg class="orient-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                                                        <path d="M4.93 19.07A10 10 0 0 1 2 12a10 10 0 0 1 2.93-7.07"/>
-                                                        <path d="M19.07 4.93A10 10 0 0 1 22 12a10 10 0 0 1-2.93 7.07"/>
-                                                        <circle cx="12" cy="12" r="2"/>
-                                                    </svg>
-                                                </button>
+                                            </div>
+                                            <div class="credits-list">
+                                                <div class="credits-row">
+                                                    <span class="credit-name">Devesh Patil</span>
+                                                    <span class="credit-handle">Lead</span>
+                                                </div>
+                                                <div class="credits-row">
+                                                    <span class="credit-name">Yash Thorat</span>
+                                                    <span class="credit-handle">@yashthorat7</span>
+                                                </div>
+                                                <div class="credits-row">
+                                                    <span class="credit-name">Owlmic Contributors</span>
+                                                    <span class="credit-handle">GitHub</span>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
 
-                                    <!-- Screen 2: Setup & Help Process Showcase -->
-                                    <div class="drawer-screen drawer-screen-help js-drawer-screen-help" style="display: none;">
-                                        <div class="drawer-header">
-                                            <button class="drawer-back-btn js-drawer-back-btn" title="Back" aria-label="Back">
-                                                <svg class="orient-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                                                    <line x1="19" y1="12" x2="5" y2="12"></line>
-                                                    <polyline points="12 19 5 12 12 5"></polyline>
-                                                </svg>
-                                            </button>
-                                            <span class="drawer-title">Setup & Help</span>
-                                        </div>
-                                        <div class="drawer-list">
-                                            <!-- Step 1: Download -->
-                                            <div class="drawer-process-row">
-                                                <span class="drawer-step-num">01</span>
-                                                <div class="drawer-step-info">
-                                                    <div class="drawer-step-name">Download Owlmic</div>
-                                                    <div class="drawer-step-detail">Get Windows (owlmic.exe) & APK on GitHub</div>
+                                    <!-- Drawer 3: Microphone Controls & Shared Settings (Controls.kt) -->
+                                    <div class="drawer-screen drawer-screen-mic js-drawer-screen-mic" style="display: none;">
+                                        <div class="drawer-controls-body">
+                                            <!-- Noise Reduction Slider (0 to 10) -->
+                                            <div class="control-row">
+                                                <div class="control-header">
+                                                    <span class="control-label">Noise reduction</span>
+                                                    <span class="control-value js-mobile-noise-val">5</span>
                                                 </div>
-                                                <a href="https://github.com/yashthorat7/mikey/releases" target="_blank" class="drawer-step-arrow" title="GitHub Releases">↗</a>
+                                                <div class="slider-container">
+                                                    <input type="range" min="0" max="10" step="1" value="5" class="clean-slider js-mobile-slider-noise" aria-label="Noise reduction">
+                                                    <div class="slider-ticks">
+                                                        <span class="tick"></span><span class="tick"></span><span class="tick"></span><span class="tick"></span><span class="tick"></span>
+                                                        <span class="tick"></span><span class="tick"></span><span class="tick"></span><span class="tick"></span><span class="tick"></span><span class="tick"></span>
+                                                    </div>
+                                                </div>
                                             </div>
 
-                                            <!-- Step 2: Connect -->
-                                            <div class="drawer-process-row">
-                                                <span class="drawer-step-num">02</span>
-                                                <div class="drawer-step-info">
-                                                    <div class="drawer-step-name">Connect Devices</div>
-                                                    <div class="drawer-step-detail">Plug USB cable or join same Wi-Fi</div>
+                                            <!-- Volume Slider (-12 dB to +12 dB) -->
+                                            <div class="control-row">
+                                                <div class="control-header">
+                                                    <span class="control-label">Volume</span>
+                                                    <span class="control-value js-mobile-volume-val">0 dB</span>
                                                 </div>
-                                                <span class="drawer-step-tag">Auto</span>
+                                                <div class="slider-container">
+                                                    <input type="range" min="-12" max="12" step="3" value="0" class="clean-slider clean-slider-center js-mobile-slider-volume" aria-label="Volume">
+                                                    <div class="slider-ticks">
+                                                        <span class="tick"></span><span class="tick"></span><span class="tick"></span><span class="tick"></span><span class="tick center-tick"></span>
+                                                        <span class="tick"></span><span class="tick"></span><span class="tick"></span><span class="tick"></span>
+                                                    </div>
+                                                </div>
                                             </div>
 
-                                            <!-- Step 3: Stream -->
-                                            <div class="drawer-process-row">
-                                                <span class="drawer-step-num">03</span>
-                                                <div class="drawer-step-info">
-                                                    <div class="drawer-step-name">Start Streaming</div>
-                                                    <div class="drawer-step-detail">Tap mic or camera for zero latency</div>
+                                            <div class="control-divider"></div>
+
+                                            <!-- Voice Isolation Switch -->
+                                            <div class="toggle-row js-mobile-toggle-row-isolation" role="button" tabindex="0">
+                                                <div class="toggle-text">
+                                                    <span class="toggle-label">Voice isolation</span>
+                                                    <span class="toggle-desc">Keeps speaker playback out of mic</span>
                                                 </div>
-                                                <span class="drawer-step-tag is-live">Live</span>
+                                                <div class="pill-switch is-on js-mobile-switch-isolation" aria-checked="true">
+                                                    <span class="switch-thumb">
+                                                        <svg class="switch-tick" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                                                            <polyline points="20 6 9 17 4 12"/>
+                                                        </svg>
+                                                    </span>
+                                                </div>
                                             </div>
 
-                                            <!-- Links -->
-                                            <a href="#" class="drawer-row drawer-link-row js-action-privacy">
-                                                <span class="drawer-row-label">Privacy Policy</span>
-                                                <span class="drawer-arrow">→</span>
-                                            </a>
-                                            <div class="drawer-row drawer-row-version">
-                                                <span class="drawer-dim">Owlmic Mobile</span>
-                                                <span class="drawer-dim">v1.0.0</span>
+                                            <!-- Auto Level Switch -->
+                                            <div class="toggle-row js-mobile-toggle-row-autolevel" role="button" tabindex="0">
+                                                <div class="toggle-text">
+                                                    <span class="toggle-label">Auto level</span>
+                                                    <span class="toggle-desc">Levels voice across distance</span>
+                                                </div>
+                                                <div class="pill-switch is-on js-mobile-switch-autolevel" aria-checked="true">
+                                                    <span class="switch-thumb">
+                                                        <svg class="switch-tick" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                                                            <polyline points="20 6 9 17 4 12"/>
+                                                        </svg>
+                                                    </span>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
                                 </div>
                             </div>
 
-                            <!-- Bottom Bar: 3 proper square partitions in order: Camera, Mic, Speaker -->
+                            <!-- Band 3: Bottom Bar (118dp) - Camera, Mic, Speaker Tiles -->
                             <div class="phone-bottom-bar">
-                                <button class="phone-square-partition js-mobile-camera" title="Camera" aria-label="Camera">
+                                <button class="phone-square-partition js-mobile-camera" title="Camera (Tap: toggle, Hold: settings)" aria-label="Camera">
                                     <svg class="orient-icon icon-off" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                         <line x1="1" y1="1" x2="23" y2="23"/>
                                         <path d="M21 21H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h3m3-3h6l2.5 3H21a2 2 0 0 1 2 2v7.5"/>
@@ -345,7 +602,7 @@
                                         <circle cx="12" cy="13" r="3"/>
                                     </svg>
                                 </button>
-                                <button class="phone-square-partition js-mobile-mic" title="Mic" aria-label="Microphone">
+                                <button class="phone-square-partition js-mobile-mic" title="Mic (Tap: toggle, Hold: settings)" aria-label="Microphone">
                                     <svg class="orient-icon icon-off" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                         <line x1="1" y1="1" x2="23" y2="23"/>
                                         <path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6"/>
@@ -358,7 +615,7 @@
                                         <line x1="12" y1="19" x2="12" y2="22"/>
                                     </svg>
                                 </button>
-                                <button class="phone-square-partition js-mobile-speaker" title="Speaker" aria-label="Speaker">
+                                <button class="phone-square-partition js-mobile-speaker" title="Speaker (Tap: toggle, Hold: settings)" aria-label="Speaker">
                                     <svg class="orient-icon icon-off" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                         <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
                                         <line x1="23" y1="9" x2="17" y2="15"/>
@@ -373,9 +630,153 @@
                             </div>
                         </div>
 
-                        <!-- Bottom Chin / Gesture Plate (Plain black, no rounded corners, edge-to-edge) -->
-                        <div class="phone-bottom-compartment">
-                            <div class="phone-home-indicator"></div>
+                        <!-- Bottom Container: Android Gesture Navigation Pill (28dp Safe Area) -->
+                        <div class="phone-bottom-compartment" aria-hidden="true">
+                            <div class="phone-gesture-pill"></div>
+                        </div>
+
+                        <!-- Full-Screen Compose Settings Sheet (SettingsSheet.kt - Opened by tile long-press) -->
+                        <div class="phone-settings-sheet js-phone-settings-sheet" style="display: none;">
+                            <div class="settings-sheet-header">
+                                <span class="settings-sheet-title">Settings</span>
+                                <button class="settings-sheet-close js-settings-close" title="Close Settings" aria-label="Close">
+                                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <line x1="18" y1="6" x2="6" y2="18"/>
+                                        <line x1="6" y1="6" x2="18" y2="18"/>
+                                    </svg>
+                                </button>
+                            </div>
+                            <div class="settings-sheet-body">
+                                <!-- MIC SECTION -->
+                                <div class="settings-section" data-section="mic">
+                                    <div class="settings-section-title">MIC</div>
+                                    <div class="settings-item">
+                                        <div class="control-header">
+                                            <span class="control-label">Noise reduction</span>
+                                            <span class="control-value js-sheet-noise-val">5</span>
+                                        </div>
+                                        <div class="slider-container">
+                                            <input type="range" min="0" max="10" step="1" value="5" class="clean-slider js-sheet-slider-noise" aria-label="Noise reduction">
+                                        </div>
+                                    </div>
+                                    <div class="settings-item">
+                                        <div class="control-header">
+                                            <span class="control-label">Volume</span>
+                                            <span class="control-value js-sheet-volume-val">0 dB</span>
+                                        </div>
+                                        <div class="slider-container">
+                                            <input type="range" min="-12" max="12" step="3" value="0" class="clean-slider clean-slider-center js-sheet-slider-volume" aria-label="Volume">
+                                        </div>
+                                    </div>
+                                    <div class="settings-toggle-row js-sheet-toggle-isolation" role="button" tabindex="0">
+                                        <span class="toggle-label">Voice isolation</span>
+                                        <div class="pill-switch is-on js-sheet-switch-isolation">
+                                            <span class="switch-thumb">
+                                                <svg class="switch-tick" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <div class="settings-toggle-row js-sheet-toggle-autolevel" role="button" tabindex="0">
+                                        <span class="toggle-label">Auto level</span>
+                                        <div class="pill-switch is-on js-sheet-switch-autolevel">
+                                            <span class="switch-thumb">
+                                                <svg class="switch-tick" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- CAMERA SECTION -->
+                                <div class="settings-section" data-section="camera">
+                                    <div class="settings-section-title">CAMERA</div>
+                                    <div class="settings-choice-row">
+                                        <span class="settings-choice-label">Lens</span>
+                                        <div class="settings-chips js-sheet-chips-lens">
+                                            <button class="chip-btn is-on" data-val="Front">Front</button>
+                                            <button class="chip-btn" data-val="Back">Back</button>
+                                        </div>
+                                    </div>
+                                    <div class="settings-choice-row">
+                                        <span class="settings-choice-label">Quality</span>
+                                        <div class="settings-chips js-sheet-chips-quality">
+                                            <button class="chip-btn is-on" data-val="Auto">Auto</button>
+                                            <button class="chip-btn" data-val="720p">720p</button>
+                                            <button class="chip-btn" data-val="1080p">1080p</button>
+                                        </div>
+                                    </div>
+                                    <div class="settings-choice-row">
+                                        <span class="settings-choice-label">Frame rate</span>
+                                        <div class="settings-chips js-sheet-chips-fps">
+                                            <button class="chip-btn is-on" data-val="24">24</button>
+                                            <button class="chip-btn" data-val="30">30</button>
+                                            <button class="chip-btn" data-val="60">60</button>
+                                        </div>
+                                    </div>
+                                    <div class="settings-toggle-row js-sheet-toggle-mirror" role="button" tabindex="0">
+                                        <span class="toggle-label">Mirror preview</span>
+                                        <div class="pill-switch js-sheet-switch-mirror">
+                                            <span class="switch-thumb">
+                                                <svg class="switch-tick" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- SPEAKER SECTION -->
+                                <div class="settings-section" data-section="speaker">
+                                    <div class="settings-section-title">SPEAKER</div>
+                                    <div class="settings-note">Plays through your phone's speaker or headphones</div>
+                                </div>
+
+                                <!-- CONNECTION SECTION -->
+                                <div class="settings-section" data-section="connection">
+                                    <div class="settings-section-title">CONNECTION</div>
+                                    <div class="settings-toggle-row js-sheet-toggle-usb-debugging" role="button" tabindex="0">
+                                        <span class="toggle-label">USB debugging</span>
+                                        <div class="pill-switch is-on js-sheet-switch-usb-debugging">
+                                            <span class="switch-thumb"><svg class="switch-tick" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+                                        </div>
+                                    </div>
+                                    <div class="settings-toggle-row js-sheet-toggle-wifi" role="button" tabindex="0">
+                                        <span class="toggle-label">Wi-Fi</span>
+                                        <div class="pill-switch is-on js-sheet-switch-wifi">
+                                            <span class="switch-thumb"><svg class="switch-tick" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+                                        </div>
+                                    </div>
+                                    <div class="settings-toggle-row js-sheet-toggle-usb-tethering" role="button" tabindex="0">
+                                        <span class="toggle-label">USB tethering</span>
+                                        <div class="pill-switch is-on js-sheet-switch-usb-tethering">
+                                            <span class="switch-thumb"><svg class="switch-tick" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+                                        </div>
+                                    </div>
+                                    <div class="settings-toggle-row js-sheet-toggle-bluetooth" role="button" tabindex="0">
+                                        <span class="toggle-label">Bluetooth</span>
+                                        <div class="pill-switch is-on js-sheet-switch-bluetooth">
+                                            <span class="switch-thumb"><svg class="switch-tick" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- PCS SECTION -->
+                                <div class="settings-section" data-section="pcs">
+                                    <div class="settings-section-title">PCS</div>
+                                    <div class="settings-pc-item">
+                                        <span class="settings-pc-name">Workstation</span>
+                                        <span class="settings-pc-tag">Connected</span>
+                                    </div>
+                                    <div class="settings-pc-item">
+                                        <span class="settings-pc-name">ThinkPad X1</span>
+                                        <button class="settings-pc-action">Forget</button>
+                                    </div>
+                                </div>
+
+                                <!-- ABOUT SECTION -->
+                                <div class="settings-section" data-section="about">
+                                    <div class="settings-section-title">ABOUT</div>
+                                    <div class="settings-item"><span class="settings-dim-text">Owlmic v1.0.0</span></div>
+                                    <div class="settings-item"><span class="settings-dim-text">owlmic.app</span></div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -393,15 +794,93 @@
                         <div class="pc-grid-bento">
                             <!-- 1. BIG PLAYGROUND (Top) -->
                             <div class="pc-playground-tile js-pc-camera-tile">
+                                <canvas class="pc-camera-backdrop-canvas js-pc-camera-backdrop" style="display: none;"></canvas>
                                 <canvas class="pc-camera-canvas js-pc-camera-canvas" style="display: none;"></canvas>
                                 <div class="pc-playground-watermark js-pc-camera-watermark" aria-hidden="true">
-                                    <svg viewBox="0 0 100 100" fill="currentColor">
-                                        <path fill-rule="evenodd" d="M 50 24 C 36 24, 25 16, 17 10 C 13 22, 11 38, 13 50 C 16 68, 32 84, 50 84 C 68 84, 84 68, 87 50 C 89 38, 87 22, 83 10 C 75 16, 64 24, 50 24 Z M 34 35.5 A 13.5 13.5 0 1 0 34 62.5 A 13.5 13.5 0 1 0 34 35.5 Z M 34 41.5 A 7.5 7.5 0 1 1 34 56.5 A 7.5 7.5 0 1 1 34 41.5 Z M 66 35.5 A 13.5 13.5 0 1 0 66 62.5 A 13.5 13.5 0 1 0 66 35.5 Z M 66 41.5 A 7.5 7.5 0 1 1 66 56.5 A 7.5 7.5 0 1 1 66 41.5 Z" />
-                                    </svg>
+                                    <img src="assets/icon.svg" alt="" />
                                 </div>
-                                <!-- Centered or Docked Audio Waveform Dock (Matches mobile playground) -->
-                                <div class="pc-waveform-dock js-pc-waveform-dock">
-                                    <div class="pc-waveform js-pc-waveform"></div>
+                                <!-- Centered or Docked Audio Waveform Dock / Capsule (Matches mobile playground) -->
+                                <div class="pc-waveform-dock js-pc-waveform-dock" role="button" aria-label="Microphone Audio Waveform">
+                                    <div class="capsule-drawer js-pc-capsule-drawer">
+                                        <div class="capsule-drawer-inner">
+                                            <div class="capsule-controls-body">
+                                                <!-- Noise Reduction Slider -->
+                                                <div class="capsule-control-row">
+                                                    <div class="capsule-control-header">
+                                                        <span class="capsule-control-label">Noise reduction</span>
+                                                        <span class="capsule-control-val js-pc-capsule-noise-val">5</span>
+                                                    </div>
+                                                    <div class="capsule-slider-wrap">
+                                                        <input type="range" min="0" max="10" step="1" value="5" class="clean-slider js-pc-capsule-slider-noise" aria-label="Noise reduction">
+                                                    </div>
+                                                </div>
+
+                                                <!-- Volume Slider -->
+                                                <div class="capsule-control-row">
+                                                    <div class="capsule-control-header">
+                                                        <span class="capsule-control-label">Volume</span>
+                                                        <span class="capsule-control-val js-pc-capsule-volume-val">0 dB</span>
+                                                    </div>
+                                                    <div class="capsule-slider-wrap">
+                                                        <input type="range" min="-12" max="12" step="3" value="0" class="clean-slider js-pc-capsule-slider-volume" aria-label="Volume">
+                                                    </div>
+                                                </div>
+
+                                                <!-- Voice Isolation Toggle -->
+                                                <div class="capsule-toggle-row js-pc-capsule-toggle-isolation">
+                                                    <span class="capsule-control-label">Voice isolation</span>
+                                                    <div class="pill-switch is-on js-pc-capsule-switch-isolation">
+                                                        <div class="switch-thumb">
+                                                            <svg class="switch-tick" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                                                                <polyline points="20 6 9 17 4 12"></polyline>
+                                                            </svg>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                <!-- Auto-Level Toggle -->
+                                                <div class="capsule-toggle-row js-pc-capsule-toggle-autolevel">
+                                                    <span class="capsule-control-label">Auto-level</span>
+                                                    <div class="pill-switch is-on js-pc-capsule-switch-autolevel">
+                                                        <div class="switch-thumb">
+                                                            <svg class="switch-tick" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                                                                <polyline points="20 6 9 17 4 12"></polyline>
+                                                            </svg>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="capsule-divider"></div>
+                                        </div>
+                                    </div>
+
+                                    <div class="capsule-wave-area js-pc-capsule-wave-area">
+                                        <div class="pc-waveform js-pc-waveform"></div>
+                                    </div>
+                                </div>
+
+                                <!-- PC Repair Banner (When virtual mic/cam or network needs repair) -->
+                                <div class="pc-repair-banner js-pc-repair-banner" style="display: none;">
+                                    <div class="pc-repair-info">
+                                        <svg class="pc-repair-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#FFD60A" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                            <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/>
+                                            <line x1="12" y1="9" x2="12" y2="13"/>
+                                            <line x1="12" y1="17" x2="12.01" y2="17"/>
+                                        </svg>
+                                        <span class="pc-repair-text js-pc-repair-text">Owlmic Mic needs a repair</span>
+                                    </div>
+                                    <button class="pc-repair-btn js-pc-repair-btn">Repair</button>
+                                </div>
+
+                                <!-- PC Disconnected / Offline State Overlay -->
+                                <div class="pc-disconnected-overlay js-pc-disconnected-overlay" style="display: none;">
+                                    <svg class="pc-disconnected-icon" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <line x1="1" y1="1" x2="23" y2="23"/>
+                                        <path d="M21 21H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h3m3-3h6l2.5 3H21a2 2 0 0 1 2 2v7.5"/>
+                                        <circle cx="12" cy="13" r="3"/>
+                                    </svg>
+                                    <span class="pc-disconnected-title">No phone connected</span>
+                                    <span class="pc-disconnected-sub">Open Owlmic on your phone</span>
                                 </div>
 
                                 <!-- Floating Camera Controls (Eye, Mirror, Flip) -->
@@ -456,109 +935,133 @@
 
                                 <!-- PC Playground Drawer Overlay -->
                                 <div class="pc-playground-drawer js-pc-playground-drawer" aria-hidden="true">
-                                    <!-- Screen 1: Wi-Fi & Connection (Ultra-Minimal End-to-End List, No Containers) -->
+                                    <!-- Screen 1: Wi-Fi & Connection (Ultra-Minimal End-to-End List, Matching Android Drawers.kt) -->
                                     <div class="drawer-screen drawer-screen-wifi js-pc-drawer-screen-wifi">
-                                        <div class="drawer-header">
-                                            <button class="drawer-back-btn js-pc-drawer-back-btn" title="Back" aria-label="Back">
-                                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                                                    <line x1="19" y1="12" x2="5" y2="12"></line>
-                                                    <polyline points="12 19 5 12 12 5"></polyline>
-                                                </svg>
-                                            </button>
-                                            <span class="drawer-title">Connection</span>
-                                        </div>
-                                        <div class="pc-drawer-list">
-                                            <!-- Active Client Row -->
-                                            <div class="pc-drawer-row is-active">
-                                                <div class="pc-drawer-row-left">
-                                                    <div class="pc-drawer-device-name js-pc-drawer-phone-name">Pixel 8</div>
-                                                    <div class="pc-drawer-device-meta">192.168.1.15:7653 · Wi-Fi</div>
+                                        <div class="drawer-list">
+                                            <!-- Active Phone Row (Opens in place with Address, Link icon, Last connected, Actions) -->
+                                            <div class="drawer-pc-entry is-open js-pc-drawer-entry-active">
+                                                <div class="drawer-row is-active js-pc-drawer-pc-toggle">
+                                                    <div class="drawer-row-check">
+                                                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+                                                            <polyline points="20 6 9 17 4 12"/>
+                                                        </svg>
+                                                    </div>
+                                                    <div class="drawer-device-name js-pc-drawer-phone-name">Pixel 8</div>
                                                 </div>
-                                                <div class="pc-drawer-badge is-live">
-                                                    <span class="pc-status-dot"></span>
-                                                    <span>Active</span>
+                                                <div class="drawer-entry-expand">
+                                                    <div class="drawer-expand-line">
+                                                        <span class="drawer-expand-address">192.168.1.15:7653</span>
+                                                        <span class="drawer-expand-link-icon" title="Wi-Fi">
+                                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8E8E93" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                                                <path d="M5 10.36a10 10 0 0 1 14 0"/>
+                                                                <path d="M8.5 13.93a5 5 0 0 1 7 0"/>
+                                                                <line x1="12" y1="17.5" x2="12.01" y2="17.5"/>
+                                                            </svg>
+                                                        </span>
+                                                    </div>
+                                                    <div class="drawer-expand-line">
+                                                        <span class="drawer-expand-time">Connected now</span>
+                                                        <button class="drawer-action-text js-pc-action-block">Block</button>
+                                                    </div>
                                                 </div>
                                             </div>
 
-                                            <!-- Paired Row -->
-                                            <div class="pc-drawer-row">
-                                                <div class="pc-drawer-row-left">
-                                                    <div class="pc-drawer-device-name">Galaxy S24</div>
-                                                    <div class="pc-drawer-device-meta">Paired</div>
+                                            <!-- Paired Phone Row -->
+                                            <div class="drawer-pc-entry js-pc-drawer-entry-paired">
+                                                <div class="drawer-row js-pc-drawer-pc-toggle">
+                                                    <div class="drawer-row-check"></div>
+                                                    <div class="drawer-device-name">Galaxy S24</div>
                                                 </div>
-                                                <span class="pc-drawer-tag">Standby</span>
+                                                <div class="drawer-entry-expand" style="display: none;">
+                                                    <div class="drawer-expand-line">
+                                                        <span class="drawer-expand-address">192.168.1.42:7653</span>
+                                                        <span class="drawer-expand-link-icon" title="USB tethering">
+                                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8E8E93" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                                                <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+                                                                <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+                                                            </svg>
+                                                        </span>
+                                                    </div>
+                                                    <div class="drawer-expand-line">
+                                                        <span class="drawer-expand-time">Last connected 2 hours ago</span>
+                                                        <button class="drawer-action-text js-pc-action-connect">Connect</button>
+                                                    </div>
+                                                </div>
                                             </div>
 
                                             <!-- Direct IP Row -->
-                                            <div class="pc-drawer-row">
-                                                <div class="pc-drawer-row-left">
-                                                    <div class="pc-drawer-device-name">Direct IP</div>
-                                                    <div class="pc-drawer-device-meta">Port 7653</div>
+                                            <div class="drawer-pc-entry">
+                                                <div class="drawer-row js-pc-drawer-pc-toggle">
+                                                    <div class="drawer-row-check"></div>
+                                                    <div class="drawer-device-name">Direct IP</div>
                                                 </div>
-                                                <span class="pc-drawer-tag">Ready</span>
+                                                <div class="drawer-entry-expand" style="display: none;">
+                                                    <div class="drawer-expand-line">
+                                                        <span class="drawer-expand-address">Port 7653</span>
+                                                        <span class="drawer-expand-link-icon" title="Direct IP">
+                                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8E8E93" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                                                <circle cx="12" cy="12" r="9"/>
+                                                                <line x1="2" y1="12" x2="22" y2="12"/>
+                                                            </svg>
+                                                        </span>
+                                                    </div>
+                                                    <div class="drawer-expand-line">
+                                                        <span class="drawer-expand-time"></span>
+                                                        <button class="drawer-action-text js-pc-action-remove">Remove</button>
+                                                    </div>
+                                                </div>
                                             </div>
                                         </div>
 
-                                        <!-- End-to-End Link Tiers Bar -->
-                                        <div class="pc-drawer-links-bar">
-                                            <div class="drawer-conn-types">
-                                                <button class="conn-type-btn is-on js-pc-conn-type-btn" data-type="usb_debugging" title="USB adb">
-                                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                                                        <path d="M10 13v5a2 2 0 0 0 4 0v-5"/>
-                                                        <rect width="8" height="6" x="8" y="7" rx="1"/>
-                                                        <path d="M9 7V4"/>
-                                                        <path d="M15 7V4"/>
-                                                    </svg>
-                                                </button>
-                                                <button class="conn-type-btn is-on js-pc-conn-type-btn" data-type="usb_tethering" title="USB Tethering">
-                                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                                                        <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
-                                                        <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
-                                                    </svg>
-                                                </button>
-                                                <button class="conn-type-btn is-on js-pc-conn-type-btn" data-type="wifi" title="Wi-Fi">
-                                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                                                        <path d="M5 12.55a11 11 0 0 1 14.08 0"/>
-                                                        <path d="M8.53 16.11a6 6 0 0 1 6.95 0"/>
-                                                        <line x1="12" y1="20" x2="12.01" y2="20"/>
-                                                    </svg>
-                                                </button>
-                                                <button class="conn-type-btn is-on js-pc-conn-type-btn" data-type="bluetooth" title="Bluetooth">
-                                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                                                        <path d="m7 7 10 10-5 5V2l5 5L7 17"/>
-                                                    </svg>
-                                                </button>
-                                                <button class="conn-type-btn is-on js-pc-conn-type-btn" data-type="direct_lan" title="LAN / Hotspot">
-                                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                                                        <path d="M4.93 19.07A10 10 0 0 1 2 12a10 10 0 0 1 2.93-7.07"/>
-                                                        <path d="M19.07 4.93A10 10 0 0 1 22 12a10 10 0 0 1-2.93 7.07"/>
-                                                        <circle cx="12" cy="12" r="2"/>
-                                                    </svg>
-                                                </button>
-                                            </div>
+                                        <!-- Footer: 5 Equal Buttons matching Android (Reconnect, Divider, USB debugging, Wi-Fi, USB tethering, Bluetooth) -->
+                                        <div class="drawer-links-bar">
+                                            <button class="footer-link-btn is-on js-pc-footer-btn-reconnect" title="Reconnect">
+                                                <svg class="orient-icon js-pc-reconnect-spin" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                                    <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/>
+                                                    <polyline points="21 3 21 8 16 8"/>
+                                                </svg>
+                                            </button>
+                                            <div class="drawer-links-divider"></div>
+                                            <button class="footer-link-btn is-on js-pc-conn-type-btn" data-type="usb_debugging" title="USB debugging">
+                                                <svg class="orient-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                                    <path d="M10 13v5a2 2 0 0 0 4 0v-5"/>
+                                                    <rect width="8" height="6" x="8" y="7" rx="1"/>
+                                                    <path d="M9 7V4"/>
+                                                    <path d="M15 7V4"/>
+                                                </svg>
+                                            </button>
+                                            <button class="footer-link-btn is-on js-pc-conn-type-btn" data-type="wifi" title="Wi-Fi">
+                                                <svg class="orient-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                                    <path d="M5 10.36a10 10 0 0 1 14 0"/>
+                                                    <path d="M8.5 13.93a5 5 0 0 1 7 0"/>
+                                                    <line x1="12" y1="17.5" x2="12.01" y2="17.5"/>
+                                                </svg>
+                                            </button>
+                                            <button class="footer-link-btn is-on js-pc-conn-type-btn" data-type="usb_tethering" title="USB tethering">
+                                                <svg class="orient-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                                    <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+                                                    <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+                                                </svg>
+                                            </button>
+                                            <button class="footer-link-btn is-on js-pc-conn-type-btn" data-type="bluetooth" title="Bluetooth">
+                                                <svg class="orient-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                                    <path d="m7 7 10 10-5 5V2l5 5L7 17"/>
+                                                </svg>
+                                            </button>
                                         </div>
                                     </div>
 
                                     <!-- Screen 2: Setup & Help Process Showcase -->
                                     <div class="drawer-screen drawer-screen-help js-pc-drawer-screen-help" style="display: none;">
-                                        <div class="drawer-header">
-                                            <button class="drawer-back-btn js-pc-drawer-back-btn" title="Back" aria-label="Back">
-                                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                                                    <line x1="19" y1="12" x2="5" y2="12"></line>
-                                                    <polyline points="12 19 5 12 12 5"></polyline>
-                                                </svg>
-                                            </button>
-                                            <span class="drawer-title">Setup & Help</span>
-                                        </div>
                                         <div class="pc-drawer-list">
                                             <!-- Step 1: Download -->
-                                            <div class="pc-drawer-process-row">
+                                            <div class="pc-drawer-process-row js-open-download-modal" style="cursor: pointer;" title="Download Owlmic for Windows & Android">
                                                 <span class="pc-drawer-step-num">01</span>
                                                 <div class="pc-drawer-step-info">
                                                     <div class="pc-drawer-step-name">Download Owlmic</div>
-                                                    <div class="pc-drawer-step-detail">Get Windows (owlmic.exe) & APK on GitHub</div>
+                                                    <div class="pc-drawer-step-detail">Get Windows (.exe) & APK</div>
                                                 </div>
-                                                <a href="https://github.com/yashthorat7/mikey/releases" target="_blank" class="pc-drawer-step-arrow" title="GitHub Releases">↗</a>
+                                                <span class="pc-drawer-step-arrow">↗</span>
                                             </div>
 
                                             <!-- Step 2: Connect -->
@@ -595,15 +1098,6 @@
 
                                     <!-- Screen 3: Microphone Controls & Shared Settings -->
                                     <div class="drawer-screen drawer-screen-mic js-pc-drawer-screen-mic" style="display: none;">
-                                        <div class="drawer-header">
-                                            <button class="drawer-back-btn js-pc-drawer-back-btn" title="Back" aria-label="Back">
-                                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                                                    <line x1="19" y1="12" x2="5" y2="12"></line>
-                                                    <polyline points="12 19 5 12 12 5"></polyline>
-                                                </svg>
-                                            </button>
-                                            <span class="drawer-title">Microphone</span>
-                                        </div>
                                         <div class="drawer-controls-body">
                                             <!-- 1. Noise Reduction Slider (0 to 10) -->
                                             <div class="control-row">
@@ -734,15 +1228,164 @@
                             </div>
                         </div>
                     </div>
+
+                    <!-- Screen 2: PC Approval Gate (Screen::Gate - When phone is requesting approval) -->
+                    <div class="pc-screen pc-screen-gate js-pc-screen-gate">
+                        <div class="pc-gate-bento">
+                            <div class="pc-gate-body">
+                                <span class="pc-gate-title js-pc-gate-title">Pixel 8 wants to connect</span>
+                                <span class="pc-gate-sub">Check the code on your phone</span>
+                                <span class="pc-gate-code js-pc-gate-code">4821</span>
+                            </div>
+                            <div class="pc-gate-actions">
+                                <button class="pc-gate-btn pc-gate-btn-deny js-pc-gate-deny">Deny</button>
+                                <button class="pc-gate-btn pc-gate-btn-allow js-pc-gate-allow">Allow</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Download & PC Setup Showcase Modal -->
+    <div class="download-modal-backdrop js-download-modal" style="display: none;">
+        <div class="download-modal-dialog">
+            <div class="download-modal-header">
+                <div class="download-modal-title-group">
+                    <div class="download-modal-owl-badge">
+                        <svg viewBox="0 0 100 100" width="22" height="22" fill="currentColor">
+                            <path fill-rule="evenodd" d="M 50 24 C 36 24, 25 16, 17 10 C 13 22, 11 38, 13 50 C 16 68, 32 84, 50 84 C 68 84, 84 68, 87 50 C 89 38, 87 22, 83 10 C 75 16, 64 24, 50 24 Z M 34 35.5 A 13.5 13.5 0 1 0 34 62.5 A 13.5 13.5 0 1 0 34 35.5 Z M 34 41.5 A 7.5 7.5 0 1 1 34 56.5 A 7.5 7.5 0 1 1 34 41.5 Z M 66 35.5 A 13.5 13.5 0 1 0 66 62.5 A 13.5 13.5 0 1 0 66 35.5 Z M 66 41.5 A 7.5 7.5 0 1 1 66 56.5 A 7.5 7.5 0 1 1 66 41.5 Z" />
+                        </svg>
+                    </div>
+                    <div>
+                        <div class="download-modal-title">Download Owlmic</div>
+                        <div class="download-modal-subtitle">Turn your phone into a studio mic, 1080p60 camera & speaker</div>
+                    </div>
+                </div>
+                <button class="download-modal-close js-download-modal-close" title="Close" aria-label="Close">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
+            </div>
+
+            <div class="download-modal-body">
+                <!-- Platform Bento Cards -->
+                <div class="download-platforms-grid">
+                    <!-- PC Setup Card (Featured) -->
+                    <div class="download-card is-featured">
+                        <div class="download-card-header">
+                            <div class="download-card-badge">RECOMMENDED FOR PC</div>
+                            <span class="download-card-meta">v0.1.0 · ~4.1 MB</span>
+                        </div>
+                        <div class="download-card-title-row">
+                            <svg class="download-os-icon" width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M0 3.449L9.75 2.1v9.451H0m10.949-9.602L24 0v11.401H10.949M0 12.6h9.75v9.451L0 20.699M10.949 12.6H24V24l-12.949-1.801"/>
+                            </svg>
+                            <div>
+                                <div class="download-card-name">Owlmic Windows Setup</div>
+                                <div class="download-card-desc">Self-contained installer with virtual mic & camera drivers</div>
+                            </div>
+                        </div>
+
+                        <div class="download-features-row">
+                            <span class="download-chip">Windows 10 &amp; 11</span>
+                            <span class="download-chip">&lt;15 MB RAM</span>
+                            <span class="download-chip">Sub-10ms Latency</span>
+                            <span class="download-chip">No Cloud</span>
+                        </div>
+
+                        <div class="download-actions-row">
+                            <a href="downloads/Owlmic-Setup-0.1.0.exe" download="Owlmic-Setup-0.1.0.exe" class="download-btn-primary js-dl-setup">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                    <polyline points="7 10 12 15 17 10"></polyline>
+                                    <line x1="12" y1="15" x2="12" y2="3"></line>
+                                </svg>
+                                <span>Download Setup (.exe)</span>
+                            </a>
+                            <a href="downloads/owlmic.exe" download="owlmic.exe" class="download-btn-secondary js-dl-standalone" title="Standalone portable binary">
+                                <span>owlmic.exe (Portable, 3.1 MB)</span>
+                            </a>
+                        </div>
+                    </div>
+
+                    <!-- Android Client Card -->
+                    <div class="download-card">
+                        <div class="download-card-header">
+                            <div class="download-card-badge is-dim">ANDROID PHONE CLIENT</div>
+                            <span class="download-card-meta">APK · Android 9+</span>
+                        </div>
+                        <div class="download-card-title-row">
+                            <svg class="download-os-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <rect x="5" y="2" width="14" height="20" rx="2" ry="2"></rect>
+                                <line x1="12" y1="18" x2="12.01" y2="18"></line>
+                            </svg>
+                            <div>
+                                <div class="download-card-name">Owlmic for Android</div>
+                                <div class="download-card-desc">CameraX GPU pipeline & Oboe low-latency audio capture</div>
+                            </div>
+                        </div>
+
+                        <div class="download-features-row">
+                            <span class="download-chip">Hardware H.264</span>
+                            <span class="download-chip">48 kHz Opus</span>
+                            <span class="download-chip">OLED UI</span>
+                        </div>
+
+                        <div class="download-actions-row">
+                            <a href="downloads/owlmic.apk" download="owlmic.apk" class="download-btn-secondary is-full js-dl-apk">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                    <polyline points="7 10 12 15 17 10"></polyline>
+                                    <line x1="12" y1="15" x2="12" y2="3"></line>
+                                </svg>
+                                <span>Download Android APK</span>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 3-Step Setup Process -->
+                <div class="download-guide-box">
+                    <div class="download-guide-title">How to Set Up in 30 Seconds</div>
+                    <div class="download-steps-grid">
+                        <div class="download-step-card">
+                            <div class="download-step-badge">1</div>
+                            <div class="download-step-headline">Run Setup</div>
+                            <div class="download-step-text">Double-click <code>Owlmic-Setup-0.1.0.exe</code>. Click Install. It configures the virtual mic and camera in ~15 seconds.</div>
+                        </div>
+                        <div class="download-step-card">
+                            <div class="download-step-badge">2</div>
+                            <div class="download-step-headline">Allow Driver (UAC)</div>
+                            <div class="download-step-text">When Windows prompts to configure Owlmic Mic and Firewall rules, click <strong>Yes</strong>.</div>
+                        </div>
+                        <div class="download-step-card">
+                            <div class="download-step-badge">3</div>
+                            <div class="download-step-headline">Connect &amp; Stream</div>
+                            <div class="download-step-text">Launch Owlmic on your phone. Plug via USB cable or join the same Wi-Fi. Click <strong>Allow</strong> on PC to begin!</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Developer / Build from source tip -->
+                <div class="download-dev-footer">
+                    <div class="download-dev-label">Prefer building from source?</div>
+                    <div class="download-code-snippet">
+                        <code>git clone https://github.com/yashthorat7/mikey.git &amp;&amp; .\pc\installer\build-installer.ps1 -SkipBuild</code>
+                        <button class="download-copy-btn js-copy-build-cmd" title="Copy command">Copy</button>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
     
     <!-- Scripts -->
-    <script src="scripts/app.js?v=23"></script>
-    <script src="scripts/tabs.js?v=23"></script>
-    <script src="scripts/mobile.js?v=23"></script>
-    <script src="scripts/pc.js?v=23"></script>
+    <script src="scripts/app.js?v=33"></script>
+    <script src="scripts/tabs.js?v=33"></script>
+    <script src="scripts/mobile.js?v=33"></script>
+    <script src="scripts/pc.js?v=33"></script>
 </body>
 </html>

@@ -34,6 +34,12 @@
         repairing: false,
         appPowered: true,        // When false, simulates mobile app closed/killed
         pcPowered: true,         // When false, simulates PC tray app closed/quit
+        links: {
+            usb_debugging: true,
+            usb_tethering: true,
+            wifi: true,
+            bluetooth: true
+        },
         pairedPhones: [
             { id: 'pixel-8', name: 'Pixel 8', blocked: false, current: true }
         ],
@@ -329,6 +335,41 @@
             const links = ['wifi', 'usb_debugging', 'usb_tethering', 'bluetooth'];
             const idx = links.indexOf(state.link);
             state.link = links[(idx + 1) % links.length];
+            notify();
+        },
+        toggleLink: (type) => {
+            if (state.links && state.links[type] !== undefined) {
+                state.links[type] = !state.links[type];
+                notify();
+            }
+        },
+        setLinkEnabled: (type, enabled) => {
+            if (state.links && state.links[type] !== undefined) {
+                state.links[type] = Boolean(enabled);
+                notify();
+            }
+        },
+        reconnect: () => {
+            if (state.connection !== 'connected') {
+                state.connection = 'connected';
+                state.pcScreen = 'main';
+            }
+            notify();
+        },
+        setLens: (lens) => {
+            state.cameraLens = lens === 'Back' || lens === 'back' ? 'Back' : 'Front';
+            notify();
+        },
+        setQuality: (quality) => {
+            state.cameraQuality = quality;
+            notify();
+        },
+        setFps: (fps) => {
+            state.cameraFps = parseInt(fps, 10) || 30;
+            notify();
+        },
+        setOrientation: (orient) => {
+            state.cameraOrientation = orient;
             notify();
         },
         toggleAppPower: () => {
