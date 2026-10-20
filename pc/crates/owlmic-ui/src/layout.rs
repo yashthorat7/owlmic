@@ -335,12 +335,17 @@ pub fn place(
         work.0 + margin,
         (work.2 - size.0 - margin).max(work.0 + margin),
     );
-    let y = if anchor.1 < work.1 {
-        work.1 + margin
+    let top_half = anchor.1 < work.1 + (work.3 - work.1) / 2;
+    let y = if top_half {
+        anchor.3 + margin
     } else {
-        work.3 - size.1 - margin
+        anchor.1 - size.1 - margin
     };
-    (x, y)
+    let y_clamped = y.clamp(
+        work.1 + margin,
+        (work.3 - size.1 - margin).max(work.1 + margin),
+    );
+    (x, y_clamped)
 }
 
 #[cfg(test)]

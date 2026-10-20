@@ -383,24 +383,25 @@ impl Panel {
             (l::WIDTH * self.scale).round() as i32,
             (l::HEIGHT * self.scale).round() as i32,
         );
+        let margin = (20.0 * self.scale).round() as i32;
         let w = info.rcWork;
         let (x, y) = l::place(
             (anchor.left, anchor.top, anchor.right, anchor.bottom),
             (w.left, w.top, w.right, w.bottom),
             size,
-            (PAD * self.scale) as i32,
+            margin,
         );
-        let flags = if activate {
-            SWP_SHOWWINDOW
-        } else {
-            SWP_SHOWWINDOW | SWP_NOACTIVATE
-        };
+        let flags = SWP_NOZORDER | SWP_NOACTIVATE;
         unsafe {
             let _ = SetWindowPos(self.hwnd, Some(HWND_TOPMOST), x, y, size.0, size.1, flags);
             if activate {
+                let _ = AnimateWindow(self.hwnd, 100, AW_BLEND | AW_ACTIVATE);
                 let _ = ShowWindow(self.hwnd, SW_SHOW);
                 let _ = SetForegroundWindow(self.hwnd);
                 let _ = SetFocus(Some(self.hwnd));
+            } else {
+                let _ = AnimateWindow(self.hwnd, 100, AW_BLEND);
+                let _ = ShowWindow(self.hwnd, SW_SHOWNOACTIVATE);
             }
             SetTimer(
                 Some(self.hwnd),
@@ -417,6 +418,7 @@ impl Panel {
 
     fn hide(&mut self) {
         unsafe {
+            let _ = AnimateWindow(self.hwnd, 80, AW_BLEND | AW_HIDE);
             let _ = ShowWindow(self.hwnd, SW_HIDE);
             let _ = KillTimer(Some(self.hwnd), TIMER_PREVIEW);
         }

@@ -296,9 +296,7 @@ impl PanelState {
 
     /// What a click does.
     pub fn click(&self, target: Target) -> Option<Action> {
-        let feature = |which, state: Feature| {
-            (state != Feature::Off && self.connected()).then_some(Action::Pause(which))
-        };
+        let feature = |which, _state: Feature| self.connected().then_some(Action::Pause(which));
         let pairing = |id| self.paired.then_some(Action::Cycle(id));
         match target {
             Target::Camera => feature(Which::Camera, self.camera),
@@ -556,24 +554,16 @@ mod tests {
     }
 
     #[test]
-    fn tiles_pause_only_what_the_phone_turned_on() {
+    fn tiles_toggle_features_when_connected() {
         let mut s = connected();
-        assert_eq!(s.click(Target::Mic), None);
+        assert_eq!(s.click(Target::Mic), Some(Action::Pause(Which::Mic)));
         s.mic = Feature::On;
         assert_eq!(s.click(Target::Mic), Some(Action::Pause(Which::Mic)));
-        assert_eq!(
-            s.click(Target::Camera),
-            None,
-            "the phone hasn't turned it on"
-        );
+        assert_eq!(s.click(Target::Camera), Some(Action::Pause(Which::Camera)));
         s.camera = Feature::On;
         assert_eq!(s.click(Target::Camera), Some(Action::Pause(Which::Camera)));
         s.camera = Feature::Paused;
-        assert_eq!(
-            s.click(Target::Camera),
-            Some(Action::Pause(Which::Camera)),
-            "and resumes it"
-        );
+        assert_eq!(s.click(Target::Camera), Some(Action::Pause(Which::Camera)));
         assert_eq!(s.click(Target::Flip), Some(Action::Cycle("camera.lens")));
         s.paired = false;
         assert_eq!(s.click(Target::Mirror), None);
