@@ -33,7 +33,7 @@ DefaultGroupName={#MyAppName}
 DisableProgramGroupPage=yes
 DisableDirPage=yes
 DisableReadyMemo=yes
-UninstallDisplayIcon={app}\owlmic.ico
+UninstallDisplayIcon={app}\{#MyAppExeName}
 OutputDir=Output
 OutputBaseFilename={#MyAppName}-Setup-{#MyAppVersion}
 Compression=lzma2/ultra64
@@ -43,8 +43,7 @@ MinVersion=10.0.17763
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 PrivilegesRequired=admin
-SetupIconFile=owlmic.ico
-WizardSmallImageFile=owlmic_wizard_small.bmp
+; Owlmic is asked to quit before files are copied (PrepareToInstall), so no "close applications" page.
 CloseApplications=no
 
 [Languages]
@@ -53,17 +52,17 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 [Messages]
 WizardReady=Install Owlmic
 ReadyLabel1=Owlmic turns your Android phone into this PC's microphone, camera and speaker. It adds Owlmic Mic and Owlmic Cam, and starts with Windows.
-ReadyLabel2a=Clean install: any previous installation files, cached data, and pairing settings will be completely removed.
-ReadyLabel2b=Clean install: any previous installation files, cached data, and pairing settings will be completely removed.
+ReadyLabel2a=Free and open source (MIT).
+ReadyLabel2b=Free and open source (MIT).
 WizardInstalling=Setting up Owlmic
-InstallingLabel=Cleaning previous data and setting up Owlmic. This takes about 20 seconds.
+InstallingLabel=This takes about 20 seconds.
 FinishedHeadingLabel=Owlmic is ready
 FinishedLabelNoIcons=Open Owlmic on your phone. The first time, approve it here on the PC.
 FinishedLabel=Open Owlmic on your phone. The first time, approve it here on the PC.
 FinishedRestartLabel=Windows needs a restart to finish adding Owlmic Mic.
 YesRadio=&Restart now
 NoRadio=&Later
-ConfirmUninstall=This removes Owlmic, Owlmic Mic and Owlmic Cam from this PC. All previous data and settings will be deleted. The app on your phone stays.
+ConfirmUninstall=This removes Owlmic, Owlmic Mic and Owlmic Cam from this PC. The app on your phone stays.
 WindowsVersionNotSupported=Owlmic needs 64-bit Windows 10 or 11.
 OnlyOnTheseArchitectures=Owlmic needs 64-bit Windows 10 or 11.
 
@@ -73,12 +72,11 @@ Source: "{#OwlmicExe}"; DestDir: "{app}"; DestName: "{#MyAppExeName}"; Flags: ig
 Source: "{#OwlmicVcam}"; DestDir: "{app}"; Flags: ignoreversion restartreplace uninsrestartdelete
 Source: "..\softcam.dll"; DestDir: "{app}"; Flags: ignoreversion
 Source: "setup-audio-device.ps1"; DestDir: "{app}"; Flags: ignoreversion
-Source: "owlmic.ico"; DestDir: "{app}"; Flags: ignoreversion
 Source: "THIRD-PARTY-NOTICES.txt"; DestDir: "{app}"; Flags: ignoreversion
 Source: "driver\*"; DestDir: "{app}\driver"; Flags: ignoreversion recursesubdirs
 
 [Icons]
-Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; IconFilename: "{app}\owlmic.ico"; WorkingDir: "{app}"
+Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; WorkingDir: "{app}"
 
 [Registry]
 Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "Owlmic"; ValueData: """{app}\{#MyAppExeName}"" --autostart"; Flags: uninsdeletevalue
@@ -98,10 +96,8 @@ Filename: "netsh"; Parameters: "advfirewall firewall add rule name=""Owlmic"" di
 Filename: "{app}\{#MyAppExeName}"; Description: "Open Owlmic now"; WorkingDir: "{app}"; Flags: nowait postinstall skipifsilent runasoriginaluser
 
 [UninstallDelete]
-; Owlmic's own settings, cached pairing data, and application files.
+; Owlmic's own settings and pairings.
 Type: filesandordirs; Name: "{userappdata}\Owlmic"
-Type: filesandordirs; Name: "{localappdata}\Owlmic"
-Type: filesandordirs; Name: "{app}"
 
 [UninstallRun]
 ; Quit cleanly first, so Owlmic puts the PC speakers back if it had quieted them; force it only if it hangs.
@@ -129,40 +125,16 @@ begin
         RegQueryStringValue(HKCU, UninstPath, 'UninstallString', Result);
 end;
 
-function IsPreviousInstallDetected(): Boolean;
-var
-  AppDir: String;
-  VolAppData: String;
-begin
-  AppDir := ExpandConstant('{app}');
-  Result := (GetUninstallString() <> '') or
-            FileExists(ExpandConstant('{app}\{#MyAppExeName}')) or
-            DirExists(AppDir + '\driver') or
-            DirExists(ExpandConstant('{userappdata}\Owlmic')) or
-            DirExists(ExpandConstant('{localappdata}\Owlmic'));
-
-  if not Result then
-  begin
-    if RegQueryStringValue(HKEY_CURRENT_USER, 'Volatile Environment', 'APPDATA', VolAppData) then
-      if (VolAppData <> '') and DirExists(VolAppData + '\Owlmic') then
-        Result := True;
-  end;
-end;
-
 // Prepares a clean install by terminating running instances, unregistering the virtual camera,
-// silently executing any previous uninstaller, and thoroughly deleting all previous app data and settings.
+// silently executing any previous uninstaller, and removing leftover files.
 function PrepareToInstall(var NeedsRestart: Boolean): String;
 var
   ResultCode: Integer;
   UninstStr: String;
   AppDir: String;
-  VolAppData: String;
-  VolLocalAppData: String;
 begin
   Result := '';
   AppDir := ExpandConstant('{app}');
-
-  WizardForm.StatusLabel.Caption := 'Closing previous instances and resetting previous data...';
 
   // 1. Unregister camera and terminate running Owlmic processes
   if FileExists(ExpandConstant('{app}\{#MyAppExeName}')) then
@@ -171,7 +143,6 @@ begin
     Exec(ExpandConstant('{app}\{#MyAppExeName}'), '--unregister-camera', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
   end;
   Exec('taskkill.exe', '/F /IM {#MyAppExeName}', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
-  Sleep(500);
 
   // 2. If a prior installation exists, run its uninstaller silently
   UninstStr := GetUninstallString();
@@ -181,27 +152,11 @@ begin
     if FileExists(UninstStr) then
     begin
       Exec(UninstStr, '/VERYSILENT /SUPPRESSMSGBOXES /NORESTART', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
-      Sleep(1500);
-      Exec('taskkill.exe', '/F /IM {#MyAppExeName}', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
-      Sleep(500);
+      Sleep(2000);
     end;
   end;
 
-  // 3. Delete all previous user data, cached settings, identities, and pairings
-  DelTree(ExpandConstant('{userappdata}\Owlmic'), True, True, True);
-  DelTree(ExpandConstant('{localappdata}\Owlmic'), True, True, True);
-  if RegQueryStringValue(HKEY_CURRENT_USER, 'Volatile Environment', 'APPDATA', VolAppData) then
-  begin
-    if (VolAppData <> '') and DirExists(VolAppData + '\Owlmic') then
-      DelTree(VolAppData + '\Owlmic', True, True, True);
-  end;
-  if RegQueryStringValue(HKEY_CURRENT_USER, 'Volatile Environment', 'LOCALAPPDATA', VolLocalAppData) then
-  begin
-    if (VolLocalAppData <> '') and DirExists(VolLocalAppData + '\Owlmic') then
-      DelTree(VolLocalAppData + '\Owlmic', True, True, True);
-  end;
-
-  // 4. Remove any leftover files from previous versions in {app}
+  // 3. Remove any leftover files from previous versions in {app}
   if DirExists(AppDir) then
   begin
     DelTree(AppDir + '\driver', True, True, True);
@@ -209,9 +164,7 @@ begin
     DeleteFile(AppDir + '\owlmic_vcam.dll');
     DeleteFile(AppDir + '\softcam.dll');
     DeleteFile(AppDir + '\setup-audio-device.ps1');
-    DeleteFile(AppDir + '\owlmic.ico');
     DeleteFile(AppDir + '\THIRD-PARTY-NOTICES.txt');
-    DelTree(AppDir, True, True, True);
   end;
 end;
 
@@ -243,29 +196,7 @@ begin
 end;
 
 procedure CurPageChanged(CurPageID: Integer);
-var
-  PriorDetected: Boolean;
 begin
-  if CurPageID = wpReady then
-  begin
-    PriorDetected := IsPreviousInstallDetected();
-    if PriorDetected then
-    begin
-      WizardForm.ReadyLabel.Caption :=
-        'An existing installation of Owlmic was detected on this PC.' + #13#10#13#10 +
-        'To ensure a completely fresh and reliable experience, Setup will perform a clean reinstall: ' +
-        'it will close any running Owlmic processes and delete all previous application files, ' +
-        'cached settings, and pairing data before installing the latest version.';
-    end
-    else
-    begin
-      WizardForm.ReadyLabel.Caption :=
-        'Owlmic turns your Android phone into this PC''s microphone, camera and speaker. ' +
-        'It adds Owlmic Mic and Owlmic Cam, and starts with Windows.' + #13#10#13#10 +
-        'Setup automatically ensures a clean installation by clearing any leftover previous data.';
-    end;
-  end;
-
   if (CurPageID = wpFinished) and MicNeedsRestart then
     WizardForm.FinishedHeadingLabel.Caption := 'Almost ready';
 end;
@@ -274,8 +205,6 @@ end;
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
 var
   ResultCode: Integer;
-  VolAppData: String;
-  VolLocalAppData: String;
 begin
   if CurUninstallStep = usUninstall then
   begin
@@ -286,20 +215,5 @@ begin
     else if FileExists(ExpandConstant('{app}\driver\VBCABLE_Setup_x64.exe')) then
       Exec(ExpandConstant('{app}\driver\VBCABLE_Setup_x64.exe'), '-u -h', ExpandConstant('{app}\driver'),
         SW_HIDE, ewWaitUntilTerminated, ResultCode);
-  end;
-  if CurUninstallStep = usPostUninstall then
-  begin
-    DelTree(ExpandConstant('{userappdata}\Owlmic'), True, True, True);
-    DelTree(ExpandConstant('{localappdata}\Owlmic'), True, True, True);
-    if RegQueryStringValue(HKEY_CURRENT_USER, 'Volatile Environment', 'APPDATA', VolAppData) then
-    begin
-      if (VolAppData <> '') and DirExists(VolAppData + '\Owlmic') then
-        DelTree(VolAppData + '\Owlmic', True, True, True);
-    end;
-    if RegQueryStringValue(HKEY_CURRENT_USER, 'Volatile Environment', 'LOCALAPPDATA', VolLocalAppData) then
-    begin
-      if (VolLocalAppData <> '') and DirExists(VolLocalAppData + '\Owlmic') then
-        DelTree(VolLocalAppData + '\Owlmic', True, True, True);
-    end;
   end;
 end;

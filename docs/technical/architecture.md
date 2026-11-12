@@ -88,11 +88,6 @@ Both client and server organize functionality into decoupled **Hubs** that commu
 - Automatically synchronizes shared settings (e.g., lens, noise reduction, frame rate) between phone and PC via protocol `SETTINGS` frames.
 - Persists PC settings to `%APPDATA%\Owlmic\owlmic.json`.
 
-### 6. Bidirectional Media Stream Control
-- While connected, stream toggles can be initiated from either the Android client or the PC companion flyout:
-  - When a stream is active, clicking its tile from the PC commands the stream to halt or pause (`STREAM_STOP` / `STATE: "paused"`).
-  - When a stream is inactive or paused, clicking its tile from the PC issues `STREAM_START` / `STATE: "on"`, awakening mobile hardware capture and encoders immediately.
-
 ---
 
 ## 4. Real-Time & Buffer Budgets

@@ -24,44 +24,13 @@ pub struct Stream {
 struct Inner {
     /// Dropped at shutdown, which breaks the source and stream reference cycle.
     source: Option<IMFMediaSource>,
-    state: MF_STREAM_STATE,
+    running: bool,
     allocator: Option<IMFVideoSampleAllocatorEx>,
     /// Frame duration in 100 ns units.
     duration: i64,
     frame_count: u64,
     mapping: Option<Mapping>,
     picker: Option<Picker>,
-}
-
-impl Inner {
-    fn ensure_ready(&mut self, descriptor: &IMFStreamDescriptor) -> Result<()> {
-        if self.source.is_none() {
-            return Err(MF_E_SHUTDOWN.into());
-        }
-        if self.allocator.is_none() {
-            unsafe {
-                let media_type = descriptor.GetMediaTypeHandler()?.GetCurrentMediaType()?;
-                let rate = media_type.GetUINT64(&MF_MT_FRAME_RATE)?;
-                let (num, den) = (
-                    (rate >> 32).max(1) as i64,
-                    (rate & 0xFFFF_FFFF).max(1) as i64,
-                );
-                self.duration = 10_000_000 * den / num;
-                let mut raw = std::ptr::null_mut();
-                MFCreateVideoSampleAllocatorEx(&IMFVideoSampleAllocatorEx::IID, &mut raw)?;
-                let allocator = IMFVideoSampleAllocatorEx::from_raw(raw);
-                allocator.InitializeSampleAllocator(POOL, &media_type)?;
-                self.allocator = Some(allocator);
-            }
-        }
-        if self.picker.is_none() {
-            self.picker = Some(Picker::new(crate::placeholder::render(WIDTH, HEIGHT).data));
-        }
-        if self.mapping.is_none() {
-            self.mapping = Mapping::create();
-        }
-        Ok(())
-    }
 }
 
 impl Stream {
@@ -72,7 +41,7 @@ impl Stream {
             descriptor,
             inner: Mutex::new(Inner {
                 source: Some(source),
-                state: MF_STREAM_STATE_STOPPED,
+                running: false,
                 allocator: None,
                 duration: 333_333,
                 frame_count: 0,
@@ -87,15 +56,37 @@ impl Stream {
     }
 
     pub fn is_running(&self) -> bool {
-        self.inner().state == MF_STREAM_STATE_RUNNING
+        self.inner().running
     }
 
     /// Starts with the media type the app chose on `descriptor`.
     pub fn start(&self, descriptor: &IMFStreamDescriptor, now: &PROPVARIANT) -> Result<()> {
         let mut inner = self.inner();
-        inner.ensure_ready(descriptor)?;
+        if inner.source.is_none() {
+            return Err(MF_E_SHUTDOWN.into());
+        }
+        unsafe {
+            let media_type = descriptor.GetMediaTypeHandler()?.GetCurrentMediaType()?;
+            let rate = media_type.GetUINT64(&MF_MT_FRAME_RATE)?;
+            let (num, den) = (
+                (rate >> 32).max(1) as i64,
+                (rate & 0xFFFF_FFFF).max(1) as i64,
+            );
+            inner.duration = 10_000_000 * den / num;
+            let mut raw = std::ptr::null_mut();
+            MFCreateVideoSampleAllocatorEx(&IMFVideoSampleAllocatorEx::IID, &mut raw)?;
+            let allocator = IMFVideoSampleAllocatorEx::from_raw(raw);
+            allocator.InitializeSampleAllocator(POOL, &media_type)?;
+            inner.allocator = Some(allocator);
+        }
+        if inner.picker.is_none() {
+            inner.picker = Some(Picker::new(crate::placeholder::render(WIDTH, HEIGHT).data));
+        }
+        if inner.mapping.is_none() {
+            inner.mapping = Mapping::create();
+        }
         inner.frame_count = 0;
-        inner.state = MF_STREAM_STATE_RUNNING;
+        inner.running = true;
         unsafe {
             self.queue.QueueEventParamVar(
                 MEStreamStarted.0 as u32,
@@ -106,27 +97,9 @@ impl Stream {
         }
     }
 
-    pub fn pause(&self) -> Result<()> {
-        let mut inner = self.inner();
-        if inner.source.is_none() {
-            return Err(MF_E_SHUTDOWN.into());
-        }
-        let _ = inner.ensure_ready(&self.descriptor);
-        inner.state = MF_STREAM_STATE_PAUSED;
-        let now = PROPVARIANT::default();
-        unsafe {
-            self.queue.QueueEventParamVar(
-                MEStreamPaused.0 as u32,
-                &GUID::zeroed(),
-                HRESULT(0),
-                &now,
-            )
-        }
-    }
-
     pub fn stop(&self) -> Result<()> {
         let mut inner = self.inner();
-        inner.state = MF_STREAM_STATE_STOPPED;
+        inner.running = false;
         inner.allocator = None;
         let now = PROPVARIANT::default();
         unsafe {
@@ -141,7 +114,7 @@ impl Stream {
 
     pub fn shutdown(&self) {
         let mut inner = self.inner();
-        inner.state = MF_STREAM_STATE_STOPPED;
+        inner.running = false;
         inner.source = None;
         inner.allocator = None;
         inner.mapping = None;
@@ -198,8 +171,8 @@ impl IMFMediaStream_Impl for Stream_Impl {
         if inner.source.is_none() {
             return Err(MF_E_SHUTDOWN.into());
         }
-        let _ = inner.ensure_ready(&self.descriptor);
         let Inner {
+            running: true,
             allocator: Some(allocator),
             mapping,
             picker: Some(picker),
@@ -252,31 +225,24 @@ impl IMFMediaStream_Impl for Stream_Impl {
 
 impl IMFMediaStream2_Impl for Stream_Impl {
     fn SetStreamState(&self, state: MF_STREAM_STATE) -> Result<()> {
-        match state {
-            MF_STREAM_STATE_RUNNING => {
-                if self.is_running() {
-                    return Ok(());
-                }
-                let now = PROPVARIANT::default();
-                self.start(&self.descriptor, &now)
+        if state == MF_STREAM_STATE_RUNNING {
+            if self.is_running() {
+                return Ok(());
             }
-            MF_STREAM_STATE_PAUSED => {
-                if self.inner().state == MF_STREAM_STATE_PAUSED {
-                    return Ok(());
-                }
-                self.pause()
-            }
-            MF_STREAM_STATE_STOPPED => {
-                if self.inner().state == MF_STREAM_STATE_STOPPED {
-                    return Ok(());
-                }
-                self.stop()
-            }
-            _ => Err(MF_E_INVALID_STATE_TRANSITION.into()),
+            let now = PROPVARIANT::default();
+            return self.start(&self.descriptor, &now);
         }
+        if state == MF_STREAM_STATE_STOPPED {
+            return self.stop();
+        }
+        Err(MF_E_INVALID_STATE_TRANSITION.into())
     }
 
     fn GetStreamState(&self) -> Result<MF_STREAM_STATE> {
-        Ok(self.inner().state)
+        Ok(if self.is_running() {
+            MF_STREAM_STATE_RUNNING
+        } else {
+            MF_STREAM_STATE_STOPPED
+        })
     }
 }

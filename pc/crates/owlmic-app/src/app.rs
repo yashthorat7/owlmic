@@ -379,12 +379,6 @@ impl AppHub {
                     });
                 }
             }
-            Action::Set(id, value) => {
-                self.w.settings.send(SettingsMsg::Set {
-                    id: id.to_owned(),
-                    value,
-                });
-            }
             Action::Allow => self
                 .w
                 .session

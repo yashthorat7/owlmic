@@ -218,54 +218,21 @@ impl MediaHub {
     }
 
     fn pause(&mut self, feature: Feature, paused: bool) {
-        if self.is_paused(feature) == paused
-            && (paused
-                || (feature == Feature::Mic && self.mic_codec.is_some())
-                || (feature == Feature::Camera && self.camera_on))
-        {
+        if self.is_paused(feature) == paused {
             return;
         }
         self.paused[feature as usize] = paused;
         match feature {
-            Feature::Mic => {
+            Feature::Mic if self.mic_codec.is_some() => {
                 if paused {
-                    if self.mic_codec.is_some() {
-                        self.stop_mic();
-                    }
-                    (self.emit)(MediaEvent::ToPhone(Message::StreamStop(StreamRef {
-                        stream: STREAM_MIC,
-                    })));
-                } else if self.mic_codec.is_some() {
+                    self.stop_mic();
+                } else {
                     self.start_mic();
-                } else {
-                    let mut params = serde_json::Map::new();
-                    params.insert("sampleRate".into(), 48_000.into());
-                    params.insert("channels".into(), 1.into());
-                    (self.emit)(MediaEvent::ToPhone(Message::StreamStart(StreamStart {
-                        stream: STREAM_MIC,
-                        codec: "pcm".into(),
-                        params,
-                    })));
                 }
             }
-            Feature::Camera => {
-                if paused {
-                    self.camera_on = false;
-                    (self.emit)(MediaEvent::Camera(false));
-                    (self.emit)(MediaEvent::ToPhone(Message::StreamStop(StreamRef {
-                        stream: STREAM_CAMERA,
-                    })));
-                } else if self.camera_on {
-                    (self.emit)(MediaEvent::Camera(true));
-                } else {
-                    (self.emit)(MediaEvent::ToPhone(Message::StreamStart(StreamStart {
-                        stream: STREAM_CAMERA,
-                        codec: "h264".into(),
-                        params: serde_json::Map::new(),
-                    })));
-                }
-            }
+            Feature::Camera if self.camera_on => (self.emit)(MediaEvent::Camera(!paused)),
             Feature::Speaker => self.update_speaker(),
+            _ => {}
         }
         let shown = self.shown();
         (self.emit)(MediaEvent::ToPhone(Message::State(shown)));

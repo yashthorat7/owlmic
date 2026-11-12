@@ -66,25 +66,11 @@ The phone uses no colour: green, yellow and red are the PC panel's. On the phone
 
 ## 3. Windows Native Flyout Panel (`pc/crates/owlmic-ui`)
 
-Rather than shipping Chromium/Electron or bloated webview engines, Owlmic PC uses a **100% native Win32 Direct2D / DirectWrite hardware-accelerated renderer**:
-- **Geometry & Positioning**: Compact Bento 6-square layout (312 × 374 px window with a 1 px `#7E7E7E` seam).
-  - Dynamically positioned relative to the clicked tray icon or cursor: its bottom edge rests ~20 px above the tray icon (or 20 px below for top-mounted taskbars), clamped safely inside the display work area.
-  - Smooth appear/disappear animation using Win32 `AnimateWindow` with `AW_BLEND` fade transition.
-  - **Playground Tile**: Fixed 310 × 310 px top area displaying an 18 px dot matrix, faint watermark owl, live camera preview, audio waveform, and slide-down drawers. Never obscured by rogue offline banners or centered disconnection text.
-  - **Bottom Row**: Five 61 × 61 px square button tiles: Setup & Help (`?`), Camera, Mic, Speaker, and Connection / Link (`Wi-Fi`/`USB`/`BT`/`Globe`).
-  - **Unified Camera Icon**: Standardized across both Android and PC on the 24px Lucide camera glyph (body, top notch, and lens aperture).
-- **Instant Response**: Panel opens in < 15 ms with zero cold-start delay, rendering directly with hardware Direct2D double-buffering.
-- **Logo Variants**:
-  1. `icon.svg`: Transparent background standalone owl (white body, black eyes, black beak).
-  2. `icon-badge.svg`: Black squircle background (`rx="112"`, `#000000`) with padding and centered owl.
-  3. `icon-adaptive.svg`: Adaptive light/dark palette matching OS appearance preferences.
-- **Drawers & Controls**:
-  - **Connection Drawer**: Displays active phone, standby/blocked phones, direct IP info, and 5 link transport toggles (USB debugging, USB tethering, Wi-Fi, Bluetooth, Direct IP).
-  - **Help Drawer**: Step-by-step setup guide, quick links (Website, Privacy, Donate, GitHub), and build version.
-  - **Microphone Drawer**: Noise reduction slider (0-10), Volume slider (-12 to +12 dB), Voice Isolation toggle, and Auto Level toggle.
-  - **Floating Camera Controls**: Eye button (toggle local preview watching while keeping camera stream live to PC apps), Mirror button, and Flip button.
-  - **Waveform**: Smooth 25-bar dynamic animated mic visualizer (full-size in center or docked into a bottom capsule when camera is active).
-  - **Approval Gate & Repair Banner**: In-place security verification cards for pairing new devices and audio driver repair alerts.
+Rather than shipping Chromium/Electron or bloated webview engines, Owlmic PC uses a **100% native Win32 GDI/GDI+ renderer**:
+- **Geometry**: Fixed 560 × 255 px panel positioned above the taskbar system tray.
+- **Double-Buffered Blitting**: Drawn entirely off-screen to a memory device context (DC) and blitted to screen in a single `BitBlt` call to guarantee zero flicker.
+- **Instant Response**: Panel opens in < 15 ms with zero cold-start delay.
+- **Live Video Preview**: A 352 × 198 px camera tile displays a 10 FPS NV12-to-RGB rendered video preview directly inside the flyout.
 
 ---
 

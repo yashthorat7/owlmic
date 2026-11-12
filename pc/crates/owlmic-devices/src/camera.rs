@@ -155,7 +155,9 @@ fn run(
             }
             continue;
         };
-        match decoder.decode(&next.frame.data, next.frame.timestamp_us) {
+        match decoder.decode(&next.frame.data) {
+            // A newer frame waits behind this one: decode it, but only the newest is shown.
+            Ok(Some(_)) if next.more => errors = 0,
             Ok(Some(picture)) => {
                 errors = 0;
                 let (framing, mirror) = shape.get();
