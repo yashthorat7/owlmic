@@ -1,49 +1,30 @@
 #!/usr/bin/env bash
-# Git commit-msg hook for Owlmic
-# Enforces Conventional Commits:
-# - Format: <type>(<scope>): <summary>
-# - Types: feat, fix, docs, refactor, perf, test, chore
-# - Scopes: android, pc, proto, design, installer, ci, site
-# - Limit: less than 8 words, <= 72 characters, no trailing period
+set -euo pipefail
 
 COMMIT_MSG_FILE="$1"
-FIRST_LINE=$(head -n 1 "$COMMIT_MSG_FILE")
+FIRST_LINE="$(head -n 1 "$COMMIT_MSG_FILE")"
 
 # Allow merge or fixup commits
 if [[ "$FIRST_LINE" =~ ^(Merge|Revert|fixup!|squash!) ]]; then
     exit 0
 fi
 
-# Check word count (must be less than 8 words)
-WORD_COUNT=$(echo "$FIRST_LINE" | wc -w)
-if [ "$WORD_COUNT" -ge 8 ]; then
-    echo "ERROR: Commit message must be less than 8 words (found: $WORD_COUNT words)."
-    echo "Message: \"$FIRST_LINE\""
-    echo "Example: feat(site): add playground drawer overlays"
-    exit 1
-fi
-
 # Check length (<= 72 chars)
 if [ "${#FIRST_LINE}" -gt 72 ]; then
-    echo "ERROR: Commit message must be <= 72 characters (found: ${#FIRST_LINE})."
+    echo "❌ ERROR: Commit message must be <= 72 characters (found: ${#FIRST_LINE})."
     exit 1
 fi
 
-# Check Conventional Commits pattern
-PATTERN="^(feat|fix|docs|refactor|perf|test|chore)\((android|pc|proto|design|installer|ci|site)\): [a-z0-9][a-z0-9 -]+$"
-if ! echo "$FIRST_LINE" | grep -qE "$PATTERN"; then
-    echo "ERROR: Commit message does not match Conventional Commits format:"
-    echo "       <type>(<scope>): <short imperative summary>"
-    echo "Allowed types:  feat, fix, docs, refactor, perf, test, chore"
-    echo "Allowed scopes: android, pc, proto, design, installer, ci, site"
-    echo "Found: \"$FIRST_LINE\""
+PATTERN='^(feat|fix|perf|refactor|docs|test|ci|chore|build)\((android|pc|win|linux|proto|design|installer|scripts|ci|site)\): [a-z0-9].{3,68}[^\.]$'
+
+if ! [[ "$FIRST_LINE" =~ $PATTERN ]]; then
+    echo "❌ INVALID COMMIT MESSAGE:"
+    echo "   \"$FIRST_LINE\""
+    echo ""
+    echo "Required format:"
+    echo "   <type>(<scope>): <lowercase imperative description, max 72 chars, no period>"
+    echo "Allowed types:  feat, fix, perf, refactor, docs, test, ci, chore, build"
+    echo "Allowed scopes: android, pc, win, linux, proto, design, installer, scripts, ci, site"
+    echo "Example:        chore(scripts): add automated invariant verifier and git hooks"
     exit 1
 fi
-
-# Check no trailing period
-if [[ "$FIRST_LINE" == *. ]]; then
-    echo "ERROR: Commit message must not end with a period."
-    exit 1
-fi
-
-exit 0

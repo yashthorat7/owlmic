@@ -1,62 +1,95 @@
-# Android / Gradle
-android/build/
-android/*/build/
-android/.gradle/
-android/.kotlin/
-android/*/.cxx/
-android/captures/
-local.properties
+# =============================================================================
+# 1. STRICT BINARY & ARCHIVE BAN (Enforced by scripts/verify-repo-invariants.py)
+# =============================================================================
+*.exe
+*.dll
+*.so
+*.dylib
 *.apk
 *.aab
+*.ap_
+*.dex
+*.class
+*.o
+*.obj
+*.lib
+*.a
+*.pdb
+*.ilk
+*.exp
+*.msi
+*.deb
+*.rpm
+*.AppImage
+*.zip
+*.tar.gz
+*.7z
+*.iso
+
+# =============================================================================
+# 2. RUST & PC WORKSPACE (pc/)
+# =============================================================================
+/pc/target/
+**/target/
+**/*.rs.bk
+Cargo.lock.bak
+# Inno Setup & Windows Installer outputs
+/pc/installer/**/Output/
+/pc/installer/**/*.exe
+/pc/installer/driver/
+# Linux packaging build directories
+/pc/installer/linux/build/
+/pc/installer/linux/AppDir/
+
+# =============================================================================
+# 3. ANDROID NDK / GRADLE / KOTLIN (android/)
+# =============================================================================
+/android/.gradle/
+/android/build/
+/android/**/build/
+/android/.cxx/
+/android/**/.cxx/
+/android/local.properties
+/android/captures/
+/android/.navigation/
+/android/**/*.iml
+/android/.idea/
+
+# Signing keys & secrets (NEVER COMMIT)
 *.jks
 *.keystore
+*.p12
+*.pfx
+*.pem
+*.der
+key.properties
+google-services.json
 
-# PC / Rust
-pc/target/
-*.dll
-*.exe
-*.so
-pc/softcam.dll
-
-# Windows installer: driver files downloaded by CI, and the build output
-pc/installer/driver/
-pc/installer/Output/
-landing/proto-templates/downloads/
-
-# IDE
-.idea/
-*.iml
-
-# OS
-.DS_Store
-
-# Secrets / local overrides
-*.local
-.env
-*trash.md
-
-# Logs
-logs
-*.log
+# =============================================================================
+# 4. LANDING SITE & NODE (landing/)
+# =============================================================================
+/landing/node_modules/
+/landing/dist/
+/landing/.vite/
 npm-debug.log*
 yarn-debug.log*
-yarn-error.log*
 pnpm-debug.log*
-lerna-debug.log*
+.env
+.env.*
+!.env.example
 
-node_modules
-dist
-dist-ssr
-*.local
-
-# Editor directories and files
+# =============================================================================
+# 5. IDE, EDITOR & OS ARTIFACTS (Windows, Linux, macOS)
+# =============================================================================
+.idea/
 .vscode/*
+!.vscode/settings.json
 !.vscode/extensions.json
-.idea
+*.swp
+*.swo
+*~
+Thumbs.db
+ehthumbs.db
+Desktop.ini
 .DS_Store
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.sw?
-
+*trash.md
