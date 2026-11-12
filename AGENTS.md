@@ -30,8 +30,10 @@ Code and documentation must **never** drift apart:
 - **Ownership boundaries**:
   - `android/` - Android client application (modules `app`, `core`, `media`).
   - `pc/` - Windows companion application (workspace `pc/crates/*`, virtual camera `pc/vcam`). **Do not modify or add code in `pc/` unless explicitly requested by the user.**
-  - `design/` - Shared tokens (`tokens.json`), copy (`copy.json`), and settings (`settings.json`).
+  - `design/` - Shared tokens (`tokens.json`), copy (`copy.json`), settings (`settings.json`), and interactive HTML UI prototypes (`prototypes/`).
+  - `assets/` - Single source of truth for shared visual assets (`brand/`, `icons/`, `fonts/`).
   - `protocol/` - Wire protocol specification and independent test vectors (`vectors/`).
+  - `scripts/` - Automated gatekeepers, check runners, and Git hooks.
   - `landing/` - React + Vite documentation and product site.
 - **Roles**: The phone is **always the client**; the PC is **always the server**.
 
@@ -81,7 +83,7 @@ Write lean, intentional, production-grade code. No AI slop or LLM artifacts:
 6. **Strict Binary Ban in Git History**:
    - Never commit or stage compiled binaries (`.apk`, `.exe`, `.aab`, `.dll`, `.so`, `.zip`) into the repository.
 7. **Clean Root Discipline**:
-   - The repository root is fixed and minimal (`.github/`, `android/`, `design/`, `docs/`, `landing/`, `pc/`, `protocol/`, `AGENTS.md`, `CLAUDE.md`, `LICENSE`, `README.md`, `.gitignore`, `.gitmodules`).
+   - The repository root is fixed and minimal (`.github/`, `android/`, `assets/`, `design/`, `docs/`, `landing/`, `pc/`, `protocol/`, `scripts/`, `AGENTS.md`, `CLAUDE.md`, `LICENSE`, `README.md`, `.gitignore`, `.gitmodules`).
    - Never create scratch scripts, test notes, or temporary folders in the root. Local scratch notes must match `*trash.md` (which is gitignored).
 8. **Real-Time Buffer & Allocation Safety**:
    - Audio loops must use pre-allocated buffers with zero dynamic heap allocations in hot paths.
@@ -124,7 +126,7 @@ Strict Git discipline must be maintained at all times.
   [optional body explaining why this change was made]
   ```
 - **Allowed Types**: `feat`, `fix`, `docs`, `refactor`, `perf`, `test`, `chore`.
-- **Allowed Scopes**: `android`, `pc`, `proto`, `design`, `installer`, `ci`, `site`.
+- **Allowed Scopes**: `android`, `pc`, `proto`, `design`, `installer`, `ci`, `site`, `scripts`.
 - **Subject line format**:
   - Imperative mood: `"add"`, `"fix"`, `"drop"`, `"stream"` (never `"added"`, `"fixing"`).
   - All lowercase, concise (<= 72 chars), no trailing period.
@@ -190,13 +192,14 @@ Follow [`docs/technical/design-language.md`](docs/technical/design-language.md):
   - Live Status OK: `#30D158` (Green)
   - Waiting / Reconnecting: `#FFD60A` (Yellow)
   - Disconnected / Error: `#FF453A` (Red)
-- **Panel Geometry**: Fixed 312 × 374 px Win32 flyout (Bento 6-square) above system tray. Direct2D hardware-accelerated rendering.
+- **Panel Geometry**: Fixed 560 × 255 px Win32 flyout above system tray. Double-buffered GDI BitBlt rendering.
 
 ---
 
 ## Code Quality & Verification Commands
 
 Before proposing changes, verify locally:
+- **Invariants**: `python scripts/verify-repo-invariants.py` (or full suite: `./scripts/check.sh` / `.\scripts\check.ps1`)
 - **Android**: `./gradlew testDebugUnitTest lintDebug`
 - **PC**: `cargo fmt --all --check` and `cargo clippy --all-targets -- -D warnings` and `cargo test --workspace`
 - **Name Invariant**: verify product name casing complies with `.github/workflows/ci.yml` (check step: "Check how Owlmic is written")

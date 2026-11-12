@@ -1,0 +1,838 @@
+/* Owlmic Android APK UI Styles - Portrait
+   Conforms to android/app/src/main/java/com/owlmic/ui/MainScreen.kt and Theme.kt
+   Realistic modern phone chassis & edge-to-edge Compose bento layout */
+
+/* Speaker slit on top bezel & Minimal Modern Notch */
+.phone-notch {
+    position: absolute;
+    top: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 122px;
+    height: 25px;
+    background-color: #000000;
+    border-bottom-left-radius: 14px;
+    border-bottom-right-radius: 14px;
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+}
+
+.phone-speaker-slit {
+    width: 38px;
+    height: 2.5px;
+    background-color: #1e2028;
+    border-radius: 2px;
+}
+
+.phone-punch-hole {
+    position: absolute;
+    right: 16px;
+    top: 7px;
+    width: 7.5px;
+    height: 7.5px;
+    background-color: #090a0e;
+    border: 1px solid #161822;
+    border-radius: 50%;
+}
+
+/* Home Indicator Bar (iPhone X) */
+.phone-home-indicator {
+    display: none !important;
+}
+
+/* Screen container inside bezel (iPhone X: exact 375 x 812) */
+.mobile-phone-screen {
+    width: 375px;
+    height: 812px;
+    background-color: #E6E6E6;
+    border-radius: 38px;
+    overflow: hidden;
+    position: relative;
+}
+
+/* Bento Grid Layout: 1px padding and 1px gap on white background */
+.phone-app-layout,
+.phone-portrait-layout {
+    width: 375px;
+    height: 812px;
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    box-sizing: border-box;
+    background-color: #7e7e7e;
+    padding: 1px;
+    padding-top: 39px; /* 38px status plate + 1px white gap */
+    padding-bottom: 29px; /* 28px bottom plate + 1px white gap */
+    gap: 1px;
+    opacity: 1;
+    pointer-events: all;
+    transition: none;
+}
+
+/* In Landscape: Notch compartment on visual left, chin on visual right, notification bar hidden for now */
+.device-mobile.is-landscape .phone-app-layout {
+    padding-top: 29px; /* 28px left notch safe compartment + 1px white gap */
+    padding-bottom: 29px; /* 28px right chin compartment + 1px white gap */
+    padding-left: 1px;
+    padding-right: 1px;
+}
+
+/* Left Notch Safe Area Compartment in Landscape Mode */
+.phone-notch-compartment {
+    display: none;
+}
+
+.device-mobile.is-landscape .phone-notch-compartment {
+    display: block;
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    width: 100%;
+    height: 28px;
+    background-color: #000000 !important;
+    border-radius: 0 !important;
+    border: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    z-index: 95;
+    pointer-events: none;
+    box-sizing: border-box;
+}
+
+/* --- ORIENTATION & ICON ROTATION --- */
+
+/* Snappy orientation switch at 45deg (no smooth continuous counter-rotation) */
+.orient-icon,
+.phone-square-btn svg,
+.phone-square-partition svg,
+.top-help-tile svg,
+.top-wifi-tile svg,
+.playground-watermark svg {
+    transition: none;
+    transform-origin: center center;
+    will-change: transform;
+}
+
+.device-mobile.is-portrait .orient-icon,
+.device-mobile.is-portrait .phone-square-btn svg,
+.device-mobile.is-portrait .phone-square-partition svg,
+.device-mobile.is-portrait .top-help-tile svg,
+.device-mobile.is-portrait .top-wifi-tile svg,
+.device-mobile.is-portrait .playground-watermark svg {
+    transform: rotate(0deg);
+}
+
+/* When the phone chassis rotates -90deg, icons counter-rotate +90deg to stay upright */
+.device-mobile.is-landscape .orient-icon,
+.device-mobile.is-landscape .phone-square-btn svg,
+.device-mobile.is-landscape .phone-square-partition svg,
+.device-mobile.is-landscape .top-help-tile svg,
+.device-mobile.is-landscape .top-wifi-tile svg,
+.device-mobile.is-landscape .playground-watermark svg {
+    transform: rotate(90deg);
+}
+
+/* --- TOP NOTIFICATION / STATUS PLATE (SOLID BLACK, SUPER MINIMAL) --- */
+.phone-status-bar {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 38px;
+    padding: 0 18px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    z-index: 105;
+    pointer-events: all;
+    cursor: grab;
+    user-select: none;
+    background-color: #000000 !important;
+    border-radius: 0 !important;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    touch-action: none;
+    transition: none;
+}
+
+.phone-status-bar:active {
+    cursor: grabbing;
+}
+
+/* In Landscape: Hide status bar for now */
+.device-mobile.is-landscape .phone-status-bar {
+    display: none !important;
+}
+
+.status-drag-handle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: 1;
+    height: 100%;
+}
+
+.drag-pill {
+    width: 30px;
+    height: 3px;
+    background-color: rgba(255, 255, 255, 0.22);
+    border-radius: 2px;
+    transition: background-color 0.15s ease, width 0.15s ease;
+}
+
+
+
+.status-bar-left {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    width: 68px;
+    height: 100%;
+}
+
+.status-time {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    font-size: 13.5px;
+    font-weight: 600;
+    letter-spacing: normal;
+    color: #E6E6E6 !important;
+}
+
+.status-notif-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: #E6E6E6 !important;
+    background: rgba(255, 255, 255, 0.14) !important;
+    border-radius: 4px;
+    padding: 2px;
+    width: 14px;
+    height: 14px;
+}
+
+.status-notif-badge svg {
+    color: #E6E6E6 !important;
+}
+
+.status-bar-right {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    justify-content: flex-end;
+    width: 68px;
+    height: 100%;
+}
+
+/* Cellular Signal bars */
+.status-signal {
+    display: flex;
+    align-items: flex-end;
+    gap: 2px;
+    height: 11px;
+}
+
+.signal-bar {
+    width: 2.5px;
+    background-color: #E6E6E6 !important;
+    border-radius: 0.5px;
+}
+
+.signal-bar.bar-1 { height: 3.5px; }
+.signal-bar.bar-2 { height: 6px; }
+.signal-bar.bar-3 { height: 8.5px; }
+.signal-bar.bar-4 { height: 11px; }
+
+/* 5G badge */
+.status-network {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: normal;
+    color: #E6E6E6 !important;
+}
+
+/* Battery indicator */
+.status-battery {
+    display: flex;
+    align-items: center;
+    gap: 1.5px;
+}
+
+.battery-body {
+    width: 21px;
+    height: 11px;
+    border: 1.2px solid rgba(255, 255, 255, 0.85) !important;
+    border-radius: 3.5px;
+    padding: 1.2px;
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+}
+
+.battery-fill {
+    width: 90%;
+    height: 100%;
+    background-color: #E6E6E6 !important;
+    border-radius: 1.5px;
+}
+
+.battery-cap {
+    width: 1.5px;
+    height: 4.5px;
+    background-color: rgba(255, 255, 255, 0.85) !important;
+    border-radius: 0 1px 1px 0;
+}
+
+/* --- NOTIFICATION CARD MOCKUP (INTERACTIVE SHADE) --- */
+.phone-notif-shade {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 120;
+    padding: 8px 12px;
+    pointer-events: none;
+    transform: translateY(-120%);
+    opacity: 0;
+    transition: transform 0.32s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.25s ease;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+.phone-notif-shade.is-open {
+    transform: translateY(38px);
+    opacity: 1;
+    pointer-events: all;
+}
+
+/* In Landscape: Notification Shade hidden for now */
+.device-mobile.is-landscape .phone-notif-shade {
+    display: none !important;
+}
+
+.notif-card {
+    background: #000000;
+    border: 1px solid #262626;
+    border-radius: 14px;
+    padding: 12px 14px;
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.9);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    text-transform: none;
+    letter-spacing: normal;
+}
+
+.notif-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.notif-card-app {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.notif-app-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    background: #000000;
+    border: 1px solid #262626;
+    border-radius: 4px;
+    color: #E6E6E6;
+}
+
+.notif-app-name {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: #E6E6E6;
+    text-transform: none;
+    letter-spacing: normal;
+}
+
+.notif-bullet {
+    color: #8E8E93;
+    font-size: 11px;
+}
+
+.notif-time {
+    font-size: 11px;
+    color: #8E8E93;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    text-transform: none;
+}
+
+.notif-dismiss {
+    background: none;
+    border: none;
+    color: #8E8E93;
+    font-size: 12px;
+    cursor: pointer;
+    padding: 2px 6px;
+    border-radius: 4px;
+    transition: color 0.15s ease, background-color 0.15s ease;
+}
+
+
+.notif-card-content {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.notif-title {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    font-size: 13.5px;
+    font-weight: 600;
+    color: #E6E6E6;
+    letter-spacing: normal;
+    text-transform: none;
+}
+
+.notif-desc {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    font-size: 12px;
+    line-height: 16px;
+    color: #8E8E93;
+    letter-spacing: normal;
+    text-transform: none;
+}
+
+.notif-card-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 3px;
+    padding-top: 8px;
+    border-top: 1px solid #262626;
+}
+
+.notif-btn {
+    flex: 1;
+    background: #000000;
+    border: 1px solid #333333;
+    color: #E6E6E6;
+    border-radius: 8px;
+    padding: 7px 10px;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    text-transform: none;
+    letter-spacing: normal;
+    transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+
+.notif-btn:active {
+    transform: scale(0.97);
+}
+
+/* --- 1. TOP BAR --- */
+.phone-top-bar {
+    margin-top: 0;
+    height: 72px;
+    display: flex;
+    align-items: center;
+    gap: 1px;
+    background: transparent !important;
+    border: none !important;
+    flex-shrink: 0;
+    box-sizing: border-box;
+    width: 100%;
+}
+
+/* Left Partition: Rounded Bento Box for Wordmark */
+.top-wordmark-container,
+.top-marquee-container {
+    flex: 1;
+    height: 100%;
+    background-color: #000000 !important;
+    border-radius: 12px;
+    border: none !important;
+    display: flex;
+    align-items: center;
+    padding-left: 20px;
+    position: relative;
+    overflow: hidden;
+    box-sizing: border-box;
+}
+
+.phone-wordmark {
+    display: inline-flex;
+    align-items: center;
+    gap: 0;
+    user-select: none;
+    line-height: 1;
+}
+
+/* In landscape: align at bottom and order letters so 'o' is at top and 'c' is at bottom */
+.device-mobile.is-landscape .top-wordmark-container {
+    justify-content: flex-start;
+    padding-left: 22px;
+    padding-right: 0;
+}
+
+.device-mobile.is-landscape .phone-wordmark {
+    flex-direction: row-reverse;
+}
+
+/* Individual character vector glyph styling (converted from Monoska font) */
+.char {
+    display: inline-block;
+    width: 20px;
+    height: 23px;
+    color: #E6E6E6 !important;
+    fill: currentColor;
+    transform: rotate(0deg);
+    transition: none;
+    transform-origin: center center;
+    will-change: transform;
+    flex-shrink: 0;
+}
+
+/* In landscape: each character rotates 90deg to stay upright relative to the viewer */
+.device-mobile.is-landscape .char {
+    transform: rotate(90deg);
+    width: 24px;
+    height: 24px;
+}
+
+/* Top Bar Right Partitions: Rounded Bento Boxes for Help (?) and Wi-Fi */
+.top-help-tile,
+.top-wifi-tile {
+    height: 100%;
+    aspect-ratio: 1 / 1;
+    width: auto;
+    background-color: #000000;
+    border: none !important;
+    border-radius: 12px;
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: background-color var(--motion-state);
+}
+
+.top-help-tile svg,
+.top-wifi-tile svg {
+    color: #E6E6E6 !important;
+    stroke: #E6E6E6 !important;
+    width: 28px;
+    height: 28px;
+    transition: color var(--motion-state), stroke var(--motion-state);
+}
+
+
+.top-help-tile:active,
+.top-wifi-tile:active {
+    background-color: #1a1a1a;
+}
+
+/* Toggle ON State (exclusive for Hint ? and Wi-Fi): White background, Black icon */
+.top-help-tile.is-on,
+.top-wifi-tile.is-on {
+    background-color: #E6E6E6 !important;
+}
+
+
+.top-help-tile.is-on svg,
+.top-wifi-tile.is-on svg {
+    color: #000000 !important;
+    stroke: #000000 !important;
+}
+
+/* 2. CENTER AREA: Rounded Bento Box for Playground */
+.phone-playground {
+    flex: 1;
+    background-color: #000000;
+    border-radius: 12px;
+    border: none !important;
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+    width: 100%;
+}
+
+.phone-playground::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image: radial-gradient(rgba(255, 255, 255, 0.14) 1px, transparent 1px);
+    background-size: 18px 18px;
+    background-position: center center;
+    -webkit-mask-image: radial-gradient(ellipse at center, rgba(0, 0, 0, 1) 15%, rgba(0, 0, 0, 0.5) 55%, transparent 85%);
+    mask-image: radial-gradient(ellipse at center, rgba(0, 0, 0, 1) 15%, rgba(0, 0, 0, 0.5) 55%, transparent 85%);
+    pointer-events: none;
+    z-index: 0;
+}
+
+/* Big Center Watermark (5% Opacity Owl) */
+.playground-watermark {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+    z-index: 1;
+}
+
+.playground-watermark svg {
+    width: 220px;
+    height: 220px;
+    color: #E6E6E6;
+    opacity: 0.05;
+    pointer-events: none;
+    user-select: none;
+}
+
+.phone-camera-canvas {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 12px;
+    display: none;
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    background: transparent;
+}
+
+/* Playground Wavelength / Audio Waves Dock */
+.playground-waveform-dock {
+    position: absolute;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    left: 50%;
+    top: 50%;
+    z-index: 10;
+    pointer-events: none;
+    transform-origin: center center;
+    box-sizing: border-box;
+    border: 1px solid transparent;
+    background-color: transparent;
+    border-radius: 12px;
+    padding: 0;
+    box-shadow: none;
+    transition: transform 0.45s cubic-bezier(0.16, 1, 0.3, 1),
+                background-color 0.45s cubic-bezier(0.16, 1, 0.3, 1),
+                border-color 0.45s cubic-bezier(0.16, 1, 0.3, 1),
+                box-shadow 0.45s cubic-bezier(0.16, 1, 0.3, 1),
+                padding 0.45s cubic-bezier(0.16, 1, 0.3, 1),
+                border-radius 0.45s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.playground-waveform-dock.is-active {
+    display: flex;
+}
+
+/* 1. Center Mode (Mic ON, Camera OFF) - Big, clean, minimal vertical lines in center without background capsule */
+.device-mobile.is-portrait .playground-waveform-dock.is-centered {
+    transform: translate(-50%, -50%) rotate(0deg);
+    background-color: transparent;
+    border-color: transparent;
+    border-radius: 12px;
+    padding: 0;
+    box-shadow: none;
+}
+
+.device-mobile.is-landscape .playground-waveform-dock.is-centered {
+    transform: translate(-50%, -50%) rotate(90deg);
+    background-color: transparent;
+    border-color: transparent;
+    border-radius: 12px;
+    padding: 0;
+    box-shadow: none;
+}
+
+/* 2. Docked Mode (Camera ON & Mic ON) - Black RECTANGLE with 12px roundness matching bento grid at BOTTOM CENTER */
+.device-mobile.is-portrait .playground-waveform-dock.is-docked {
+    transform: translate(-50%, calc(50% + 158px)) rotate(0deg);
+    background-color: #000000;
+    border-color: rgba(255, 255, 255, 0.16);
+    border-radius: 12px;
+    padding: 8px 16px;
+    box-shadow: none;
+}
+
+.device-mobile.is-landscape .playground-waveform-dock.is-docked {
+    transform: translate(calc(-50% - 138px), -50%) rotate(90deg);
+    background-color: #000000;
+    border-color: rgba(255, 255, 255, 0.16);
+    border-radius: 12px;
+    padding: 8px 16px;
+    box-shadow: none;
+}
+
+/* Audio waveform bars container */
+.playground-waveform {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    height: 80px;
+    transition: height 0.45s cubic-bezier(0.16, 1, 0.3, 1),
+                gap 0.45s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.playground-waveform-dock.is-docked .playground-waveform {
+    gap: 4px;
+    height: 24px;
+}
+
+/* Every single vertical line has constant width & smooth scale transition */
+.wave-bar {
+    width: 5px;
+    min-height: 5px;
+    height: 5px;
+    border-radius: 999px;
+    background-color: #E6E6E6;
+    transition: height 0.04s ease, width 0.45s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.45s cubic-bezier(0.16, 1, 0.3, 1);
+    transform-origin: center center;
+    box-shadow: 0 0 10px rgba(255, 255, 255, 0.22);
+}
+
+.playground-waveform-dock.is-docked .wave-bar {
+    width: 3.5px;
+    min-height: 3.5px;
+    height: 3.5px;
+    box-shadow: none;
+}
+
+/* 3. BOTTOM BAR: 3 Rounded Bento Boxes with 1px gap */
+.phone-bottom-bar {
+    width: 100%;
+    height: 118px;
+    display: flex;
+    gap: 1px;
+    background: transparent;
+    border: none !important;
+    flex-shrink: 0;
+    padding: 0;
+    margin: 0;
+    box-sizing: border-box;
+}
+
+.phone-square-partition,
+.phone-square-btn {
+    flex: 1 1 0;
+    width: calc(100% / 3);
+    height: 100%;
+    background-color: #000000;
+    border: none !important;
+    border-radius: 12px;
+    color: #E6E6E6;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    flex-shrink: 0;
+    position: relative;
+    box-sizing: border-box;
+    padding: 0;
+    margin: 0;
+    outline: none;
+    transition: background-color var(--motion-state), color var(--motion-state);
+}
+
+.phone-square-partition:last-child,
+.phone-square-btn:last-child {
+    border-right: none;
+}
+
+.phone-square-partition svg,
+.phone-square-btn svg {
+    width: 28px;
+    height: 28px;
+    color: #E6E6E6 !important;
+    stroke: #E6E6E6 !important;
+    opacity: 1 !important; /* Never dimmed */
+    transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    pointer-events: none;
+}
+
+
+.phone-square-partition:active,
+.phone-square-btn:active {
+    background-color: #1a1a1a;
+}
+
+/* Bottom Safe Area Plate: Plain black, no rounded corners, no bottom padding, edge-to-edge */
+.phone-bottom-compartment {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    width: 100%;
+    height: 28px;
+    background-color: #000000 !important;
+    border-radius: 0 !important;
+    border: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 90;
+    pointer-events: none;
+    box-sizing: border-box;
+}
+
+.device-mobile.is-landscape .phone-bottom-compartment {
+    right: 0;
+    width: 100%;
+}
+
+.phone-bottom-compartment .phone-home-indicator {
+    display: none !important;
+}
+
+/* ON State: Black background preserved, full opacity crisp icon */
+.phone-square-partition.is-on,
+.phone-square-btn.is-on {
+    background-color: #000000;
+    color: #E6E6E6;
+    border-color: transparent;
+}
+
+
+.phone-square-partition.is-on svg,
+.phone-square-btn.is-on svg {
+    stroke: #E6E6E6 !important;
+    color: #E6E6E6 !important;
+    opacity: 1 !important;
+}
+
+
+/* Toggle icon display: show icon-off when inactive, icon-on when active */
+.phone-square-partition .icon-off {
+    display: block;
+}
+
+.phone-square-partition .icon-on {
+    display: none;
+}
+
+.phone-square-partition.is-on .icon-off {
+    display: none;
+}
+
+.phone-square-partition.is-on .icon-on {
+    display: block;
+}
