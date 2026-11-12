@@ -1,4 +1,5 @@
-//! The one file Owlmic keeps: `%APPDATA%\Owlmic\owlmic.json` (SYSTEM_DESIGN section 18.3).
+//! The one file Owlmic keeps: `%APPDATA%\Owlmic\owlmic.json` on Windows,
+//! or `$XDG_CONFIG_HOME/owlmic/owlmic.json` on Linux.
 //! Secrets go through a [`Protector`] (DPAPI on Windows) before they are written.
 
 use serde::{Deserialize, Serialize};
@@ -86,6 +87,39 @@ pub struct StoreData {
     pub speaker: SpeakerRecord,
 }
 
+/// Returns the platform-appropriate directory for Owlmic settings:
+/// - Windows: `%APPDATA%\Owlmic`
+/// - Linux: `$XDG_CONFIG_HOME/owlmic` (defaults to `~/.config/owlmic`)
+pub fn default_dir() -> Option<PathBuf> {
+    #[cfg(target_os = "windows")]
+    {
+        std::env::var_os("APPDATA").map(|a| PathBuf::from(a).join("Owlmic"))
+    }
+    #[cfg(target_os = "linux")]
+    {
+        if let Some(xdg) = std::env::var_os("XDG_CONFIG_HOME") {
+            Some(PathBuf::from(xdg).join("owlmic"))
+        } else if let Some(home) = std::env::var_os("HOME") {
+            Some(PathBuf::from(home).join(".config").join("owlmic"))
+        } else {
+            None
+        }
+    }
+    #[cfg(not(any(target_os = "windows", target_os = "linux")))]
+    {
+        if let Some(home) = std::env::var_os("HOME") {
+            Some(PathBuf::from(home).join(".config").join("owlmic"))
+        } else {
+            None
+        }
+    }
+}
+
+/// Returns the platform-appropriate default path for `owlmic.json`.
+pub fn default_path() -> Option<PathBuf> {
+    default_dir().map(|d| d.join("owlmic.json"))
+}
+
 pub struct Store {
     path: PathBuf,
     data: Mutex<StoreData>,
@@ -93,6 +127,11 @@ pub struct Store {
 }
 
 impl Store {
+    /// Opens the default settings store for this platform.
+    pub fn open_default(protector: Box<dyn Protector>) -> Option<Self> {
+        default_path().map(|p| Self::open(p, protector))
+    }
+
     /// Opens the store at `path`. A missing file starts empty; an unreadable one is kept as
     /// `owlmic.json.bad` and Owlmic starts fresh rather than not at all.
     pub fn open(path: impl Into<PathBuf>, protector: Box<dyn Protector>) -> Self {
@@ -176,5 +215,12 @@ mod tests {
         let store = Store::open(&path, Box::new(PlainProtector));
         assert_eq!(store.read(|d| d.clone()), StoreData::default());
         assert!(path.with_extension("json.bad").exists());
+    }
+
+    #[test]
+    fn platform_default_path_ends_with_owlmic_json() {
+        if let Some(path) = default_path() {
+            assert!(path.ends_with("owlmic.json"));
+        }
     }
 }

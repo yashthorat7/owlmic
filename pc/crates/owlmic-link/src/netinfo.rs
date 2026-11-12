@@ -70,6 +70,31 @@ pub fn is_tethering_adapter(description: &str) -> bool {
 #[cfg(windows)]
 pub use win::Adapters;
 
+#[cfg(not(windows))]
+pub use nix::Adapters;
+
+#[cfg(not(windows))]
+mod nix {
+    use super::*;
+
+    pub struct Adapters;
+
+    impl Adapters {
+        pub fn networks() -> Vec<Network> {
+            Vec::new()
+        }
+    }
+
+    impl NetInfo for Adapters {
+        fn link_for_peer(&self, peer: IpAddr) -> u8 {
+            classify(&Self::networks(), peer)
+        }
+        fn broadcasts(&self, port: u16) -> Vec<SocketAddr> {
+            vec![SocketAddr::new(IpAddr::V4(Ipv4Addr::BROADCAST), port)]
+        }
+    }
+}
+
 #[cfg(windows)]
 mod win {
     use super::*;
