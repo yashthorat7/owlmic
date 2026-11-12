@@ -454,6 +454,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "owlmic-linux"
+version = "0.1.0"
+dependencies = [
+ "owlmic-hub",
+ "owlmic-platform",
+ "owlmic-settings",
+]
+
+[[package]]
 name = "owlmic-media"
 version = "0.1.0"
 dependencies = [
@@ -462,6 +471,13 @@ dependencies = [
  "owlmic-hub",
  "owlmic-proto",
  "serde_json",
+]
+
+[[package]]
+name = "owlmic-platform"
+version = "0.1.0"
+dependencies = [
+ "owlmic-hub",
 ]
 
 [[package]]

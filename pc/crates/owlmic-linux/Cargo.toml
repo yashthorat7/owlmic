@@ -1,0 +1,13 @@
+[package]
+name = "owlmic-linux"
+description = "Owlmic for Linux: PipeWire virtual microphone and loopback, v4l2loopback virtual camera, and tray flyout"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[dependencies]
+owlmic-hub.workspace = true
+owlmic-platform.workspace = true
+owlmic-settings.workspace = true

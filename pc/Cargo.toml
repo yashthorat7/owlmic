@@ -10,10 +10,12 @@ repository = "https://github.com/diveshpatil9104/owlmic"
 
 [workspace.dependencies]
 owlmic-hub = { path = "crates/owlmic-hub" }
+owlmic-platform = { path = "crates/owlmic-platform" }
 owlmic-proto = { path = "crates/owlmic-proto" }
 owlmic-link = { path = "crates/owlmic-link" }
 owlmic-session = { path = "crates/owlmic-session" }
 owlmic-devices = { path = "crates/owlmic-devices" }
+owlmic-linux = { path = "crates/owlmic-linux" }
 owlmic-settings = { path = "crates/owlmic-settings" }
 owlmic-ui = { path = "crates/owlmic-ui" }
 owlmic-vcam = { path = "vcam" }
