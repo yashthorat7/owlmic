@@ -36,7 +36,7 @@ Cargo.lock.bak
 # Inno Setup & Windows Installer outputs
 /pc/installer/**/Output/
 /pc/installer/**/*.exe
-/pc/installer/driver/
+/pc/installer/**/driver/
 # Linux packaging build directories
 /pc/installer/linux/build/
 /pc/installer/linux/AppDir/

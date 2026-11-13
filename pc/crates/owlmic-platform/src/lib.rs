@@ -21,10 +21,13 @@ pub trait VirtualCam: Send + Sync {
     fn is_healthy(&self) -> bool;
 }
 
+/// Audio callback type for receiving captured PCM floating-point chunks.
+pub type AudioCallback = Box<dyn FnMut(&[f32]) + Send>;
+
 /// Speaker loopback capture abstraction: captures PC audio output and routes it to the phone.
 pub trait SpeakerLoopback: Send + Sync {
     /// Starts capturing default audio output as 48 kHz stereo floating-point PCM.
-    fn start(&mut self, on_audio: Box<dyn FnMut(&[f32]) + Send>) -> Result<(), String>;
+    fn start(&mut self, on_audio: AudioCallback) -> Result<(), String>;
 
     /// Stops audio capture.
     fn stop(&mut self);

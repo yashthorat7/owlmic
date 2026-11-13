@@ -9,7 +9,7 @@ param (
 $ErrorActionPreference = "Stop"
 
 $InstallerDir = $PSScriptRoot
-$PcDir = Split-Path -Parent $InstallerDir
+$PcDir = Split-Path -Parent (Split-Path -Parent $InstallerDir)
 $RepoDir = Split-Path -Parent $PcDir
 
 function Write-Step([string]$message) {

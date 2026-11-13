@@ -7,7 +7,7 @@ This document details the step-by-step procedures for cutting a formal release o
 ## 1. Versioning Standard
 
 Owlmic adheres to [Semantic Versioning 2.0.0](https://semver.org/).
-- Version strings across `Cargo.toml`, `android/app/build.gradle.kts`, `pc/installer/owlmic.iss`, and `protocol/README.md` must be bumped in lockstep before tagging.
+- Version strings across `Cargo.toml`, `android/app/build.gradle.kts`, `pc/installer/windows/owlmic.iss`, and `protocol/README.md` must be bumped in lockstep before tagging.
 
 ---
 

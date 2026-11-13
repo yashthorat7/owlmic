@@ -16,7 +16,7 @@ Everyday instructions, installation, configuration, and troubleshooting for end 
 | **[`install-android.md`](user/install-android.md)** | Installing the Android APK or Google Play release, required permissions, battery optimizations |
 | **[`first-connection.md`](user/first-connection.md)** | Step-by-step first pairing, 4-digit safety code confirmation, trust-on-first-use (TOFU) |
 | **[`everyday-use.md`](user/everyday-use.md)** | Daily workflow: toggling mic, camera, and speaker; selecting video quality; managing tray flyout |
-| **[`links.md`](user/links.md)** | The four connection levels (USB debugging, USB tethering, Wi-Fi, Bluetooth) and auto-switching |
+| **[`connection-levels.md`](user/connection-levels.md)** | The four connection levels (USB debugging, USB tethering, Wi-Fi, Bluetooth) and auto-switching |
 | **[`troubleshooting.md`](user/troubleshooting.md)** | Solving firewall blocks, driver errors, connection drops, and audio latency issues |
 | **[`privacy.md`](user/privacy.md)** | Privacy-first principles: local network only, zero telemetry, on-device encryption, manual capture control |
 | **[`uninstall.md`](user/uninstall.md)** | Clean removal from Windows and Android, driver deregistration, endpoint cleanup |

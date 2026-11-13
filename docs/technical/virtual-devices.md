@@ -67,7 +67,7 @@ Owlmic provides dual virtual camera implementations to support both modern and l
 
 Windows driver updates, major OS upgrades, or aggressive registry cleaning can occasionally corrupt audio endpoints or camera COM registrations.
 
-Owlmic embeds an automated repair engine in `pc/crates/owlmic-devices/src/repair.rs` and `pc/installer/setup-audio-device.ps1`:
+Owlmic embeds an automated repair engine in `pc/crates/owlmic-devices/src/repair.rs` and `pc/installer/windows/setup-audio-device.ps1`:
 - **Single UAC Elevation**: Clicking **Repair** executes one consolidated PowerShell script with Administrator credentials.
 - **Actions Performed**:
   1. Detects missing audio driver files and re-installs them silently.

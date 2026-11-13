@@ -1,6 +1,6 @@
 //! Linux audio drivers using native PipeWire userspace virtual source and sink monitoring.
 
-use owlmic_platform::{SpeakerLoopback, VirtualMic};
+use owlmic_platform::{AudioCallback, SpeakerLoopback, VirtualMic};
 
 /// PipeWire virtual microphone source (`media.class = Audio/Source/Virtual`, node name `Owlmic Mic`).
 pub struct PipeWireMic {
@@ -52,7 +52,7 @@ impl PipeWireLoopback {
 }
 
 impl SpeakerLoopback for PipeWireLoopback {
-    fn start(&mut self, _on_audio: Box<dyn FnMut(&[f32]) + Send>) -> Result<(), String> {
+    fn start(&mut self, _on_audio: AudioCallback) -> Result<(), String> {
         self.active = true;
         Ok(())
     }

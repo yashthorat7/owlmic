@@ -8,10 +8,10 @@
   #define MyAppVersion "0.1.0"
 #endif
 #ifndef OwlmicExe
-  #define OwlmicExe "..\target\release\owlmic.exe"
+  #define OwlmicExe "..\..\target\release\owlmic.exe"
 #endif
 #ifndef OwlmicVcam
-  #define OwlmicVcam "..\target\release\owlmic_vcam.dll"
+  #define OwlmicVcam "..\..\target\release\owlmic_vcam.dll"
 #endif
 #define MyAppId "{9F3B6E8C-8F74-4C75-A1E2-93D0F8C56A10}"
 #define MyAppName "Owlmic"
@@ -70,7 +70,7 @@ OnlyOnTheseArchitectures=Owlmic needs 64-bit Windows 10 or 11.
 Source: "{#OwlmicExe}"; DestDir: "{app}"; DestName: "{#MyAppExeName}"; Flags: ignoreversion
 ; The Windows camera service may hold this DLL; then it is replaced at the next restart.
 Source: "{#OwlmicVcam}"; DestDir: "{app}"; Flags: ignoreversion restartreplace uninsrestartdelete
-Source: "..\softcam.dll"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\..\softcam.dll"; DestDir: "{app}"; Flags: ignoreversion
 Source: "setup-audio-device.ps1"; DestDir: "{app}"; Flags: ignoreversion
 Source: "THIRD-PARTY-NOTICES.txt"; DestDir: "{app}"; Flags: ignoreversion
 Source: "driver\*"; DestDir: "{app}\driver"; Flags: ignoreversion recursesubdirs

@@ -24,7 +24,6 @@ use owlmic_ui::preview::Preview;
 use owlmic_ui::view::PanelState;
 use owlmic_ui::win::{Ui, Waker};
 use std::net::TcpListener;
-use std::path::PathBuf;
 use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
