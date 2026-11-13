@@ -29,6 +29,10 @@ Owlmic for PC runs as a lightweight, per-user background application in your Win
    - If prompted by Windows User Account Control (UAC), click **Yes** to allow `setup-audio-device.ps1` to configure the virtual audio endpoint and Windows Firewall rules.
    - When setup completes, click **Finish**. Owlmic will launch silently into your taskbar system tray.
 
+4. **Reinstallation & Upgrades (Automatic Clean Reinstall)**:
+   - If an existing installation or previous data is detected, Setup explicitly indicates this on the Ready page and executes an automated clean reinstall.
+   - Running background instances are terminated, existing virtual camera filters are unregistered, and any stale application data or cached pairing tokens in `%APPDATA%\Owlmic` are purged before writing the fresh installation.
+
 ---
 
 ## 3. What Gets Installed

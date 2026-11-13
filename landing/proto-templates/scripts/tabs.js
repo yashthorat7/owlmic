@@ -152,28 +152,11 @@ document.addEventListener('DOMContentLoaded', () => {
             : !currentlyLandscape;
 
         if (shouldBeLandscape) {
-            // Rotate to Landscape
-            const notifShade = document.querySelector('.js-phone-notif-shade');
-            if (notifShade) notifShade.classList.remove('is-open');
-
-            deviceMobile.classList.remove('is-portrait-chassis');
-            deviceMobile.classList.add('is-landscape-chassis');
-
-            window._phoneRotationTimeout = setTimeout(() => {
-                deviceMobile.classList.remove('is-portrait');
-                deviceMobile.classList.add('is-landscape');
-                window._phoneRotationTimeout = null;
-            }, 250);
+            deviceMobile.classList.remove('is-portrait', 'is-portrait-chassis');
+            deviceMobile.classList.add('is-landscape', 'is-landscape-chassis');
         } else {
-            // Rotate to Portrait
-            deviceMobile.classList.remove('is-landscape-chassis');
-            deviceMobile.classList.add('is-portrait-chassis');
-
-            window._phoneRotationTimeout = setTimeout(() => {
-                deviceMobile.classList.remove('is-landscape');
-                deviceMobile.classList.add('is-portrait');
-                window._phoneRotationTimeout = null;
-            }, 250);
+            deviceMobile.classList.remove('is-landscape', 'is-landscape-chassis');
+            deviceMobile.classList.add('is-portrait', 'is-portrait-chassis');
         }
     }
 
@@ -336,8 +319,87 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // --- Download & PC Setup Modal Engine ---
+    const downloadModal = document.querySelector('.js-download-modal');
+    const btnDownload = document.querySelector('.js-btn-download');
+    const btnCloseModal = document.querySelector('.js-download-modal-close');
+    const openModalTriggers = document.querySelectorAll('.js-open-download-modal');
+    const btnCopyBuildCmd = document.querySelector('.js-copy-build-cmd');
+
+    function openDownloadModal() {
+        if (!downloadModal) return;
+        downloadModal.style.display = 'flex';
+        void downloadModal.offsetWidth;
+        downloadModal.classList.add('is-open');
+    }
+
+    function closeDownloadModal() {
+        if (!downloadModal) return;
+        downloadModal.classList.remove('is-open');
+        setTimeout(() => {
+            if (!downloadModal.classList.contains('is-open')) {
+                downloadModal.style.display = 'none';
+            }
+        }, 250);
+    }
+
+    if (btnDownload) {
+        btnDownload.addEventListener('click', (e) => {
+            e.preventDefault();
+            openDownloadModal();
+        });
+    }
+
+    openModalTriggers.forEach(el => {
+        el.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            openDownloadModal();
+        });
+    });
+
+    if (btnCloseModal) {
+        btnCloseModal.addEventListener('click', (e) => {
+            e.preventDefault();
+            closeDownloadModal();
+        });
+    }
+
+    if (downloadModal) {
+        downloadModal.addEventListener('click', (e) => {
+            if (e.target === downloadModal) {
+                closeDownloadModal();
+            }
+        });
+    }
+
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && downloadModal && downloadModal.classList.contains('is-open')) {
+            closeDownloadModal();
+        }
+    });
+
+    if (btnCopyBuildCmd) {
+        btnCopyBuildCmd.addEventListener('click', () => {
+            const cmd = 'git clone https://github.com/yashthorat7/mikey.git && .\\pc\\installer\\build-installer.ps1 -SkipBuild';
+            navigator.clipboard.writeText(cmd).then(() => {
+                const originalText = btnCopyBuildCmd.textContent;
+                btnCopyBuildCmd.textContent = 'Copied!';
+                btnCopyBuildCmd.style.borderColor = '#30D158';
+                btnCopyBuildCmd.style.color = '#30D158';
+                setTimeout(() => {
+                    btnCopyBuildCmd.textContent = originalText;
+                    btnCopyBuildCmd.style.borderColor = '';
+                    btnCopyBuildCmd.style.color = '';
+                }, 2000);
+            }).catch(() => {});
+        });
+    }
+
     window.OwlmicNavigation = { 
         rotatePhoneOrientation,
+        openDownloadModal,
+        closeDownloadModal,
         setDeviceVisibility: (phone, pc) => {
             isPhoneActive = phone;
             isPcActive = pc;

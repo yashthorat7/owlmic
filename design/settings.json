@@ -2,7 +2,7 @@
   "settings": [
     { "id": "mic.noiseReduction", "values": ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10"], "default": "5", "scope": "shared", "shownOn": ["phone", "pc"] },
     { "id": "mic.volume", "values": ["-12", "-9", "-6", "-3", "0", "3", "6", "9", "12"], "default": "0", "scope": "shared", "shownOn": ["phone", "pc"] },
-    { "id": "mic.isolation", "values": ["on", "off"], "default": "on", "scope": "shared", "shownOn": ["phone"] },
+    { "id": "mic.isolation", "values": ["on", "off"], "default": "on", "scope": "shared", "shownOn": ["phone", "pc"] },
     { "id": "mic.autoLevel", "values": ["on", "off"], "default": "on", "scope": "shared", "shownOn": ["phone", "pc"] },
     { "id": "camera.lens", "values": ["back", "front"], "default": "front", "scope": "shared", "shownOn": ["phone", "pc"] },
     { "id": "camera.quality", "values": ["auto", "720p", "1080p"], "default": "auto", "scope": "shared", "shownOn": ["phone", "pc"] },

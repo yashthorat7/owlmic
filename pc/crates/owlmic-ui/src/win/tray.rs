@@ -114,6 +114,7 @@ impl Tray {
     pub fn add(&mut self) {
         let d = self.data();
         unsafe {
+            let _ = Shell_NotifyIconW(NIM_DELETE, &d);
             let _ = Shell_NotifyIconW(NIM_ADD, &d);
             let _ = Shell_NotifyIconW(NIM_SETVERSION, &d);
         }

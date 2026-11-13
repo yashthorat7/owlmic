@@ -2,6 +2,7 @@
 //! click on each tile does. Texts come only from design/copy.json.
 
 use crate::glyph::Icon;
+pub use crate::layout::Drawer;
 use crate::layout::{Screen, Target};
 use crate::{color, fill, icons, messages as m};
 use std::collections::BTreeMap;
@@ -90,13 +91,14 @@ pub struct PanelState {
     pub version: String,
 }
 
-/// What a click asks the app to do. Opening settings or a link, and scrolling, stay in the
-/// panel.
+/// What a click asks the app to do.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Action {
     Pause(Which),
     /// Moves a setting to its next value.
     Cycle(&'static str),
+    /// Sets a setting directly to a specific value.
+    Set(&'static str, String),
     Allow,
     Deny,
     Repair,
@@ -109,6 +111,7 @@ pub enum Action {
 pub enum Link {
     Licences,
     Website,
+    Privacy,
     Donate,
 }
 
@@ -138,7 +141,7 @@ pub fn link_name(link: u8) -> &'static str {
     }
 }
 
-/// The connection indicator (SYSTEM_DESIGN section 36). Green is always the link's icon.
+/// The connection indicator. Green is always the link's icon.
 pub fn indicator(c: &Connection) -> Indicator {
     let yellow = |link, label| Indicator {
         color: color::YELLOW,
@@ -175,14 +178,15 @@ impl PanelState {
         self.settings.get(id).map_or("", String::as_str)
     }
 
-    pub fn screen(&self, settings_open: bool) -> Screen {
+    pub fn screen(&self, drawer: Option<Drawer>) -> Screen {
         if matches!(self.connection, Connection::Approval { .. }) {
             Screen::Gate
-        } else if settings_open {
-            Screen::Settings
         } else {
             Screen::Main {
                 repair: self.repair.needed(),
+                drawer,
+                camera_on: self.camera == Feature::On,
+                mic_on: self.mic == Feature::On,
             }
         }
     }
@@ -203,7 +207,7 @@ impl PanelState {
         )
     }
 
-    /// The tray tooltip (SYSTEM_DESIGN section 34).
+    /// The tray tooltip.
     pub fn tooltip(&self) -> String {
         if self.repair.needed() {
             return m::TRAY_REPAIR.to_owned();
@@ -256,54 +260,88 @@ impl PanelState {
         }
     }
 
+    /// Noise reduction level (0..10).
+    pub fn noise_reduction(&self) -> u8 {
+        self.value("mic.noiseReduction").parse().unwrap_or(5)
+    }
+
+    /// Mic volume in dB (-12..+12).
+    pub fn volume(&self) -> i32 {
+        self.value("mic.volume").parse().unwrap_or(0)
+    }
+
+    /// Voice isolation on/off.
+    pub fn voice_isolation(&self) -> bool {
+        self.value("mic.isolation") != "off"
+    }
+
+    /// Auto level on/off.
+    pub fn auto_level(&self) -> bool {
+        self.value("mic.autoLevel") != "off"
+    }
+
     pub fn rows(&self) -> Vec<Row> {
         rows(self)
     }
 
-    /// The link a settings row opens, which the panel opens itself.
-    pub fn link_at(&self, target: Target, rows: &[Row]) -> Option<Link> {
-        let Target::Row(i, 0) = target else {
-            return None;
-        };
-        match rows.get(i)?.action {
-            RowAction::Open(link) => Some(link),
+    /// The link an external target opens.
+    pub fn link_at(&self, target: Target) -> Option<Link> {
+        match target {
+            Target::HelpStepDownload => Some(Link::Website),
+            Target::HelpPrivacy => Some(Link::Privacy),
+            Target::HelpDonate => Some(Link::Donate),
             _ => None,
         }
     }
 
-    /// What a click does. `rows` is the settings list as drawn.
-    pub fn click(&self, target: Target, rows: &[Row]) -> Option<Action> {
-        let feature = |which, state: Feature| {
-            (state != Feature::Off && self.connected()).then_some(Action::Pause(which))
-        };
+    /// What a click does.
+    pub fn click(&self, target: Target) -> Option<Action> {
+        let feature = |which, _state: Feature| self.connected().then_some(Action::Pause(which));
         let pairing = |id| self.paired.then_some(Action::Cycle(id));
         match target {
             Target::Camera => feature(Which::Camera, self.camera),
             Target::Mic => feature(Which::Mic, self.mic),
             Target::Speaker => feature(Which::Speaker, self.speaker),
-            Target::Framing => pairing("camera.framing"),
             Target::Mirror => pairing("camera.mirror"),
-            Target::Lens => pairing("camera.lens"),
+            Target::Flip => pairing("camera.lens"),
             Target::Repair => (!self.repairing).then_some(Action::Repair),
             Target::Allow => Some(Action::Allow),
             Target::Deny => Some(Action::Deny),
-            Target::Row(i, button) => {
-                let row = rows.get(i)?;
-                match (&row.action, button) {
-                    (RowAction::Phone(p), 1) => {
-                        Some(Action::RemovePhone(self.phones.get(*p)?.id.clone()))
-                    }
-                    (RowAction::Phone(p), 2) => {
-                        let phone = self.phones.get(*p)?;
-                        Some(Action::BlockPhone(phone.id.clone(), !phone.blocked))
-                    }
-                    (_, 0) if !row.enabled => None,
-                    (RowAction::Cycle(id), 0) => Some(Action::Cycle(id)),
-                    (RowAction::Repair, 0) => (!self.repairing).then_some(Action::Repair),
-                    (RowAction::Quit, 0) => Some(Action::Quit),
+            Target::ConnType(i) => {
+                let id = match i {
+                    0 => "link.usbDebugging",
+                    1 => "link.usbTethering",
+                    2 => "link.wifi",
+                    3 => "link.bluetooth",
+                    _ => return None,
+                };
+                Some(Action::Cycle(id))
+            }
+            Target::PhoneRow(i, button) => {
+                let phone = self.phones.get(i)?;
+                match button {
+                    1 => Some(Action::RemovePhone(phone.id.clone())),
+                    2 => Some(Action::BlockPhone(phone.id.clone(), !phone.blocked)),
                     _ => None,
                 }
             }
+            Target::NoiseSlider(frac) => {
+                if !self.paired {
+                    return None;
+                }
+                let step = (frac * 10.0).round() as u8;
+                Some(Action::Set("mic.noiseReduction", step.to_string()))
+            }
+            Target::VolumeSlider(frac) => {
+                if !self.paired {
+                    return None;
+                }
+                const STEPS: [&str; 9] = ["-12", "-9", "-6", "-3", "0", "3", "6", "9", "12"];
+                let idx = ((frac * 8.0).round() as usize).min(8);
+                Some(Action::Set("mic.volume", STEPS[idx].to_string()))
+            }
+            Target::ToggleIsolation => pairing("mic.isolation"),
+            Target::ToggleAutoLevel => pairing("mic.autoLevel"),
             _ => None,
         }
     }
@@ -328,14 +366,13 @@ pub enum RowAction {
     Quit,
 }
 
-/// One line of the settings view.
+/// One line of settings for lists and testing.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Row {
     pub label: String,
     pub value: String,
     pub header: bool,
     pub enabled: bool,
-    /// Phone rows: Remove, then Block or Unblock.
     pub buttons: Option<[&'static str; 2]>,
     pub action: RowAction,
 }
@@ -364,8 +401,8 @@ impl Row {
     }
 }
 
-/// A setting's value as the panel shows it: noise reduction's 0 is "Off", the volume is in dB.
-fn value_text(id: &str, value: &str) -> String {
+/// A setting's value as displayed: noise reduction 0 is "Off", volume in dB.
+pub fn value_text(id: &str, value: &str) -> String {
     match (id, value) {
         ("mic.noiseReduction", "0") => m::VALUE_OFF.into(),
         ("mic.volume", v) => {
@@ -380,7 +417,6 @@ fn value_text(id: &str, value: &str) -> String {
     }
 }
 
-/// The PC settings (SYSTEM_DESIGN section 33.3).
 fn rows(s: &PanelState) -> Vec<Row> {
     let choice = |id: &'static str| {
         let shown = value_text(id, s.value(id));
@@ -396,6 +432,7 @@ fn rows(s: &PanelState) -> Vec<Row> {
         Row::header(m::SECTION_MIC),
         choice("mic.noiseReduction"),
         choice("mic.volume"),
+        choice("mic.isolation"),
         choice("mic.autoLevel"),
     ];
     out.extend([
@@ -474,8 +511,11 @@ mod tests {
             paired: true,
             settings: [
                 ("camera.framing", "fill"),
+                ("camera.mirror", "off"),
+                ("camera.lens", "front"),
                 ("mic.volume", "6"),
                 ("mic.noiseReduction", "0"),
+                ("mic.isolation", "on"),
                 ("mic.autoLevel", "on"),
                 ("general.startWithWindows", "on"),
             ]
@@ -514,33 +554,19 @@ mod tests {
     }
 
     #[test]
-    fn tiles_pause_only_what_the_phone_turned_on() {
+    fn tiles_toggle_features_when_connected() {
         let mut s = connected();
-        assert_eq!(s.click(Target::Mic, &[]), None);
+        assert_eq!(s.click(Target::Mic), Some(Action::Pause(Which::Mic)));
         s.mic = Feature::On;
-        assert_eq!(s.click(Target::Mic, &[]), Some(Action::Pause(Which::Mic)));
-        assert_eq!(
-            s.click(Target::Camera, &[]),
-            None,
-            "the phone hasn't turned it on"
-        );
+        assert_eq!(s.click(Target::Mic), Some(Action::Pause(Which::Mic)));
+        assert_eq!(s.click(Target::Camera), Some(Action::Pause(Which::Camera)));
         s.camera = Feature::On;
-        assert_eq!(
-            s.click(Target::Camera, &[]),
-            Some(Action::Pause(Which::Camera))
-        );
+        assert_eq!(s.click(Target::Camera), Some(Action::Pause(Which::Camera)));
         s.camera = Feature::Paused;
-        assert_eq!(
-            s.click(Target::Camera, &[]),
-            Some(Action::Pause(Which::Camera)),
-            "and resumes it"
-        );
-        assert_eq!(
-            s.click(Target::Lens, &[]),
-            Some(Action::Cycle("camera.lens"))
-        );
+        assert_eq!(s.click(Target::Camera), Some(Action::Pause(Which::Camera)));
+        assert_eq!(s.click(Target::Flip), Some(Action::Cycle("camera.lens")));
         s.paired = false;
-        assert_eq!(s.click(Target::Framing, &[]), None);
+        assert_eq!(s.click(Target::Mirror), None);
     }
 
     #[test]
@@ -559,45 +585,22 @@ mod tests {
         assert_eq!(value_text("mic.volume", "-9"), "-9 dB");
         assert_eq!(value_text("mic.volume", "0"), "0 dB");
         assert_eq!(value_text("mic.noiseReduction", "7"), "7");
-        let phone = rows
-            .iter()
-            .position(|r| r.action == RowAction::Phone(0))
-            .unwrap();
+
         assert_eq!(
-            s.click(Target::Row(phone, 2), &rows),
+            s.click(Target::PhoneRow(0, 2)),
             Some(Action::BlockPhone("01".into(), true))
         );
         assert_eq!(
-            s.click(Target::Row(phone, 1), &rows),
+            s.click(Target::PhoneRow(0, 1)),
             Some(Action::RemovePhone("01".into()))
         );
-        let website = rows
-            .iter()
-            .position(|r| r.action == RowAction::Open(Link::Website))
-            .unwrap();
-        assert_eq!(
-            s.link_at(Target::Row(website, 0), &rows),
-            Some(Link::Website)
-        );
-        assert_eq!(s.click(Target::Row(website, 0), &rows), None);
+
+        assert_eq!(s.link_at(Target::HelpStepDownload), Some(Link::Website));
+        assert_eq!(s.link_at(Target::HelpPrivacy), Some(Link::Privacy));
+        assert_eq!(s.link_at(Target::HelpDonate), Some(Link::Donate));
+
         s.paired = false;
-        let rows = s.rows();
-        let volume = rows
-            .iter()
-            .position(|r| r.label == m::SETTING_MIC_VOLUME)
-            .unwrap();
-        assert_eq!(
-            s.click(Target::Row(volume, 0), &rows),
-            None,
-            "pairing settings need a phone"
-        );
-        let start = rows
-            .iter()
-            .position(|r| r.label == m::SETTING_GENERAL_START_WITH_WINDOWS)
-            .unwrap();
-        assert_eq!(
-            s.click(Target::Row(start, 0), &rows),
-            Some(Action::Cycle("general.startWithWindows"))
-        );
+        assert_eq!(s.click(Target::NoiseSlider(0.5)), None);
+        assert_eq!(s.click(Target::VolumeSlider(0.5)), None);
     }
 }

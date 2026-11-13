@@ -18,11 +18,10 @@ Owlmic provides an automated uninstaller that cleanly deregisters all virtual ca
    - Virtual camera COM registrations.
    - Autostart registry keys under `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`.
    - Windows Defender Firewall rules for port 7653, 7654, and 7655.
+   - Local user settings, pairing tokens, and cache in `%APPDATA%\Owlmic` and `%LOCALAPPDATA%\Owlmic`.
 
-### Optional: Removing Settings & Pairing History
-To remove your local device pairings and settings:
-1. Press `Win + R`, type `%APPDATA%`, and press Enter.
-2. Delete the `Owlmic` directory (`%APPDATA%\Owlmic`).
+### Reinstalling Over an Existing Version
+If you rerun the installer (`Owlmic-Setup-*.exe`) while Owlmic is already present, the setup wizard automatically detects the existing installation, alerts you on the Ready screen, terminates running processes, and cleans out all previous binaries and pairing data for a clean reinstall.
 
 ---
 

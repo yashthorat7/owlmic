@@ -47,7 +47,8 @@ mod tests {
         assert_eq!(color::GREEN, 0x30D158);
         assert_eq!(color::ON_CONTENT, 0x000000);
         assert_eq!(text_style::TITLE.size_px, 14.0);
-        assert_eq!(panel::WIDTH_PX, 560.0);
+        assert_eq!(panel::WIDTH_PX, 312.0);
+        assert_eq!(panel::HEIGHT_PX, 374.0);
     }
 
     #[test]

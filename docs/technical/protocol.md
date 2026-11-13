@@ -45,8 +45,8 @@ Control messages are framed as:
 | `0x12` | **REPORT** | Both | `lossPct`, `jitterMs`, `rttMs`, `kbps`, optional `thermal` | Network and hardware metrics |
 | `0x20` | **STATE** | Both | `mic`, `camera`, `speaker`: `"off"`, `"on"`, or `"paused"` | Hardware streaming states |
 | `0x21` | **SETTINGS** | Both | `changes`: `[{"id", "value", "version"}]` | Versioned settings synchronization |
-| `0x22` | **STREAM_START** | Both | `stream`, `codec`, parameters (`sampleRate`, `channels`, `width`, `height`, `fps`) | Announces incoming media stream |
-| `0x23` | **STREAM_STOP** | Both | `stream` | Halts media stream |
+| `0x22` | **STREAM_START** | Both | `stream`, `codec`, parameters (`sampleRate`, `channels`, `width`, `height`, `fps`) | Announces incoming media stream or awakens capture |
+| `0x23` | **STREAM_STOP** | Both | `stream` | Halts or pauses media stream |
 | `0x24` | **KEYFRAME_REQ**| PC → Phone | `{}` | Requests immediate H.264 IDR keyframe |
 | `0x25` | **RESTART_STREAM**| Both | `stream` | Requests clean decoder restart |
 | `0x30` | **SWITCH** | PC → Phone | `link` | Commands session traffic migration to target link |

@@ -190,7 +190,7 @@ Follow [`docs/technical/design-language.md`](docs/technical/design-language.md):
   - Live Status OK: `#30D158` (Green)
   - Waiting / Reconnecting: `#FFD60A` (Yellow)
   - Disconnected / Error: `#FF453A` (Red)
-- **Panel Geometry**: Fixed 560 × 255 px Win32 flyout above system tray. Double-buffered GDI BitBlt rendering.
+- **Panel Geometry**: Fixed 312 × 374 px Win32 flyout (Bento 6-square) above system tray. Direct2D hardware-accelerated rendering.
 
 ---
 
