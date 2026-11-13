@@ -50,6 +50,13 @@ Deep-dive architectural specifications, protocols, media pipelines, and develope
 ### 1.5 Project History
 - **[`CHANGELOG.md`](CHANGELOG.md)**: Release history and version milestones starting from v1.0.0.
 
+### 1.6 Modular AI Agent Rules (`docs/agents/`)
+Specialized context rulebooks routed from the root [`AGENTS.md`](../AGENTS.md):
+- **[`pc-rust.md`](agents/pc-rust.md)**: Threading model, zero-alloc audio, and real-time safety for PC Rust crates.
+- **[`linux-backend.md`](agents/linux-backend.md)**: PipeWire virtual audio, v4l2loopback virtual camera, and XDG rules.
+- **[`android-kotlin.md`](agents/android-kotlin.md)**: Jetpack Compose, foreground service lifecycle, and Oboe JNI rules.
+- **[`protocol-design-sync.md`](agents/protocol-design-sync.md)**: Zero-drift rules for wire protocol vectors and design tokens.
+
 ---
 
 ## 2. Key System Constants & Parameters

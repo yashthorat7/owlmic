@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100%" height="100%" fill="currentColor">
+  <!-- Minimal Owl Face Tray Icon (Face and Eyes Only) -->
+  <g fill="currentColor">
+    <path fill-rule="evenodd" d="
+      M 50 24
+      C 36 24, 25 16, 17 10
+      C 13 22, 11 38, 13 50
+      C 16 68, 32 84, 50 84
+      C 68 84, 84 68, 87 50
+      C 89 38, 87 22, 83 10
+      C 75 16, 64 24, 50 24 Z
+
+      M 34 35.5
+      A 13.5 13.5 0 1 0 34 62.5
+      A 13.5 13.5 0 1 0 34 35.5 Z
+
+      M 34 41.5
+      A 7.5 7.5 0 1 1 34 56.5
+      A 7.5 7.5 0 1 1 34 41.5 Z
+
+      M 66 35.5
+      A 13.5 13.5 0 1 0 66 62.5
+      A 13.5 13.5 0 1 0 66 35.5 Z
+
+      M 66 41.5
+      A 7.5 7.5 0 1 1 66 56.5
+      A 7.5 7.5 0 1 1 66 41.5 Z
+    " />
+  </g>
+</svg>
