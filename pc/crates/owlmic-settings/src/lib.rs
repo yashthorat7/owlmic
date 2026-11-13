@@ -2,6 +2,8 @@ pub mod book;
 pub mod hub;
 pub mod store;
 
+pub use store::{default_dir, default_path};
+
 /// Which side a setting lives on. Shared settings sync both ways; the others stay on one side.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Scope {

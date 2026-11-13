@@ -1,0 +1,730 @@
+/* Owlmic UI Prototype - Design System Tokens & Base Styles
+   Conforms to design/tokens.json and docs/technical/design-language.md */
+
+@font-face {
+    font-family: 'Monoska';
+    src: url('../fonts/Monoska.woff') format('woff'),
+         url('../fonts/Monoska.ttf') format('truetype');
+    font-weight: 100 900;
+    font-style: normal;
+    font-display: swap;
+}
+
+:root {
+    /* Color Palette */
+    --color-bg: #000000;
+    --color-tile: #0A0A0A;
+    --color-hairline: #262626;
+    --color-text: #E6E6E6;
+    --color-text2: #8E8E93;
+    --color-disabled: #3A3A3C;
+    --color-on: #E6E6E6;
+    --color-on-content: #000000;
+    --color-red: #FF453A;
+    --color-yellow: #FFD60A;
+    --color-green: #30D158;
+
+    /* Mid-gray canvas background */
+    --color-canvas-bg: #35383f;
+
+    /* Typography: Standard System Fonts (Only owlmic wordmark is vector SVG from Monoska) */
+    --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+
+    /* Radii */
+    --radius-panel: 12px;
+    --radius-card: 16px;
+    --radius-phone-shell: 44px;
+    --radius-phone-screen: 34px;
+
+    /* Motion */
+    --motion-state: 150ms;
+}
+
+* {
+    box-sizing: border-box;
+    -webkit-user-select: none;
+    user-select: none;
+}
+
+body {
+    font-family: var(--font-sans);
+    margin: 0;
+    padding: 0;
+    background-color: var(--color-canvas-bg);
+    color: var(--color-text);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    overflow-x: hidden;
+    overflow-y: auto;
+}
+
+/* Top Control Deck: View Tabs + Simulation Bridge Controls (Draggable & Topmost Z-Index) */
+.controls-container {
+    position: fixed;
+    top: 14px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 999999;
+    display: flex;
+    align-items: center;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+/* Control Pills Group */
+.control-pill-group {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    background-color: #0c0d10;
+    padding: 3px;
+    border-radius: 10px;
+    border: 1px solid #22242a;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+}
+
+.control-pill-divider {
+    width: 1px;
+    height: 18px;
+    background-color: #22242a;
+    margin: 0 2px;
+}
+
+/* Simulation Action Buttons */
+.sim-btn {
+    background: transparent;
+    border: none;
+    color: #8E8E93;
+    width: 32px;
+    height: 30px;
+    border-radius: 6px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    transition: color 0.15s ease, background-color 0.15s ease, transform 0.1s ease;
+}
+
+.sim-btn:hover {
+    color: #E6E6E6;
+    background-color: #1a1c22;
+}
+
+.sim-btn.active {
+    background-color: #22242a;
+    color: #E6E6E6;
+}
+
+.sim-btn:active {
+    transform: scale(0.92);
+}
+
+.sim-btn.is-off {
+    color: #3e414c;
+}
+
+.sim-btn.is-active-link {
+    color: #E6E6E6;
+}
+
+/* Dedicated Drag Handle for Toolbar */
+.sim-drag-handle {
+    cursor: grab;
+    touch-action: none;
+    color: #5c606d;
+    transition: color 0.15s ease, background-color 0.15s ease;
+}
+
+.sim-drag-handle:hover {
+    color: #E6E6E6;
+    background-color: #1a1c22;
+}
+
+.sim-drag-handle:active,
+.controls-container.is-dragging .sim-drag-handle {
+    cursor: grabbing;
+    color: #E6E6E6;
+    background-color: #22242a;
+    transform: none;
+}
+
+/* Views Container */
+.views-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 100%;
+    min-height: 100vh;
+    padding: 85px 20px 40px;
+    position: relative;
+    box-sizing: border-box;
+    transition: all 0.3s ease;
+}
+
+/* View Hiding & Layout Modes */
+.view {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+    display: none;
+    justify-content: center;
+    align-items: center;
+}
+
+.view.active {
+    opacity: 1;
+    pointer-events: all;
+    display: flex;
+    z-index: 1;
+    position: relative;
+}
+
+/* Side-by-Side Dual Viewport Mode */
+.views-container.is-split-mode {
+    display: flex;
+    flex-direction: row;
+    justify-content: center;
+    align-items: center;
+    gap: 48px;
+    flex-wrap: wrap;
+}
+
+.views-container.is-split-mode .view {
+    position: relative;
+    opacity: 1;
+    pointer-events: all;
+    transform: scale(1);
+    z-index: 1;
+}
+
+.views-container.is-split-mode .view.is-disabled-device {
+    opacity: 0.25;
+    filter: grayscale(0.85);
+    pointer-events: none;
+}
+/* Device Power Off Simulated Monochrome Appearance */
+.device-mobile.is-powered-off {
+    filter: brightness(0.22) grayscale(1);
+    pointer-events: none;
+    transition: filter 0.3s ease;
+}
+
+.device-mobile.is-powered-off::after {
+    content: "APP STOPPED";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(10, 10, 12, 0.94);
+    border: 1px solid #3A3A3C;
+    color: #8E8E93;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 6px 14px;
+    border-radius: 6px;
+    letter-spacing: 0.08em;
+    z-index: 1000;
+    pointer-events: none;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.9);
+    white-space: nowrap;
+    font-family: var(--font-mono);
+}
+
+.device-pc.is-powered-off {
+    filter: brightness(0.22) grayscale(1);
+    pointer-events: none;
+    transition: filter 0.3s ease;
+    position: relative;
+}
+
+.device-pc.is-powered-off::after {
+    content: "PC STOPPED";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(10, 10, 12, 0.94);
+    border: 1px solid #3A3A3C;
+    color: #8E8E93;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 6px 14px;
+    border-radius: 6px;
+    letter-spacing: 0.08em;
+    z-index: 1000;
+    pointer-events: none;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.9);
+    white-space: nowrap;
+    font-family: var(--font-mono);
+}
+
+/* Phone Stage Container (Clean 880x880 centered rotation stage with zero layout shifting for iPhone X) */
+.phone-view-stage {
+    width: 880px;
+    height: 880px;
+    max-width: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    position: relative;
+    transition: transform 0.25s ease;
+}
+
+/* Fluid responsive scaling so the phone mockup fits any viewport height/width comfortably */
+@media (max-height: 960px) {
+    .phone-view-stage {
+        transform: scale(0.92);
+    }
+}
+
+@media (max-height: 880px) {
+    .phone-view-stage {
+        transform: scale(0.84);
+    }
+}
+
+@media (max-height: 780px) {
+    .phone-view-stage {
+        transform: scale(0.74);
+    }
+}
+
+@media (max-width: 900px) {
+    .phone-view-stage {
+        transform: scale(0.84);
+    }
+}
+
+@media (max-width: 600px) {
+    .phone-view-stage {
+        transform: scale(0.72);
+    }
+}
+
+/* Modern Minimal Phone Chassis (Screen: 375x812, Outer: 391x828) */
+.device-mobile {
+    width: 391px;
+    height: 828px;
+    background: #101115;
+    border: none;
+    border-radius: 44px;
+    padding: 8px;
+    box-shadow: 0 25px 65px rgba(0, 0, 0, 0.65);
+    position: relative;
+    box-sizing: border-box;
+    transform-origin: center center;
+    transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Rotation States */
+.device-mobile.is-portrait,
+.device-mobile.is-portrait-chassis {
+    transform: rotate(0deg);
+}
+
+.device-mobile.is-landscape,
+.device-mobile.is-landscape-chassis {
+    transform: rotate(-90deg);
+}
+
+/* PC Panel Container (Compact bento with constant dimensions, scaled up 20%, sharp outer border) */
+.device-pc {
+    width: 312px;
+    height: 374px;
+    border-radius: 0;
+    background-color: #7e7e7e;
+    border: none;
+    box-shadow: none;
+    overflow: hidden;
+    position: relative;
+    box-sizing: border-box;
+}
+
+/* --- PLAYGROUND DRAWER OVERLAY (Full height & width of playground) --- */
+.playground-drawer,
+.pc-playground-drawer {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    background-color: #000000;
+    border-radius: 12px;
+    z-index: 25;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    transform: translateY(100%);
+    opacity: 0;
+    pointer-events: none;
+    transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.2s ease;
+    box-sizing: border-box;
+}
+
+.playground-drawer.is-open,
+.pc-playground-drawer.is-open {
+    transform: translateY(0);
+    opacity: 1;
+    pointer-events: all;
+}
+
+.drawer-screen {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    box-sizing: border-box;
+    overflow: hidden;
+}
+
+/* Header: Back Arrow on Left, Title on Right */
+.drawer-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    height: 52px;
+    border-bottom: 1px solid #1c1c1e;
+    flex-shrink: 0;
+    box-sizing: border-box;
+    background-color: #000000;
+}
+
+.drawer-back-btn {
+    width: 36px;
+    height: 36px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: none;
+    color: #FFFFFF;
+    cursor: pointer;
+    padding: 0;
+    border-radius: 8px;
+    transition: background-color 0.15s ease;
+    outline: none;
+}
+
+.drawer-back-btn:hover {
+    background-color: #1a1a1a;
+}
+
+.drawer-back-btn:active {
+    background-color: #262626;
+}
+
+.drawer-back-btn svg {
+    width: 22px;
+    height: 22px;
+    stroke: #FFFFFF;
+}
+
+.drawer-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: #FFFFFF;
+    letter-spacing: -0.01em;
+    user-select: none;
+}
+
+/* Body */
+.drawer-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    box-sizing: border-box;
+}
+
+/* --- SHARED MINIMAL DRAWER LIST (End-to-End Lines, Zero Container Islands) --- */
+.drawer-list {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    background-color: #000000;
+    padding: 0;
+    margin: 0;
+    box-sizing: border-box;
+}
+
+.drawer-row {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    border-bottom: 1px solid #1c1c1e;
+    box-sizing: border-box;
+    background: transparent;
+    text-decoration: none;
+    transition: background-color 0.15s ease;
+}
+
+.drawer-row:hover {
+    background-color: rgba(255, 255, 255, 0.03);
+}
+
+.drawer-row.is-active {
+    background-color: rgba(255, 255, 255, 0.015);
+}
+
+.drawer-row-left {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.drawer-device-name {
+    font-size: 14px;
+    font-weight: 700;
+    color: #FFFFFF;
+    letter-spacing: -0.01em;
+}
+
+.drawer-device-meta {
+    font-size: 11px;
+    color: #8E8E93;
+    font-family: var(--font-mono, monospace);
+}
+
+.drawer-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+}
+
+.drawer-badge.is-live {
+    color: #30D158;
+}
+
+.drawer-badge .pc-status-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background-color: #30D158;
+    box-shadow: 0 0 6px rgba(48, 209, 88, 0.6);
+}
+
+.drawer-tag {
+    font-size: 11px;
+    font-weight: 600;
+    color: #8E8E93;
+    background-color: #141416;
+    padding: 2px 8px;
+    border-radius: 4px;
+    letter-spacing: 0.02em;
+}
+
+/* Process Showcase Rows (Steps 01, 02, 03) */
+.drawer-process-row {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    border-bottom: 1px solid #1c1c1e;
+    box-sizing: border-box;
+    background: transparent;
+    transition: background-color 0.15s ease;
+}
+
+.drawer-process-row:hover {
+    background-color: rgba(255, 255, 255, 0.03);
+}
+
+.drawer-step-num {
+    font-size: 12px;
+    font-weight: 700;
+    color: #8E8E93;
+    font-family: var(--font-mono, monospace);
+    letter-spacing: 0.04em;
+    flex-shrink: 0;
+}
+
+.drawer-step-info {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.drawer-step-name {
+    font-size: 13px;
+    font-weight: 600;
+    color: #FFFFFF;
+    letter-spacing: -0.01em;
+}
+
+.drawer-step-detail {
+    font-size: 11px;
+    color: #8E8E93;
+    line-height: 14px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.drawer-step-arrow {
+    font-size: 13px;
+    color: #8E8E93;
+    text-decoration: none;
+    padding: 2px 6px;
+    border-radius: 4px;
+    transition: all 0.15s ease;
+}
+
+.drawer-step-arrow:hover {
+    color: #FFFFFF;
+    background-color: #1a1a1e;
+}
+
+.drawer-step-tag {
+    font-size: 10px;
+    font-weight: 600;
+    color: #8E8E93;
+    background-color: #141416;
+    padding: 2px 7px;
+    border-radius: 4px;
+    letter-spacing: 0.02em;
+    flex-shrink: 0;
+}
+
+.drawer-step-tag.is-live {
+    color: #30D158;
+    background-color: rgba(48, 209, 88, 0.1);
+}
+
+.drawer-row-label {
+    font-size: 13px;
+    font-weight: 600;
+    color: #FFFFFF;
+}
+
+.drawer-arrow {
+    font-size: 13px;
+    color: #8E8E93;
+    transition: transform 0.15s ease, color 0.15s ease;
+}
+
+.drawer-link-row {
+    cursor: pointer;
+}
+
+.drawer-link-row:hover .drawer-arrow {
+    color: #FFFFFF;
+    transform: translateX(2px);
+}
+
+.drawer-row-version {
+    margin-top: auto;
+    border-bottom: none;
+    padding: 10px 16px;
+}
+
+.drawer-dim {
+    font-size: 11px;
+    color: #555558;
+    font-family: var(--font-mono, monospace);
+}
+
+/* Footer Bar for Connection Types */
+.drawer-links-bar {
+    padding: 10px 16px 12px;
+    border-top: 1px solid #1c1c1e;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    flex-shrink: 0;
+    box-sizing: border-box;
+    background-color: #000000;
+}
+
+.drawer-footer-title {
+    font-size: 13px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #8E8E93;
+    user-select: none;
+}
+
+.drawer-conn-types {
+    display: flex;
+    gap: 8px;
+    width: 100%;
+}
+
+.conn-type-btn {
+    flex: 1 1 0;
+    height: 44px;
+    border-radius: 10px;
+    border: 1px solid #222225;
+    background-color: #0a0a0c;
+    color: #55555c;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+    padding: 0;
+    outline: none;
+    box-sizing: border-box;
+}
+
+.conn-type-btn svg {
+    stroke: currentColor;
+    transition: stroke 0.15s ease;
+    pointer-events: none;
+}
+
+/* Toggled ON state (Dark sleek tile, crisp white icon, NO white background) */
+.conn-type-btn.is-on {
+    background-color: #151518 !important;
+    border-color: #3e3e44 !important;
+    color: #FFFFFF !important;
+}
+
+.conn-type-btn.is-on svg {
+    stroke: #FFFFFF !important;
+    opacity: 1 !important;
+}
+
+.conn-type-btn.is-on:hover {
+    background-color: #1c1c21 !important;
+    border-color: #55555c !important;
+}
+
+/* Toggled OFF state */
+.conn-type-btn:not(.is-on) {
+    background-color: #000000 !important;
+    border-color: #1a1a1d !important;
+    color: #3A3A3C !important;
+}
+
+.conn-type-btn:not(.is-on) svg {
+    stroke: #3A3A3C !important;
+    opacity: 0.45 !important;
+}
+
+.conn-type-btn:not(.is-on):hover {
+    border-color: #2c2c30 !important;
+    color: #636366 !important;
+}
+
+.conn-type-btn:not(.is-on):hover svg {
+    stroke: #636366 !important;
+    opacity: 0.7 !important;
+}
+
+

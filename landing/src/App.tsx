@@ -309,8 +309,7 @@ export default function App() {
 
             <div className="hero-cta">
               <a
-                href="/Owlmic-Setup.exe"
-                download="Owlmic-Setup.exe"
+                href="https://github.com/diveshpatil9104/owlmic/releases/download/v1.0.0/Owlmic-Setup-1.0.0.exe"
                 className="btn primary-btn"
               >
                 <svg
@@ -329,8 +328,7 @@ export default function App() {
               </a>
 
               <a
-                href="/owlmic.apk"
-                download="owlmic.apk"
+                href="https://github.com/diveshpatil9104/owlmic/releases/download/v1.0.0/owlmic-1.0.0.apk"
                 className="btn secondary-btn"
               >
                 <svg

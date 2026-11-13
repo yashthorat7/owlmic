@@ -160,17 +160,6 @@
     "ui.howTo": "How-to",
     "phone.preview": "Camera preview",
     "phone.pc.now": "Now",
-    "phone.pc.never": "Never",
-    "pc.connection": "Connection",
-    "pc.setupAndHelp": "Setup & Help",
-    "pc.microphone": "Microphone",
-    "pc.voiceIsolationDesc": "Keeps speaker playback out of mic",
-    "pc.autoLevelDesc": "Levels voice across distance",
-    "pc.stepConnectDetail": "Plug USB cable or join same Wi-Fi",
-    "pc.stepStreamDetail": "Phone streams mic & camera to PC",
-    "pc.active": "Active",
-    "pc.standby": "Standby",
-    "pc.ready": "Ready",
-    "pc.directIpPort": "Direct IP · Port 7653"
+    "phone.pc.never": "Never"
   }
 }

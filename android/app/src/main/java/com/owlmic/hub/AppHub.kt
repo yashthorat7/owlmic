@@ -502,29 +502,22 @@ class AppHub(private val app: Application, private val onState: (AppState) -> Un
     private fun control(m: com.owlmic.core.proto.Message) {
         when (m) {
             is State -> {
+                // The PC pauses and resumes what the phone turned on; it never turns anything on (section 17.4).
                 if (m.mic == FeatureState.PAUSED && state.mic.isOn) {
                     micPausedByPc = true
                     applyMicPause()
-                } else if (m.mic == FeatureState.ON) {
-                    if (micPausedByPc) {
-                        micPausedByPc = false
-                        applyMicPause()
-                    } else if (state.mic.phase == FeaturePhase.OFF) {
-                        setFeature(Feature.MIC, true)
-                    }
+                } else if (m.mic == FeatureState.ON && micPausedByPc) {
+                    micPausedByPc = false
+                    applyMicPause()
                 }
                 if (m.camera == FeatureState.PAUSED && state.camera.isOn) {
                     cameraPausedByPc = true
                     media.post(MediaMsg.CameraPaused(true))
                     set(Feature.CAMERA, FeatureView(FeaturePhase.PAUSED))
-                } else if (m.camera == FeatureState.ON) {
-                    if (cameraPausedByPc) {
-                        cameraPausedByPc = false
-                        media.post(MediaMsg.CameraPaused(false))
-                        set(Feature.CAMERA, FeatureView(FeaturePhase.ON))
-                    } else if (state.camera.phase == FeaturePhase.OFF) {
-                        setFeature(Feature.CAMERA, true)
-                    }
+                } else if (m.camera == FeatureState.ON && cameraPausedByPc) {
+                    cameraPausedByPc = false
+                    media.post(MediaMsg.CameraPaused(false))
+                    set(Feature.CAMERA, FeatureView(FeaturePhase.ON))
                 }
                 if (m.speaker == FeatureState.PAUSED && state.speaker.isOn) {
                     speakerPausedByPc = true
@@ -537,51 +530,17 @@ class AppHub(private val app: Application, private val onState: (AppState) -> Un
                 sendState()
             }
             is SettingsMessage -> settings.post(SettingsMsg.Remote(m.changes))
-            is StreamStart -> when (m.stream) {
-                Stream.SPEAKER -> {
-                    speakerFormat = SpeakerFormat(
-                        codec = m.codec,
-                        channels = m.params.optInt("channels", 2),
-                        frameMs = m.params.optInt("frameMs", 10),
-                    )
-                    if (state.speaker.phase != FeaturePhase.OFF) startSpeaker()
-                }
-                Stream.MIC -> {
-                    if (state.mic.phase == FeaturePhase.OFF) {
-                        setFeature(Feature.MIC, true)
-                    } else if (micPausedByPc) {
-                        micPausedByPc = false
-                        applyMicPause()
-                    }
-                }
-                Stream.CAMERA -> {
-                    if (state.camera.phase == FeaturePhase.OFF) {
-                        setFeature(Feature.CAMERA, true)
-                    } else if (cameraPausedByPc) {
-                        cameraPausedByPc = false
-                        media.post(MediaMsg.CameraPaused(false))
-                        set(Feature.CAMERA, FeatureView(FeaturePhase.ON))
-                    }
-                }
+            is StreamStart -> if (m.stream == Stream.SPEAKER) {
+                speakerFormat = SpeakerFormat(
+                    codec = m.codec,
+                    channels = m.params.optInt("channels", 2),
+                    frameMs = m.params.optInt("frameMs", 10),
+                )
+                if (state.speaker.phase != FeaturePhase.OFF) startSpeaker()
             }
-            is StreamStop -> when (m.stream) {
-                Stream.SPEAKER -> {
-                    speakerFormat = null
-                    media.post(MediaMsg.Speaker(null, false, true))
-                }
-                Stream.MIC -> {
-                    if (state.mic.isOn) {
-                        micPausedByPc = true
-                        applyMicPause()
-                    }
-                }
-                Stream.CAMERA -> {
-                    if (state.camera.isOn) {
-                        cameraPausedByPc = true
-                        media.post(MediaMsg.CameraPaused(true))
-                        set(Feature.CAMERA, FeatureView(FeaturePhase.PAUSED))
-                    }
-                }
+            is StreamStop -> if (m.stream == Stream.SPEAKER) {
+                speakerFormat = null
+                media.post(MediaMsg.Speaker(null, false, true))
             }
             KeyframeRequest -> media.post(MediaMsg.Keyframe)
             is Report -> {

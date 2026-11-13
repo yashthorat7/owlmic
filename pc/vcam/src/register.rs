@@ -117,7 +117,10 @@ pub fn register(dll: &Path) -> Result<()> {
     unsafe {
         MFStartup(MF_VERSION, MFSTARTUP_FULL)?;
     }
-    let result = virtual_camera().and_then(|cam| unsafe { cam.Start(None::<&IMFAsyncCallback>) });
+    let result = virtual_camera().and_then(|cam| unsafe {
+        cam.Start(None::<&IMFAsyncCallback>)?;
+        cam.Shutdown()
+    });
     unsafe {
         let _ = MFShutdown();
     }

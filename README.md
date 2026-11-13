@@ -77,7 +77,7 @@ Comprehensive guides and architectural specifications are located in [`docs/`](d
 - [Installing on Android](docs/user/install-android.md)
 - [First Connection & Pairing](docs/user/first-connection.md)
 - [Everyday Use](docs/user/everyday-use.md)
-- [Connection Levels & Switching](docs/user/links.md)
+- [Connection Levels & Switching](docs/user/connection-levels.md)
 - [Troubleshooting & Repair](docs/user/troubleshooting.md)
 - [Privacy & Security](docs/user/privacy.md)
 - [Uninstalling](docs/user/uninstall.md)
@@ -131,19 +131,21 @@ npm run dev
 
 ```text
 owlmic/
+├── .github/          # CI/CD workflows, issue templates, and CODEOWNERS
 ├── android/          # Android Client (Kotlin, Jetpack Compose, CameraX, Oboe/AAudio)
 │   ├── app/          # UI, MainActivity, Foreground Service, Notifier
 │   ├── core/         # Hubs, Link Transporter, Protocol v3, Settings store
 │   └── media/        # Oboe JNI, AAudio, Opus, CameraX GL pipelines
-├── pc/               # Windows Companion (Rust, Win32 GDI, WASAPI, Media Foundation)
-│   ├── crates/       # Modular hubs: app, devices, hub, link, media, proto, session, settings, ui
-│   ├── installer/    # Inno Setup script (owlmic.iss) & setup-audio-device.ps1
+├── assets/           # Single source of truth for visual & binary assets (brand, icons, fonts)
+├── design/           # Shared cross-platform schemas (tokens, copy, settings) & prototypes
+├── docs/             # Structured user & technical documentation, and AI agent context
+├── landing/          # React + Vite web landing page (owlmic.app)
+├── pc/               # Desktop Server Workspace (Windows 10/11 & Linux)
+│   ├── crates/       # Modular crates: link, media, proto, platform, linux, devices, ui
+│   ├── installer/    # Inno Setup Windows installer (windows/) & Linux packages (linux/)
 │   └── vcam/         # Windows 11 Media Foundation virtual camera driver (owlmic_vcam.dll)
-├── design/           # Shared design tokens (tokens.json), copy (copy.json), settings schema
-├── protocol/         # Wire protocol version 3 spec & independent test vectors
-├── landing/          # React + Vite web landing page and documentation viewer
-├── docs/             # Complete user and technical documentation
-└── .github/          # CI/CD workflows, issue templates, and contributing guidelines
+├── protocol/         # Wire protocol version 3 normative vectors & specification
+└── scripts/          # Automated pre-flight checks, linters, and Git hooks
 ```
 
 ---
@@ -159,4 +161,4 @@ Join the conversation in [GitHub Discussions](https://github.com/diveshpatil9104
 ## License
 
 Owlmic is licensed under the [MIT License](LICENSE).
-Owlmic incorporates or interfaces with VB-CABLE (VB-Audio), softcam (MIT), RNNoise (BSD-3-Clause), and Opus (BSD-3-Clause). See [`pc/installer/THIRD-PARTY-NOTICES.txt`](pc/installer/THIRD-PARTY-NOTICES.txt) for license notices.
+Owlmic incorporates or interfaces with VB-CABLE (VB-Audio), softcam (MIT), RNNoise (BSD-3-Clause), and Opus (BSD-3-Clause). See [`pc/installer/windows/THIRD-PARTY-NOTICES.txt`](pc/installer/windows/THIRD-PARTY-NOTICES.txt) for license notices.

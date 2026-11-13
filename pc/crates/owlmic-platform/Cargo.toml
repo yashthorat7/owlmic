@@ -1,0 +1,11 @@
+[package]
+name = "owlmic-platform"
+description = "Cross-platform abstractions (traits) for virtual devices, audio/video capture and desktop UI"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[dependencies]
+owlmic-hub.workspace = true

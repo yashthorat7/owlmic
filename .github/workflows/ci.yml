@@ -68,12 +68,20 @@ jobs:
           chmod +x gradlew
           ./gradlew testDebugUnitTest lintDebug assembleDebug
 
-  names:
-    name: Product name spelling
+  verify-invariants:
+    name: Repo Invariants & Hygiene
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Verify repository invariants
+        run: python3 scripts/verify-repo-invariants.py
 
       - name: Check how Owlmic is written
         run: |
@@ -81,3 +89,33 @@ jobs:
             echo "Write the name as Owlmic, as in design/copy.json."
             exit 1
           fi
+
+  pc-linux:
+    name: PC (Rust) on Linux
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          submodules: recursive
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+
+      - name: Cache Cargo registry and build artifacts
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            pc/target
+          key: cargo-${{ runner.os }}-${{ hashFiles('pc/Cargo.lock') }}
+          restore-keys: cargo-${{ runner.os }}-
+
+      - name: Check portable & Linux crates
+        run: cargo check --manifest-path pc/Cargo.toml -p owlmic-proto -p owlmic-platform -p owlmic-link -p owlmic-media -p owlmic-settings -p owlmic-hub -p owlmic-session -p owlmic-linux
+
+      - name: Tests
+        run: cargo test --manifest-path pc/Cargo.toml -p owlmic-proto -p owlmic-platform -p owlmic-settings -p owlmic-hub -p owlmic-session

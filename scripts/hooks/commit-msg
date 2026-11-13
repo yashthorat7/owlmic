@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+COMMIT_MSG_FILE="$1"
+FIRST_LINE="$(head -n 1 "$COMMIT_MSG_FILE")"
+
+# Allow merge or fixup commits
+if [[ "$FIRST_LINE" =~ ^(Merge|Revert|fixup!|squash!) ]]; then
+    exit 0
+fi
+
+# Check length (<= 72 chars)
+if [ "${#FIRST_LINE}" -gt 72 ]; then
+    echo "❌ ERROR: Commit message must be <= 72 characters (found: ${#FIRST_LINE})."
+    exit 1
+fi
+
+PATTERN='^(feat|fix|perf|refactor|docs|test|ci|chore|build)\((android|pc|win|linux|proto|design|installer|scripts|ci|site)\): [a-z0-9].{3,68}[^\.]$'
+
+if ! [[ "$FIRST_LINE" =~ $PATTERN ]]; then
+    echo "❌ INVALID COMMIT MESSAGE:"
+    echo "   \"$FIRST_LINE\""
+    echo ""
+    echo "Required format:"
+    echo "   <type>(<scope>): <lowercase imperative description, max 72 chars, no period>"
+    echo "Allowed types:  feat, fix, perf, refactor, docs, test, ci, chore, build"
+    echo "Allowed scopes: android, pc, win, linux, proto, design, installer, scripts, ci, site"
+    echo "Example:        chore(scripts): add automated invariant verifier and git hooks"
+    exit 1
+fi

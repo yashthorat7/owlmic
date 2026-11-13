@@ -12,10 +12,11 @@ Everyday instructions, installation, configuration, and troubleshooting for end 
 | Guide | Description |
 | :--- | :--- |
 | **[`install-windows.md`](user/install-windows.md)** | Installing Owlmic on Windows 10 and 11, setting up virtual audio and camera drivers |
+| **[`install-linux.md`](user/install-linux.md)** | Installing Owlmic on Linux, configuring PipeWire virtual microphone and v4l2loopback |
 | **[`install-android.md`](user/install-android.md)** | Installing the Android APK or Google Play release, required permissions, battery optimizations |
 | **[`first-connection.md`](user/first-connection.md)** | Step-by-step first pairing, 4-digit safety code confirmation, trust-on-first-use (TOFU) |
 | **[`everyday-use.md`](user/everyday-use.md)** | Daily workflow: toggling mic, camera, and speaker; selecting video quality; managing tray flyout |
-| **[`links.md`](user/links.md)** | The four connection levels (USB debugging, USB tethering, Wi-Fi, Bluetooth) and auto-switching |
+| **[`connection-levels.md`](user/connection-levels.md)** | The four connection levels (USB debugging, USB tethering, Wi-Fi, Bluetooth) and auto-switching |
 | **[`troubleshooting.md`](user/troubleshooting.md)** | Solving firewall blocks, driver errors, connection drops, and audio latency issues |
 | **[`privacy.md`](user/privacy.md)** | Privacy-first principles: local network only, zero telemetry, on-device encryption, manual capture control |
 | **[`uninstall.md`](user/uninstall.md)** | Clean removal from Windows and Android, driver deregistration, endpoint cleanup |
@@ -36,8 +37,25 @@ Deep-dive architectural specifications, protocols, media pipelines, and develope
 | **[`building.md`](technical/building.md)** | Building Android (Gradle/NDK) and PC (Cargo/MSVC/GNU), dependencies, environment setup |
 | **[`releasing.md`](technical/releasing.md)** | Packaging Inno Setup installer, APK/AAB signing, GitHub Releases, Google Play distribution |
 
-### 1.3 Project History
+### 1.3 Shared Design & Assets
+- **[`design/`](../design/)**: Canonical cross-platform schemas — `tokens.json` (OLED palette, typography, geometry), `copy.json` (UI strings and product name invariant), `settings.json` (versioned settings schema).
+- **[`design/prototypes/`](../design/prototypes/)**: Interactive HTML UI blueprints for Android + PC layout exploration.
+- **[`assets/`](../assets/)**: Single source of truth for shared visual assets — `brand/` (master owl SVG marks), `icons/` (tray and status glyphs), `fonts/` (shared UI fonts).
+
+### 1.4 Automation & Scripts
+- **[`scripts/verify-repo-invariants.py`](../scripts/verify-repo-invariants.py)**: Zero-dependency Python 3 checker for product name casing, binary ban, Tokio restrictions, JSON validity, and version lockstep.
+- **[`scripts/check.sh`](../scripts/check.sh)** / **[`scripts/check.ps1`](../scripts/check.ps1)**: Master pre-flight validators (invariants + Rust fmt/clippy/test + Android lint).
+- **[`scripts/hooks/`](../scripts/hooks/)**: Git `pre-commit` (invariants + cargo fmt) and `commit-msg` (Conventional Commits enforcement).
+
+### 1.5 Project History
 - **[`CHANGELOG.md`](CHANGELOG.md)**: Release history and version milestones starting from v1.0.0.
+
+### 1.6 Modular AI Agent Rules (`docs/agents/`)
+Specialized context rulebooks routed from the root [`AGENTS.md`](../AGENTS.md):
+- **[`pc-rust.md`](agents/pc-rust.md)**: Threading model, zero-alloc audio, and real-time safety for PC Rust crates.
+- **[`linux-backend.md`](agents/linux-backend.md)**: PipeWire virtual audio, v4l2loopback virtual camera, and XDG rules.
+- **[`android-kotlin.md`](agents/android-kotlin.md)**: Jetpack Compose, foreground service lifecycle, and Oboe JNI rules.
+- **[`protocol-design-sync.md`](agents/protocol-design-sync.md)**: Zero-drift rules for wire protocol vectors and design tokens.
 
 ---
 

@@ -1,0 +1,14 @@
+[Unit]
+Description=Owlmic PC Server
+Documentation=https://github.com/diveshpatil9104/owlmic
+After=network.target sound.target pipewire.service
+
+[Service]
+Type=simple
+ExecStart=%h/.local/bin/owlmic
+Restart=on-failure
+RestartSec=3s
+Environment=XDG_CURRENT_DESKTOP=generic
+
+[Install]
+WantedBy=default.target

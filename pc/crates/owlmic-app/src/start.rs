@@ -24,7 +24,6 @@ use owlmic_ui::preview::Preview;
 use owlmic_ui::view::PanelState;
 use owlmic_ui::win::{Ui, Waker};
 use std::net::TcpListener;
-use std::path::PathBuf;
 use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -64,7 +63,7 @@ pub fn run(open: bool) {
         let _ = SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
         let _ = CoInitializeEx(None, COINIT_APARTMENTTHREADED);
     }
-    let Some(dir) = std::env::var_os("APPDATA").map(|a| PathBuf::from(a).join("Owlmic")) else {
+    let Some(dir) = owlmic_settings::default_dir() else {
         return;
     };
     let store = Arc::new(Store::open(dir.join("owlmic.json"), Box::new(Dpapi)));

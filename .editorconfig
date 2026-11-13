@@ -1,6 +1,3 @@
-# EditorConfig - consistent formatting across all editors and contributors
-# https://editorconfig.org
-
 root = true
 
 [*]
@@ -11,29 +8,15 @@ trim_trailing_whitespace = true
 indent_style = space
 indent_size = 4
 
-[*.{yml,yaml}]
+[*.{json,yml,yaml,html,css,ts,tsx,js,svg}]
 indent_size = 2
 
 [*.{md,markdown}]
+indent_size = 2
 trim_trailing_whitespace = false
 
-[*.{toml,lock}]
-indent_size = 4
+[*.{bat,ps1,iss,cmd,rc}]
+end_of_line = crlf
 
-[*.{kt,kts}]
-indent_size = 4
-
-[*.{rs}]
-indent_size = 4
-
-[*.{xml}]
-indent_size = 4
-
-[*.{gradle,gradle.kts}]
-indent_size = 4
-
-[*.{json}]
-indent_size = 2
-
-[*.{svg}]
-indent_size = 2
+[Makefile]
+indent_style = tab

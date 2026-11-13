@@ -11,7 +11,7 @@ use windows::Win32::Graphics::DirectWrite::*;
 use windows::Win32::Graphics::Dxgi::Common::DXGI_FORMAT_B8G8R8A8_UNORM;
 use windows::Win32::UI::WindowsAndMessaging::GetClientRect;
 use windows::core::{BOOL, HSTRING, Result};
-use windows_numerics::{Matrix3x2, Vector2};
+use windows_numerics::Vector2;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Align {
@@ -30,16 +30,12 @@ pub enum Font {
 }
 
 fn color(rgb: u32) -> D2D1_COLOR_F {
-    color_alpha(rgb, 1.0)
-}
-
-fn color_alpha(rgb: u32, alpha: f32) -> D2D1_COLOR_F {
     let c = |shift: u32| ((rgb >> shift) & 0xFF) as f32 / 255.0;
     D2D1_COLOR_F {
         r: c(16),
         g: c(8),
         b: c(0),
-        a: alpha,
+        a: 1.0,
     }
 }
 
@@ -61,8 +57,6 @@ pub struct Painter {
     family: HSTRING,
     mono: HSTRING,
     preview: Option<(ID2D1Bitmap, u64)>,
-    watermark_bmp: Option<ID2D1Bitmap>,
-    watermark_size: usize,
     pub scale: f32,
 }
 
@@ -113,8 +107,6 @@ impl Painter {
                 family,
                 mono,
                 preview: None,
-                watermark_bmp: None,
-                watermark_size: 0,
                 scale: 1.0,
             })
         }
@@ -178,7 +170,6 @@ impl Painter {
             self.brush = unsafe { target.CreateSolidColorBrush(&color(0xFFFFFF), None).ok() };
             self.target = Some(target);
             self.preview = None;
-            self.watermark_bmp = None;
         }
         if self.formats.as_ref().is_none_or(|f| f.scale != scale) {
             let built = (|| {
@@ -208,7 +199,6 @@ impl Painter {
         {
             self.target = None;
             self.preview = None;
-            self.watermark_bmp = None;
         }
     }
 
@@ -219,12 +209,6 @@ impl Painter {
     fn brush(&self, rgb: u32) -> &ID2D1SolidColorBrush {
         let b = self.brush.as_ref().unwrap();
         unsafe { b.SetColor(&color(rgb)) };
-        b
-    }
-
-    fn brush_alpha(&self, rgb: u32, alpha: f32) -> &ID2D1SolidColorBrush {
-        let b = self.brush.as_ref().unwrap();
-        unsafe { b.SetColor(&color_alpha(rgb, alpha)) };
         b
     }
 
@@ -244,194 +228,8 @@ impl Painter {
         unsafe { self.t().Clear(Some(&color(rgb))) };
     }
 
-    #[allow(dead_code)]
     pub fn fill(&self, r: Rect, rgb: u32) {
         unsafe { self.t().FillRectangle(&self.px(r), self.brush(rgb)) };
-    }
-
-    #[allow(dead_code)]
-    pub fn fill_alpha(&self, r: Rect, rgb: u32, alpha: f32) {
-        unsafe {
-            self.t()
-                .FillRectangle(&self.px(r), self.brush_alpha(rgb, alpha))
-        };
-    }
-
-    pub fn fill_rounded(&self, r: Rect, rgb: u32, radius: f32) {
-        let rounded = D2D1_ROUNDED_RECT {
-            rect: self.px(r),
-            radiusX: radius * self.scale,
-            radiusY: radius * self.scale,
-        };
-        unsafe { self.t().FillRoundedRectangle(&rounded, self.brush(rgb)) };
-    }
-
-    pub fn fill_rounded_alpha(&self, r: Rect, rgb: u32, alpha: f32, radius: f32) {
-        let rounded = D2D1_ROUNDED_RECT {
-            rect: self.px(r),
-            radiusX: radius * self.scale,
-            radiusY: radius * self.scale,
-        };
-        unsafe {
-            self.t()
-                .FillRoundedRectangle(&rounded, self.brush_alpha(rgb, alpha))
-        };
-    }
-
-    pub fn stroke_rounded(&self, r: Rect, rgb: u32, alpha: f32, stroke_w: f32, radius: f32) {
-        let rounded = D2D1_ROUNDED_RECT {
-            rect: self.px(r),
-            radiusX: radius * self.scale,
-            radiusY: radius * self.scale,
-        };
-        unsafe {
-            self.t().DrawRoundedRectangle(
-                &rounded,
-                self.brush_alpha(rgb, alpha),
-                stroke_w * self.scale,
-                &self.stroke,
-            )
-        };
-    }
-
-    pub fn line(&self, p1: (f32, f32), p2: (f32, f32), rgb: u32, stroke_w: f32) {
-        let s = self.scale;
-        let v1 = Vector2 {
-            X: (p1.0 * s).round(),
-            Y: (p1.1 * s).round(),
-        };
-        let v2 = Vector2 {
-            X: (p2.0 * s).round(),
-            Y: (p2.1 * s).round(),
-        };
-        unsafe {
-            self.t()
-                .DrawLine(v1, v2, self.brush(rgb), stroke_w * s, &self.stroke)
-        };
-    }
-
-    pub fn fill_circle(&self, cx: f32, cy: f32, radius: f32, rgb: u32, alpha: f32) {
-        let s = self.scale;
-        let e = D2D1_ELLIPSE {
-            point: Vector2 {
-                X: (cx * s).round(),
-                Y: (cy * s).round(),
-            },
-            radiusX: radius * s,
-            radiusY: radius * s,
-        };
-        unsafe { self.t().FillEllipse(&e, self.brush_alpha(rgb, alpha)) };
-    }
-
-    pub fn dot_grid(&self, r: Rect, spacing: f32, radius: f32, alpha: f32) {
-        let s = self.scale;
-        let step = spacing * s;
-        let start_x = r.x * s + step / 2.0;
-        let start_y = r.y * s + step / 2.0;
-        let end_x = r.right() * s;
-        let end_y = r.bottom() * s;
-        let brush = self.brush_alpha(0xFFFFFF, alpha);
-        let mut y = start_y;
-        while y < end_y {
-            let mut x = start_x;
-            while x < end_x {
-                let e = D2D1_ELLIPSE {
-                    point: Vector2 { X: x, Y: y },
-                    radiusX: radius * s,
-                    radiusY: radius * s,
-                };
-                unsafe { self.t().FillEllipse(&e, brush) };
-                x += step;
-            }
-            y += step;
-        }
-    }
-
-    pub fn watermark(&mut self, r: Rect, alpha: f32) {
-        let size = (156.0 * self.scale).round() as usize;
-        if size == 0 {
-            return;
-        }
-        if self.watermark_bmp.is_none() || self.watermark_size != size {
-            let px = crate::owl::bgra_premultiplied(size, true);
-            let d2d_size = D2D_SIZE_U {
-                width: size as u32,
-                height: size as u32,
-            };
-            let props = D2D1_BITMAP_PROPERTIES {
-                pixelFormat: D2D1_PIXEL_FORMAT {
-                    format: DXGI_FORMAT_B8G8R8A8_UNORM,
-                    alphaMode: D2D1_ALPHA_MODE_PREMULTIPLIED,
-                },
-                dpiX: 96.0,
-                dpiY: 96.0,
-            };
-            let bmp = unsafe {
-                self.t()
-                    .CreateBitmap(
-                        d2d_size,
-                        Some(px.as_ptr().cast()),
-                        (size * 4) as u32,
-                        &props,
-                    )
-                    .ok()
-            };
-            self.watermark_bmp = bmp;
-            self.watermark_size = size;
-        }
-        if let Some(bmp) = &self.watermark_bmp {
-            let s = self.scale;
-            let cx = (r.x + r.w / 2.0) * s;
-            let cy = (r.y + r.h / 2.0) * s;
-            let half = size as f32 / 2.0;
-            let dest = D2D_RECT_F {
-                left: cx - half,
-                top: cy - half,
-                right: cx + half,
-                bottom: cy + half,
-            };
-            unsafe {
-                self.t().DrawBitmap(
-                    bmp,
-                    Some(&dest),
-                    alpha,
-                    D2D1_BITMAP_INTERPOLATION_MODE_LINEAR,
-                    None,
-                );
-            }
-        }
-    }
-
-    pub fn waveform_bars(
-        &self,
-        center_x: f32,
-        center_y: f32,
-        bars: &[f32],
-        bar_w: f32,
-        gap: f32,
-        rgb: u32,
-    ) {
-        let s = self.scale;
-        let count = bars.len();
-        let total_w = count as f32 * bar_w + (count - 1) as f32 * gap;
-        let start_x = center_x - total_w / 2.0;
-        let brush = self.brush(rgb);
-        let stroke = &self.stroke;
-        for (i, &height) in bars.iter().enumerate() {
-            let x = (start_x + i as f32 * (bar_w + gap) + bar_w / 2.0) * s;
-            let h = height * s;
-            let half_h = (h / 2.0).max(bar_w * s / 2.0);
-            let cy = center_y * s;
-            let p1 = Vector2 {
-                X: x,
-                Y: cy - half_h + (bar_w * s / 2.0),
-            };
-            let p2 = Vector2 {
-                X: x,
-                Y: cy + half_h - (bar_w * s / 2.0),
-            };
-            unsafe { self.t().DrawLine(p1, p2, brush, bar_w * s, stroke) };
-        }
     }
 
     pub fn clip(&self, r: Rect) {
@@ -488,10 +286,6 @@ impl Painter {
 
     /// A Lucide icon `size` px wide (at 100%) centred on (cx, cy), stroked in `rgb`.
     pub fn icon(&self, icon: Icon, cx: f32, cy: f32, size: f32, rgb: u32) {
-        self.icon_alpha(icon, cx, cy, size, rgb, 1.0);
-    }
-
-    pub fn icon_alpha(&self, icon: Icon, cx: f32, cy: f32, size: f32, rgb: u32, alpha: f32) {
         let s = self.scale;
         let k = size * s / BOX;
         let (ox, oy) = (cx * s - size * s / 2.0, cy * s - size * s / 2.0);
@@ -500,7 +294,7 @@ impl Painter {
             Y: oy + y * k,
         };
         let width = crate::icon::STROKE * k;
-        let brush = self.brush_alpha(rgb, alpha);
+        let brush = self.brush(rgb);
         for shape in icon {
             unsafe {
                 match *shape {
@@ -608,7 +402,6 @@ impl Painter {
         w: usize,
         h: usize,
         seq: u64,
-        mirror: bool,
         pixels: impl FnOnce(&mut dyn FnMut(&[u8])),
     ) {
         let size = D2D_SIZE_U {
@@ -638,93 +431,14 @@ impl Painter {
             *shown = seq;
         }
         let bitmap = bitmap.clone();
-        let cw = dest.right - dest.left;
-        let ch = dest.bottom - dest.top;
-        if cw <= 0.0 || ch <= 0.0 || w == 0 || h == 0 {
-            return;
-        }
-
-        let aspect = w as f32 / h as f32;
-        let container_aspect = cw / ch;
-
-        // Foreground: exact aspect-fit inside dest (no stretching, no cropping)
-        let (fit_w, fit_h) = if aspect > container_aspect {
-            (cw, cw / aspect)
-        } else {
-            (ch * aspect, ch)
-        };
-        let fit_dest = D2D_RECT_F {
-            left: dest.left + (cw - fit_w) / 2.0,
-            top: dest.top + (ch - fit_h) / 2.0,
-            right: dest.left + (cw + fit_w) / 2.0,
-            bottom: dest.top + (ch + fit_h) / 2.0,
-        };
-
-        // Backdrop: duplicate video scaled to cover dest and dimmed behind fit_dest
-        let needs_backdrop = fit_w < cw - 1.0 || fit_h < ch - 1.0;
-        let cov_dest = if needs_backdrop {
-            let (cov_w, cov_h) = if aspect > container_aspect {
-                (ch * aspect, ch)
-            } else {
-                (cw, cw / aspect)
-            };
-            Some(D2D_RECT_F {
-                left: dest.left + (cw - cov_w) / 2.0,
-                top: dest.top + (ch - cov_h) / 2.0,
-                right: dest.left + (cw + cov_w) / 2.0,
-                bottom: dest.top + (ch + cov_h) / 2.0,
-            })
-        } else {
-            None
-        };
-
         unsafe {
-            if mirror {
-                let center_x = (dest.left + dest.right) / 2.0;
-                let transform = Matrix3x2 {
-                    M11: -1.0,
-                    M12: 0.0,
-                    M21: 0.0,
-                    M22: 1.0,
-                    M31: 2.0 * center_x,
-                    M32: 0.0,
-                };
-                self.t().SetTransform(&transform);
-                if let Some(ref cov) = cov_dest {
-                    self.t().DrawBitmap(
-                        &bitmap,
-                        Some(cov),
-                        0.42,
-                        D2D1_BITMAP_INTERPOLATION_MODE_LINEAR,
-                        None,
-                    );
-                }
-                self.t().DrawBitmap(
-                    &bitmap,
-                    Some(&fit_dest),
-                    1.0,
-                    D2D1_BITMAP_INTERPOLATION_MODE_LINEAR,
-                    None,
-                );
-                self.t().SetTransform(&Matrix3x2::identity());
-            } else {
-                if let Some(ref cov) = cov_dest {
-                    self.t().DrawBitmap(
-                        &bitmap,
-                        Some(cov),
-                        0.42,
-                        D2D1_BITMAP_INTERPOLATION_MODE_LINEAR,
-                        None,
-                    );
-                }
-                self.t().DrawBitmap(
-                    &bitmap,
-                    Some(&fit_dest),
-                    1.0,
-                    D2D1_BITMAP_INTERPOLATION_MODE_LINEAR,
-                    None,
-                );
-            }
+            self.t().DrawBitmap(
+                &bitmap,
+                Some(&dest),
+                1.0,
+                D2D1_BITMAP_INTERPOLATION_MODE_LINEAR,
+                None,
+            )
         };
     }
 }
