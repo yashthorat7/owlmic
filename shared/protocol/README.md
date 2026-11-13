@@ -1,6 +1,6 @@
 # Owlmic protocol, version 3
 
-The contract between the Android app and the Windows app. Each side implements it in its own language; both test suites check themselves against the files in [`vectors/`](vectors/).
+The contract between the Android client and the PC desktop server (Windows and Linux). Each side implements it in its own language; both test suites check themselves against the files in [`vectors/`](vectors/).
 
 All integers are big-endian. All text is UTF-8.
 

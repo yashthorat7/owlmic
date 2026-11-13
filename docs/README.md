@@ -37,36 +37,57 @@ Deep-dive architectural specifications, protocols, media pipelines, and develope
 | **[`building.md`](technical/building.md)** | Building Android (Gradle/NDK) and PC (Cargo/MSVC/GNU), dependencies, environment setup |
 | **[`releasing.md`](technical/releasing.md)** | Packaging Inno Setup installer, APK/AAB signing, GitHub Releases, Google Play distribution |
 
-### 1.3 Shared Design & Assets
+### 1.4 Desktop Crates Architecture (`desktop/crates/`)
+The desktop companion server is partitioned into 13 decoupled crates under Rust 2024:
+- **`owlmic-app`**: Application entry point, tray lifecycle, Win32 message loop & Linux event handling.
+- **`owlmic-devices`**: System virtual audio endpoints (WASAPI / PipeWire), camera frame feeder, and repair engine.
+- **`owlmic-hub`**: Actor-like Hub supervisor, mailbox channels, and restart policies.
+- **`owlmic-link`**: Multi-transport link manager (USB debugging via ADB, USB tethering, Wi-Fi UDP/TCP, Bluetooth RFCOMM).
+- **`owlmic-linux`**: Linux platform integration: PipeWire virtual source, v4l2loopback feeder, KSNI status notifier.
+- **`owlmic-media`**: Low-latency audio DSP (RNNoise, cubic drift resampler, jitter buffer) and video frame processing (H.264 slice reassembly, NV12 conversion).
+- **`owlmic-platform`**: Cross-platform abstractions (paths, single instance mutex, OS detection, elevation).
+- **`owlmic-proto`**: Wire Protocol v3 framing, binary envelopes, JSON control framing, and serialization.
+- **`owlmic-session`**: Cryptographic trust (TOFU), NIST P-256 ECDH key exchange, AES-256-GCM cipher, 4-digit code confirmation.
+- **`owlmic-settings`**: Thread-safe configuration store (`owlmic.json`), schema validation, and bidirectional state sync.
+- **`owlmic-ui`**: Native Win32 GDI/Direct2D dark OLED flyout UI (< 15 ms open time, zero webview overhead) and tray widgets.
+- **`owlmic-vcam`**: Windows 11 Media Foundation virtual camera COM server (`owlmic_vcam.dll`) and shared memory ring buffer.
+- **`owlmic-windows`**: Windows platform integration: WASAPI audio loopback, registry property store, COM setup.
+
+### 1.5 Shared Design & Assets
 - **[`shared/design/`](../shared/design/)**: Canonical cross-platform schemas — `tokens.json` (OLED palette, typography, geometry), `copy.json` (UI strings and product name invariant), `settings.json` (versioned settings schema).
 - **[`shared/design/prototypes/`](../shared/design/prototypes/)**: Interactive HTML UI blueprints for Android + PC layout exploration.
 - **[`shared/assets/`](../shared/assets/)**: Single source of truth for shared visual assets — `brand/` (master owl SVG marks), `icons/` (tray and status glyphs), `fonts/` (shared UI fonts).
 - **[`shared/vendor/`](../shared/vendor/)**: Centralized third-party submodules (`opus/`).
 
-### 1.4 Automation & Scripts
-- **[`scripts/build.py`](../scripts/build.py)**: Interactive, zero-dependency release builder routing packages into `dist/`.
+### 1.6 Automation & Scripts
+- **[`menu.py`](../menu.py)**: Unified root interactive developer & release menu (build, check, verify, deps, clean, hooks).
+- **[`scripts/build.py`](../scripts/build.py)**: Interactive and CLI release packaging tool routing artifacts to `dist/`.
 - **[`scripts/verify-repo-invariants.py`](../scripts/verify-repo-invariants.py)**: Zero-dependency Python 3 checker for product name casing, binary ban, Tokio restrictions, JSON validity, and version lockstep.
 - **[`scripts/check.py`](../scripts/check.py)**: Master pre-flight validator (invariants + Rust fmt/clippy/test + Android lint).
 - **[`scripts/setup-hooks.py`](../scripts/setup-hooks.py)**: Cross-platform Git hooks setup (`core.hooksPath` configuration).
 - **[`scripts/hooks/`](../scripts/hooks/)**: Git `pre-commit` (invariants + cargo fmt) and `commit-msg` (Conventional Commits enforcement).
 
-### 1.5 Project History
+### 1.7 Project History
 - **[`CHANGELOG.md`](CHANGELOG.md)**: Release history and version milestones starting from v0.1.0.
 
-### 1.6 Modular Domain Skills (`docs/skills/`)
-Specialized context rulebooks routed from the root [`AGENTS.md`](../AGENTS.md):
-- **[`pc-rust.md`](skills/pc-rust.md)**: Threading model, zero-alloc audio, and real-time safety for PC Rust crates.
-- **[`windows-backend.md`](skills/windows-backend.md)**: WASAPI virtual audio, Media Foundation camera, and Direct2D tray on Windows.
-- **[`linux-backend.md`](skills/linux-backend.md)**: PipeWire virtual audio, v4l2loopback virtual camera, and XDG rules.
-- **[`android-kotlin.md`](skills/android-kotlin.md)**: Jetpack Compose, foreground service lifecycle, and Oboe JNI rules.
-- **[`media-and-dsp.md`](skills/media-and-dsp.md)**: Low-latency audio DSP, jitter buffers, H.264 slice reassembly, and NV12 shared memory.
-- **[`web-landing.md`](skills/web-landing.md)**: React 19, TypeScript, and Vite standards for the web landing and release download site.
-- **[`protocol-design-sync.md`](skills/protocol-design-sync.md)**: Zero-drift rules for wire protocol vectors and design tokens.
-- **[`anti-slop-and-lean-code.md`](skills/anti-slop-and-lean-code.md)**: Code quality standards, anti-over-engineering, and lean engineering practices.
-- **[`token-saving-and-context.md`](skills/token-saving-and-context.md)**: Agent token efficiency, surgical file inspection, and context hygiene.
-- **[`procedures-and-verification.md`](skills/procedures-and-verification.md)**: Standard operating procedures, 5-stage task lifecycle, and verification gates.
-- **[`git-workflow.md`](skills/git-workflow.md)**: Conventional Commits, branch naming, and strict read-only agent rules.
-- **[`build-and-bundle.md`](skills/build-and-bundle.md)**: Builder procedures, driver caching, and centralized `dist/` distribution.
+### 1.8 Modular Domain Skills (`docs/skills/`)
+Specialized context rulebooks routed from the root [`AGENTS.md`](../AGENTS.md) across three priority tiers:
+- **[Domain Skills Catalog Index](skills/README.md)**: Complete guide to the 3-tier operational priority system.
+- **Priority 1 (Always Active)**:
+  - **[`anti-slop-and-lean-code.md`](skills/anti-slop-and-lean-code.md)**: Zero chatty comments, YAGNI, zero code churn, lean engineering.
+  - **[`token-saving-and-context.md`](skills/token-saving-and-context.md)**: Surgical file reads, targeted edits, and context hygiene.
+  - **[`procedures-and-verification.md`](skills/procedures-and-verification.md)**: 5-stage task lifecycle and pre-flight verification gates.
+- **Priority 2 (Active on Modification)**:
+  - **[`pc-rust.md`](skills/pc-rust.md)**: Rust 2024 desktop server, threading model, and Tokio bans outside Linux BT.
+  - **[`windows-backend.md`](skills/windows-backend.md)**: WASAPI audio bridge, Media Foundation virtual camera, and Direct2D tray on Windows.
+  - **[`linux-backend.md`](skills/linux-backend.md)**: PipeWire virtual audio source, v4l2loopback virtual camera, and KSNI tray.
+  - **[`android-kotlin.md`](skills/android-kotlin.md)**: Jetpack Compose, foreground service lifecycle, and zero-alloc Oboe JNI rules.
+  - **[`media-and-dsp.md`](skills/media-and-dsp.md)**: 48 kHz audio DSP, jitter buffers, cubic drift resampling, H.264 slice reassembly.
+  - **[`protocol-design-sync.md`](skills/protocol-design-sync.md)**: Wire Protocol v3 framing, vector test lockstep, tokens and copy sync.
+- **Priority 3 (Explicit User Request Only)**:
+  - **[`git-workflow.md`](skills/git-workflow.md)**: Strict read-only agent rule, convenient `git add .` staging, Conventional Commits.
+  - **[`build-and-bundle.md`](skills/build-and-bundle.md)**: Developer menu, dependency caching, and `dist/` release bundles.
+  - **[`web-landing.md`](skills/web-landing.md)**: React 19, TypeScript, and Vite landing site standards.
 
 ---
 

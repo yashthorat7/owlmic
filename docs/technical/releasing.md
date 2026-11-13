@@ -7,7 +7,7 @@ This document details the step-by-step procedures for cutting a formal release o
 ## 1. Versioning Standard
 
 Owlmic adheres to [Semantic Versioning 2.0.0](https://semver.org/).
-- Version strings across `Cargo.toml`, `android/app/build.gradle.kts`, `desktop/installer/windows/owlmic.iss`, and `protocol/README.md` must be bumped in lockstep before tagging.
+- Version strings across `desktop/Cargo.toml`, `android/app/build.gradle.kts`, and `scripts/packaging/windows/owlmic.iss` must be bumped in lockstep before tagging (enforced by `scripts/verify-repo-invariants.py`).
 
 ---
 
@@ -18,10 +18,10 @@ Owlmic adheres to [Semantic Versioning 2.0.0](https://semver.org/).
    - PC Linter: `cargo clippy --all-targets -- -D warnings` and `cargo fmt --all --check`.
    - Android: `./gradlew testDebugUnitTest lintDebug`.
 2. **Verify Protocol Vectors**:
-   - `cargo test -p owlmic-proto` verifies wire encoders against `protocol/vectors/*.json`.
+   - `cargo test -p owlmic-proto` verifies wire encoders against `shared/protocol/vectors/*.json`.
    - Android `./gradlew :core:test` validates Kotlin proto vectors against the same files.
 3. **Verify Product Name Invariant**:
-   - Run the CI name verification check (defined in `.github/workflows/ci.yml`) to ensure no incorrect casings exist across the codebase.
+   - Run the CI name verification check (`python scripts/verify-repo-invariants.py` and `.github/workflows/ci.yml`) to ensure no incorrect casings exist across the codebase.
 4. **Update Documentation & Changelog**:
    - Record user-facing highlights, fixes, and contributor credits in [`docs/CHANGELOG.md`](../CHANGELOG.md).
    - Ensure `README.md` download links and version badges match the target milestone.
@@ -32,14 +32,15 @@ Owlmic adheres to [Semantic Versioning 2.0.0](https://semver.org/).
 
 When all checks are green:
 ```bash
-git tag -a v1.0.0 -m "Release v1.0.0"
-git push origin v1.0.0
+git tag -a v0.1.0 -m "Release v0.1.0"
+git push origin v0.1.0
 ```
 
 GitHub Actions triggers the release workflow (`.github/workflows/release.yml`) to generate:
-- `Owlmic-Setup-1.0.0.exe`: Standalone Windows Installer with SHA-256 checksum.
-- `owlmic-1.0.0.apk`: Sideloadable Android universal APK.
-- `owlmic-1.0.0.aab`: Android App Bundle for Google Play Console submission.
+- `Owlmic-Setup-0.1.0.exe`: Standalone Windows Installer with SHA-256 checksum.
+- `Owlmic-v0.1.0.apk`: Sideloadable Android universal APK.
+- `Owlmic-v0.1.0.aab`: Android App Bundle for Google Play Console submission.
+- `Owlmic-v0.1.0-linux-x86_64.tar.gz`: Linux standalone portable archive with systemd unit.
 
 ---
 
