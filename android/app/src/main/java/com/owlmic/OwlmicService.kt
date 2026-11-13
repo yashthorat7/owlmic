@@ -100,18 +100,21 @@ class OwlmicService : Service() {
     /** Foreground with only the types in use, so Android shows the right indicators. False when Android won't allow it now. */
     @SuppressLint("InlinedApi") // Android 10 ignores the mic and camera bits; the manifest declares all three types.
     private fun enterForeground(features: Set<Feature>): Boolean {
-        val notification = notifier.build(state, features)
         return try {
+            val notification = notifier.build(state, features)
             var types = 0
             if (Feature.MIC in features) types = types or ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
             if (Feature.CAMERA in features) types = types or ServiceInfo.FOREGROUND_SERVICE_TYPE_CAMERA
             if (Feature.SPEAKER in features) types = types or ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) startForeground(Notifier.ID, notification, types) else startForeground(Notifier.ID, notification)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                if (types == 0) types = ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK
+                startForeground(Notifier.ID, notification, types)
+            } else {
+                startForeground(Notifier.ID, notification)
+            }
             foreground = features
             true
-        } catch (_: SecurityException) {
-            false
-        } catch (_: IllegalStateException) {
+        } catch (_: Throwable) {
             false
         }
     }

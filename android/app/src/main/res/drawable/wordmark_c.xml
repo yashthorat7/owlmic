@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- The letter "c" of the OWLMIC wordmark, from the Monoska glyphs in landing/proto-templates; tinted in code. -->
+<!-- The letter "c" of the OWLMIC wordmark, from the Monoska glyphs in website/proto-templates; tinted in code. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="20dp"
     android:height="23dp"

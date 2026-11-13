@@ -38,24 +38,35 @@ Deep-dive architectural specifications, protocols, media pipelines, and develope
 | **[`releasing.md`](technical/releasing.md)** | Packaging Inno Setup installer, APK/AAB signing, GitHub Releases, Google Play distribution |
 
 ### 1.3 Shared Design & Assets
-- **[`design/`](../design/)**: Canonical cross-platform schemas — `tokens.json` (OLED palette, typography, geometry), `copy.json` (UI strings and product name invariant), `settings.json` (versioned settings schema).
-- **[`design/prototypes/`](../design/prototypes/)**: Interactive HTML UI blueprints for Android + PC layout exploration.
-- **[`assets/`](../assets/)**: Single source of truth for shared visual assets — `brand/` (master owl SVG marks), `icons/` (tray and status glyphs), `fonts/` (shared UI fonts).
+- **[`shared/design/`](../shared/design/)**: Canonical cross-platform schemas — `tokens.json` (OLED palette, typography, geometry), `copy.json` (UI strings and product name invariant), `settings.json` (versioned settings schema).
+- **[`shared/design/prototypes/`](../shared/design/prototypes/)**: Interactive HTML UI blueprints for Android + PC layout exploration.
+- **[`shared/assets/`](../shared/assets/)**: Single source of truth for shared visual assets — `brand/` (master owl SVG marks), `icons/` (tray and status glyphs), `fonts/` (shared UI fonts).
+- **[`shared/vendor/`](../shared/vendor/)**: Centralized third-party submodules (`opus/`).
 
 ### 1.4 Automation & Scripts
+- **[`scripts/build.py`](../scripts/build.py)**: Interactive, zero-dependency release builder routing packages into `dist/`.
 - **[`scripts/verify-repo-invariants.py`](../scripts/verify-repo-invariants.py)**: Zero-dependency Python 3 checker for product name casing, binary ban, Tokio restrictions, JSON validity, and version lockstep.
-- **[`scripts/check.sh`](../scripts/check.sh)** / **[`scripts/check.ps1`](../scripts/check.ps1)**: Master pre-flight validators (invariants + Rust fmt/clippy/test + Android lint).
+- **[`scripts/check.py`](../scripts/check.py)**: Master pre-flight validator (invariants + Rust fmt/clippy/test + Android lint).
+- **[`scripts/setup-hooks.py`](../scripts/setup-hooks.py)**: Cross-platform Git hooks setup (`core.hooksPath` configuration).
 - **[`scripts/hooks/`](../scripts/hooks/)**: Git `pre-commit` (invariants + cargo fmt) and `commit-msg` (Conventional Commits enforcement).
 
 ### 1.5 Project History
-- **[`CHANGELOG.md`](CHANGELOG.md)**: Release history and version milestones starting from v1.0.0.
+- **[`CHANGELOG.md`](CHANGELOG.md)**: Release history and version milestones starting from v0.1.0.
 
-### 1.6 Modular AI Agent Rules (`docs/agents/`)
+### 1.6 Modular Domain Skills (`docs/skills/`)
 Specialized context rulebooks routed from the root [`AGENTS.md`](../AGENTS.md):
-- **[`pc-rust.md`](agents/pc-rust.md)**: Threading model, zero-alloc audio, and real-time safety for PC Rust crates.
-- **[`linux-backend.md`](agents/linux-backend.md)**: PipeWire virtual audio, v4l2loopback virtual camera, and XDG rules.
-- **[`android-kotlin.md`](agents/android-kotlin.md)**: Jetpack Compose, foreground service lifecycle, and Oboe JNI rules.
-- **[`protocol-design-sync.md`](agents/protocol-design-sync.md)**: Zero-drift rules for wire protocol vectors and design tokens.
+- **[`pc-rust.md`](skills/pc-rust.md)**: Threading model, zero-alloc audio, and real-time safety for PC Rust crates.
+- **[`windows-backend.md`](skills/windows-backend.md)**: WASAPI virtual audio, Media Foundation camera, and Direct2D tray on Windows.
+- **[`linux-backend.md`](skills/linux-backend.md)**: PipeWire virtual audio, v4l2loopback virtual camera, and XDG rules.
+- **[`android-kotlin.md`](skills/android-kotlin.md)**: Jetpack Compose, foreground service lifecycle, and Oboe JNI rules.
+- **[`media-and-dsp.md`](skills/media-and-dsp.md)**: Low-latency audio DSP, jitter buffers, H.264 slice reassembly, and NV12 shared memory.
+- **[`web-landing.md`](skills/web-landing.md)**: React 19, TypeScript, and Vite standards for the web landing and release download site.
+- **[`protocol-design-sync.md`](skills/protocol-design-sync.md)**: Zero-drift rules for wire protocol vectors and design tokens.
+- **[`anti-slop-and-lean-code.md`](skills/anti-slop-and-lean-code.md)**: Code quality standards, anti-over-engineering, and lean engineering practices.
+- **[`token-saving-and-context.md`](skills/token-saving-and-context.md)**: Agent token efficiency, surgical file inspection, and context hygiene.
+- **[`procedures-and-verification.md`](skills/procedures-and-verification.md)**: Standard operating procedures, 5-stage task lifecycle, and verification gates.
+- **[`git-workflow.md`](skills/git-workflow.md)**: Conventional Commits, branch naming, and strict read-only agent rules.
+- **[`build-and-bundle.md`](skills/build-and-bundle.md)**: Builder procedures, driver caching, and centralized `dist/` distribution.
 
 ---
 
@@ -95,13 +106,13 @@ Specialized context rulebooks routed from the root [`AGENTS.md`](../AGENTS.md):
                                    │ Level 4: Bluetooth RFCOMM (Serial Port Profile)
                                    ▼
        ┌────────────────────────────────────────────────────────┐
-       │                  PC SERVER (WINDOWS)                   │
-       │  Win32 Native Tray & Flyout (GDI/GDI+) ──► AppHub      │
+       │               PC SERVER (WINDOWS & LINUX)              │
+       │  Win32 Native Tray / Linux KSNI Tray ──► AppHub        │
        │  Supervised Thread Hubs (Rust):                        │
        │   ├─ LinkHub (Listeners, Discovery responder, Probes)  │
        │   ├─ SessionHub (TOFU trust, P-256 ECDH, Sessions)     │
        │   ├─ MediaHub (Jitter buffer, H.264 reassembly, NV12)  │
-       │   ├─ DeviceHub (Owlmic Mic bridge, Owlmic Cam, WASAPI) │
-       │   └─ SettingsHub (%APPDATA%\Owlmic\owlmic.json)        │
+       │   ├─ DeviceHub (WASAPI / PipeWire / V4L2 virtual cams) │
+       │   └─ SettingsHub (owlmic.json versioned store)         │
        └────────────────────────────────────────────────────────┘
 ```

@@ -23,7 +23,12 @@ def git_tracked_files():
     res = subprocess.run(
         ["git", "ls-files"], cwd=ROOT, capture_output=True, text=True, check=True
     )
-    return [ROOT / line.strip() for line in res.stdout.splitlines() if line.strip()]
+    untracked = subprocess.run(
+        ["git", "ls-files", "--others", "--exclude-standard"],
+        cwd=ROOT, capture_output=True, text=True, check=True
+    )
+    all_files = set(res.stdout.splitlines() + untracked.stdout.splitlines())
+    return [ROOT / line.strip() for line in all_files if line.strip()]
 
 def check_binaries_and_casing(files):
     for path in files:
@@ -49,8 +54,10 @@ def check_binaries_and_casing(files):
 
 def check_tokio_restriction(files):
     for path in files:
+        if not path.exists():
+            continue
         rel = path.relative_to(ROOT).as_posix()
-        if rel.startswith("pc/") and path.suffix == ".rs" and not rel.endswith("bt.rs"):
+        if (rel.startswith("desktop/") or rel.startswith("desktop/")) and path.suffix == ".rs" and not rel.endswith("bt.rs"):
             content = path.read_text(encoding="utf-8")
             if re.search(r"\buse\s+tokio\b|\btokio::", content):
                 ERRORS.append(
@@ -59,7 +66,7 @@ def check_tokio_restriction(files):
                 )
 
 def check_json_sources():
-    json_dirs = [ROOT / "design", ROOT / "protocol" / "vectors"]
+    json_dirs = [ROOT / "shared" / "design", ROOT / "shared" / "protocol" / "vectors"]
     for d in json_dirs:
         if not d.exists():
             continue
@@ -71,11 +78,13 @@ def check_json_sources():
 
 def check_version_lockstep():
     versions = {}
-    cargo_toml = ROOT / "pc" / "Cargo.toml"
+    cargo_toml = ROOT / "desktop" / "Cargo.toml"
+    if not cargo_toml.exists():
+        cargo_toml = ROOT / "pc" / "Cargo.toml"
     if cargo_toml.exists():
         m = re.search(r'^version\s*=\s*"([^"]+)"', cargo_toml.read_text(encoding="utf-8"), re.M)
         if m:
-            versions["pc/Cargo.toml"] = m.group(1)
+            versions["desktop/Cargo.toml"] = m.group(1)
 
     gradle = ROOT / "android" / "app" / "build.gradle.kts"
     if gradle.exists():
@@ -83,7 +92,9 @@ def check_version_lockstep():
         if m:
             versions["android/app/build.gradle.kts"] = m.group(1)
 
-    iss = ROOT / "pc" / "installer" / "owlmic.iss"
+    iss = ROOT / "scripts" / "packaging" / "windows" / "owlmic.iss"
+    if not iss.exists():
+        iss = ROOT / "packaging" / "windows" / "owlmic.iss"
     if not iss.exists():
         iss = ROOT / "pc" / "installer" / "windows" / "owlmic.iss"
     if iss.exists():

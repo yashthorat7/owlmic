@@ -27,19 +27,19 @@
 *.iso
 
 # =============================================================================
-# 2. RUST & PC WORKSPACE (pc/)
+# 2. RUST & DESKTOP WORKSPACE (desktop/)
 # =============================================================================
-/pc/target/
+/desktop/target/
 **/target/
 **/*.rs.bk
 Cargo.lock.bak
-# Inno Setup & Windows Installer outputs
-/pc/installer/**/Output/
-/pc/installer/**/*.exe
-/pc/installer/**/driver/
-# Linux packaging build directories
-/pc/installer/linux/build/
-/pc/installer/linux/AppDir/
+# Centralized distributables and packaging cache
+/dist/
+scripts/packaging/cache/
+scripts/packaging/windows/Output/
+scripts/packaging/windows/driver/
+scripts/packaging/linux/build/
+scripts/packaging/linux/AppDir/
 
 # =============================================================================
 # 3. ANDROID NDK / GRADLE / KOTLIN (android/)
@@ -66,11 +66,11 @@ key.properties
 google-services.json
 
 # =============================================================================
-# 4. LANDING SITE & NODE (landing/)
+# 4. WEBSITE & NODE (website/)
 # =============================================================================
-/landing/node_modules/
-/landing/dist/
-/landing/.vite/
+/website/node_modules/
+/website/dist/
+/website/.vite/
 npm-debug.log*
 yarn-debug.log*
 pnpm-debug.log*
@@ -92,4 +92,3 @@ Thumbs.db
 ehthumbs.db
 Desktop.ini
 .DS_Store
-*trash.md

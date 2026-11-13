@@ -146,7 +146,7 @@ class MediaHub(
         }
     }
 
-    override fun onFailure(message: MediaMsg, error: Exception) {
+    override fun onFailure(message: MediaMsg, error: Throwable) {
         val feature = when (message) {
             is MediaMsg.Mic, is MediaMsg.MicPaused, is MediaMsg.MicLoss -> Feature.MIC
             is MediaMsg.Speaker -> Feature.SPEAKER

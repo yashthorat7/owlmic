@@ -35,7 +35,7 @@ enum class MicCodec(val wire: String, val frameMs: Int, val bitrate: Int) {
  * [voiceCommunication]: the Speaker is on and voice isolation keeps it out of the mic: the mic takes the voice path with
  * Android's echo canceller, and the [EchoSuppressor] takes out what it leaves. [noiseReduction]: the phone's own noise
  * suppressor. Automatic gain control is always off; the PC levels the voice and applies the volume (its noise plan in
- * pc/crates/owlmic-media/src/hub.rs).
+ * desktop/crates/owlmic-media/src/hub.rs).
  */
 data class MicConfig(val codec: MicCodec, val voiceCommunication: Boolean, val noiseReduction: Boolean) {
     companion object {

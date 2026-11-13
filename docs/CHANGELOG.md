@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - **Core Architecture**:
   - Rebuilt client and server on a unified Hub & Mailbox supervised threading model.
-  - Multi-platform protocol engine implemented in Rust (`pc/crates/owlmic-proto`) and Kotlin (`android/core/proto`).
+  - Multi-platform protocol engine implemented in Rust (`desktop/crates/owlmic-proto`) and Kotlin (`android/core/proto`).
   - Wire protocol version 3 with structured JSON control frames, MTU-safe media datagrams, and independent test vectors (`protocol/vectors/`).
 - **Transporter & Networking**:
   - Automatic connection across four prioritized tiers:

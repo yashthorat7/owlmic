@@ -64,7 +64,7 @@ The phone uses no colour: green, yellow and red are the PC panel's. On the phone
 
 ---
 
-## 3. Windows Native Flyout Panel (`pc/crates/owlmic-ui`)
+## 3. Windows Native Flyout Panel (`desktop/crates/owlmic-ui`)
 
 Rather than shipping Chromium/Electron or bloated webview engines, Owlmic PC uses a **100% native Win32 GDI/GDI+ renderer**:
 - **Geometry**: Fixed 560 × 255 px panel positioned above the taskbar system tray.
@@ -76,7 +76,7 @@ Rather than shipping Chromium/Electron or bloated webview engines, Owlmic PC use
 
 ## 4. Android Compose UI (`android/app`)
 
-The main screen follows the prototype in `landing/proto-templates`: black tiles on a 1 dp grey seam, in three bands.
+The main screen follows the prototype in `website/proto-templates`: black tiles on a 1 dp grey seam, in three bands.
 
 | Band | Contents |
 | :--- | :--- |

@@ -19,7 +19,7 @@ import com.owlmic.media.camera.surfaceRotationFor
 
 /*
  * The screen stays upright (the activity is locked to portrait). When the phone is held sideways, the grid turns with it
- * and everything drawn on it turns back a quarter, so it reads upright, as in the prototype (landing/proto-templates).
+ * and everything drawn on it turns back a quarter, so it reads upright, as in the prototype (website/proto-templates).
  */
 
 /** Upright. */

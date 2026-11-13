@@ -40,14 +40,14 @@ This document describes the capture, encoding, transmission, jitter compensation
   - Off: the plain mic (voice recognition preset, low latency) and media playback, none of the above.
 
 ### PC Audio Processing & Jitter Buffer
-- **Adaptive Jitter Buffer (`pc/crates/owlmic-media/src/audio/mic.rs`)**:
+- **Adaptive Jitter Buffer (`desktop/crates/owlmic-media/src/audio/mic.rs`)**:
   - Dynamically measures network jitter using arrival timestamps.
   - Target queue depth is adaptively steered between 10 ms (wired USB) and 30 ms (Wi-Fi).
   - Packets arriving out of order are re-sequenced; missing packets trigger Opus Packet Loss Concealment (PLC).
 - **Cubic Drift Resampler**:
   - Compares the average fill level of the jitter buffer against crystal oscillator variations between the phone and PC sound cards.
   - Gently speeds up or slows down playback pitch by at most ±0.2% using a smooth cubic interpolator, eliminating audible clicks, skips, or buffer under-runs.
-- **DSP Chain** (`pc/crates/owlmic-media/src/audio/dsp`), in order: RNNoise, noise gate, normalization, volume, soft limiter, one 10 ms frame at a time.
+- **DSP Chain** (`desktop/crates/owlmic-media/src/audio/dsp`), in order: RNNoise, noise gate, normalization, volume, soft limiter, one 10 ms frame at a time.
   - **Room Floor** (`floor.rs`): each frame's RMS level, and the room's noise floor under it (the quietest frame of the last 2 s; digital silence teaches it nothing). A frame 10 dB above the floor is speech. The gate and the normalization decide from this, so a far voice is treated like a near one.
   - **Noise Reduction** (`mic.noiseReduction`, a 0 to 10 slider) sets the phone's suppressor, the RNNoise mix (`nnnoiseless`) and the gate:
 

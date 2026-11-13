@@ -18,11 +18,31 @@ android {
         ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a") }
     }
 
+    signingConfigs {
+        create("release") {
+            val keyStorePath = System.getenv("KEYSTORE_FILE")
+            val keyStoreFile = keyStorePath?.let { file(it) }
+            if (keyStoreFile != null && keyStoreFile.exists()) {
+                storeFile = keyStoreFile
+                storePassword = System.getenv("KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("KEY_ALIAS")
+                keyPassword = System.getenv("KEY_PASSWORD")
+            } else {
+                // Self-signed debug key fallback for sideloadable local release builds
+                initWith(getByName("debug"))
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
-            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"))
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
+            signingConfig = signingConfigs.getByName("release")
         }
     }
 
@@ -33,12 +53,20 @@ android {
 
     buildFeatures {
         compose = true
+        prefab = true
+    }
+
+    packaging {
+        jniLibs {
+            useLegacyPackaging = true
+        }
     }
 }
 
 dependencies {
     implementation(project(":core"))
     implementation(project(":media"))
+    implementation(libs.oboe)
     implementation(libs.androidx.activity.compose)
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.compose.foundation)
@@ -72,7 +100,7 @@ abstract class GenerateNotices : DefaultTask() {
 }
 
 val generateNotices = tasks.register<GenerateNotices>("generateNotices") {
-    opus.set(rootProject.layout.projectDirectory.file("media/src/main/cpp/opus/COPYING"))
+    opus.set(rootProject.layout.projectDirectory.file("../shared/vendor/opus/COPYING"))
     geist.set(rootProject.layout.projectDirectory.file("licenses/geist-OFL.txt"))
     assetsDir.set(layout.buildDirectory.dir("generated/notices"))
 }

@@ -46,11 +46,12 @@ This document provides step-by-step instructions for building the Android client
    - `target/release/owlmic_vcam.dll`: Windows 11 Media Foundation virtual camera driver.
 
 5. **Compile the Installer**:
-   To compile the full self-contained installer (`Owlmic-Setup-1.0.0.exe`):
-   ```powershell
-   cd installer
-   .\build-installer.ps1
+   To compile the full self-contained installer (`Owlmic-Setup-x.y.z.exe`) using the unified builder:
+   ```bash
+   python scripts/build.py --target windows
    ```
+   Or via the root menu: `python menu.py build windows`.
+   Packaging dependencies (`VB-CABLE` audio driver and `softcam.dll` virtual camera fallback) are tracked in `scripts/packaging/windows/dependencies.json`, verified via SHA-256, and cached in local folders for offline and repeatable builds. Use `python menu.py deps --check` to audit local dependencies.
 
 ---
 
@@ -79,11 +80,11 @@ This document provides step-by-step instructions for building the Android client
 
 ---
 
-## 4. Building the Web Landing Page (`landing/`)
+## 4. Building the Website (`website/`)
 
-1. **Navigate to Landing Directory**:
+1. **Navigate to Website Directory**:
    ```bash
-   cd owlmic/landing
+   cd owlmic/website
    ```
 
 2. **Install Dependencies & Build**:
@@ -91,4 +92,4 @@ This document provides step-by-step instructions for building the Android client
    npm install
    npm run build
    ```
-   The static site assets are output to `landing/dist/`.
+   The static site assets are output to `website/dist/`.

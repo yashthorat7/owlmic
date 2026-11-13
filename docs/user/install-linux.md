@@ -71,7 +71,7 @@ chmod +x ~/.local/bin/owlmic
 Enable and start Owlmic at desktop login:
 ```bash
 mkdir -p ~/.config/systemd/user
-cp pc/installer/linux/owlmic.service ~/.config/systemd/user/
+cp desktop/installer/linux/owlmic.service ~/.config/systemd/user/
 systemctl --user daemon-reload
 systemctl --user enable --now owlmic.service
 ```

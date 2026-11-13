@@ -14,7 +14,7 @@
 ## Area
 
 - [ ] Android app (`android/`)
-- [ ] Windows app (`pc/`)
+- [ ] Windows app (`desktop/`)
 - [ ] Installer
 - [ ] CI
 

@@ -21,7 +21,11 @@ elif python3 -c "import sys" >/dev/null 2>&1; then
     python3 scripts/verify-repo-invariants.py
 fi
 
-if git diff --cached --name-only | grep -q "^pc/"; then
-    echo "→ Running cargo fmt on pc/..."
-    (cd pc && cargo fmt --all --check)
+if git diff --cached --name-only | grep -qE "^(desktop|pc)/"; then
+    echo "→ Running cargo fmt on desktop/..."
+    if [ -f "desktop/Cargo.toml" ]; then
+        cargo fmt --manifest-path desktop/Cargo.toml --all --check
+    elif [ -f "pc/Cargo.toml" ]; then
+        cargo fmt --manifest-path pc/Cargo.toml --all --check
+    fi
 fi

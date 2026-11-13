@@ -45,7 +45,7 @@ Owlmic provides dual virtual camera implementations to support both modern and l
 ```
 
 ### Windows 11: Media Foundation Virtual Camera (`owlmic_vcam.dll`)
-- Implemented in `pc/vcam` using Rust and native Windows Media Foundation APIs.
+- Implemented in `desktop/crates/owlmic-vcam` using Rust and native Windows Media Foundation APIs.
 - Registers as a system virtual camera using Windows 11's `MFCreateVirtualCamera` API (`MF_VIRTUALCAMERA_TYPE_SOFTWARE_CAMERA_ADD`).
 - Streams NV12 frames directly from the shared memory ring buffer into Windows Media Foundation pipelines.
 - Delivers 0-based monotonic presentation timestamps (`inner.frame_count * inner.duration`), keyframe clean points (`MFSampleExtension_CleanPoint`), and system reference time (`MFSampleExtension_DeviceReferenceSystemTime`) on every sample for smooth, freeze-free streaming in Chromium WebRTC (Google Meet, Chrome, Edge) and desktop apps (Teams, Zoom).
@@ -56,7 +56,7 @@ Owlmic provides dual virtual camera implementations to support both modern and l
 - Reads RGB24 / NV12 frames from the shared memory ring buffer and exposes the standard `IAMStreamConfig` DirectShow interfaces.
 
 ### Shared Memory Ring Buffer
-- Implemented in `pc/vcam/src/shared.rs`.
+- Implemented in `desktop/crates/owlmic-vcam/src/shared.rs`.
 - Backed by a named Win32 file mapping (`Local\OwlmicCamSharedMem`).
 - Uses atomic sequence numbers and buffer index pointers to guarantee tear-free reads without locking reader and writer threads.
 - If no frame has arrived for 500 ms, the reader falls back to a clean, calm placeholder frame (*"Owlmic Cam · Open Owlmic on your phone"*).
@@ -67,7 +67,7 @@ Owlmic provides dual virtual camera implementations to support both modern and l
 
 Windows driver updates, major OS upgrades, or aggressive registry cleaning can occasionally corrupt audio endpoints or camera COM registrations.
 
-Owlmic embeds an automated repair engine in `pc/crates/owlmic-devices/src/repair.rs` and `pc/installer/windows/setup-audio-device.ps1`:
+Owlmic embeds an automated repair engine in `desktop/crates/owlmic-devices/src/repair.rs` and `desktop/installer/windows/setup-audio-device.ps1`:
 - **Single UAC Elevation**: Clicking **Repair** executes one consolidated PowerShell script with Administrator credentials.
 - **Actions Performed**:
   1. Detects missing audio driver files and re-installs them silently.

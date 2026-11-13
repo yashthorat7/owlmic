@@ -8,13 +8,13 @@ By participating, you agree to abide by our [Code of Conduct](CODE_OF_CONDUCT.md
 
 ## 1. 10-Minute Setup by Area
 
-### 1.1 Windows PC App (`pc/`)
-**Prerequisites**: Windows 10 (1903+) or Windows 11, [Rust 1.80+](https://rustup.rs/) (stable), Visual Studio C++ Build Tools or GCC.
+### 1.1 Desktop App (`desktop/`)
+**Prerequisites**: Windows 10 (1903+) / Windows 11 or Linux, [Rust 1.80+](https://rustup.rs/) (stable), C++ Build Tools or GCC.
 
 ```powershell
 # 1. Clone repo with submodules
 git clone --recurse-submodules https://github.com/diveshpatil9104/owlmic.git
-cd owlmic\pc
+cd owlmic\desktop
 
 # 2. Check compilation and run tests
 cargo test --workspace
@@ -41,12 +41,12 @@ cd owlmic/android
 ```
 Output APK is located at `android/app/build/outputs/apk/debug/app-debug.apk`.
 
-### 1.3 Landing Website (`landing/`)
+### 1.3 Website (`website/`)
 **Prerequisites**: Node.js 20+ and npm.
 
 ```bash
-# 1. Navigate to landing directory
-cd owlmic/landing
+# 1. Navigate to website directory
+cd owlmic/website
 
 # 2. Install dependencies & run dev server
 npm install
@@ -59,13 +59,13 @@ npm run lint
 
 ---
 
-## 2. Shared Sources (`design/` & `protocol/`)
+## 2. Shared Sources (`shared/`)
 
-To prevent divergence between Windows and Android:
-- **`design/tokens.json`**: Defines all colors, spacing, corner radii, typography, and geometry.
-- **`design/copy.json`**: Contains every user-facing string, message, and name.
-- **`design/settings.json`**: Schema for all shared and local settings.
-- **`protocol/`**: Wire specification and test vectors (`protocol/vectors/*.json`).
+To prevent divergence between Windows, Linux, and Android:
+- **`shared/design/tokens.json`**: Defines all colors, spacing, corner radii, typography, and geometry.
+- **`shared/design/copy.json`**: Contains every user-facing string, message, and name.
+- **`shared/design/settings.json`**: Schema for all shared and local settings.
+- **`shared/protocol/`**: Wire specification and test vectors (`shared/protocol/vectors/*.json`).
 
 Never hardcode colors, strings, or settings in platform code. Edit the shared JSON files, which are compiled into both apps.
 
@@ -91,8 +91,8 @@ Never hardcode colors, strings, or settings in platform code. Edit the shared JS
 
    [optional body explaining why this change was made]
    ```
-   - Types: `feat`, `fix`, `docs`, `refactor`, `perf`, `test`, `chore`.
-   - Scopes: `android`, `pc`, `proto`, `design`, `installer`, `ci`, `site`.
+   - Types: `feat`, `fix`, `perf`, `refactor`, `docs`, `test`, `ci`, `chore`, `build`.
+   - Scopes: `android`, `pc`, `win`, `linux`, `proto`, `design`, `installer`, `scripts`, `ci`, `site`.
    - Example: `fix(pc): prevent audio jitter buffer underflow on rapid link switch`
 3. **Lean Engineering**:
    - Zero speculative code or premature abstractions.
