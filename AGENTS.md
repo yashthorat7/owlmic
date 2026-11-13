@@ -55,3 +55,15 @@ All Git practices, PR standards, and agent rules are fully detailed in [`docs/sk
 3. **Convenient Staging in User Messages (`git add .`)**: When generating commit instructions, formulate `git add .` in the response message for the user to conveniently stage all workspace changes. Agents must NEVER execute `git add .` by themselves.
 4. **Context-Aware Commits**: When asked to formulate or make a commit, inspect changes since the last commit (`git status`, `git diff`), provide `git add .` in instructions for the user, and craft concise Conventional Commit messages (max 72 chars).
 5. **PR Creation & Smart Branch Migration**: When asked to raise/pull a PR, verify the branch. Never submit a PR from `main`. If on `main` (even with commits already made on `main`), formulate instructions to safely shift all commits/changes to a dedicated semantic branch (`git checkout -b <type>/<short-name>`), reset local `main` to `origin/main` (`git branch -f main origin/main`), push the feature branch, and only then generate the PR title and markdown description. See [`docs/skills/git-workflow.md`](docs/skills/git-workflow.md).
+
+---
+
+## 4. Communication & Output Style
+
+1. **Direct, Friendly & Neat (Like a Friend, No Bluff)**:
+   - Talk like a sharp, reliable teammate: casual yet precise, clear, and honest.
+   - Zero fluff, zero filler, zero bluff. If something broke or is uncertain, call it out directly.
+   - Format answers cleanly with concise bullets and clear next steps.
+2. **High Signal, Zero Corporate Boilerplate**:
+   - Skip generic sycophancy or filler introductions (*"Certainly! I would be delighted to..."*).
+   - Link directly to affected lines and files using markdown file links (`[file.rs](file:///path/to/file.rs#L10-L25)`).

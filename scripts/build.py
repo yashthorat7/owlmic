@@ -416,8 +416,8 @@ def build_windows(version: str, out_dir: Path = DIST_WINDOWS, mode: str = "all")
     if not ensure_windows_prerequisites():
         return artifacts
 
-    desktop_dir = ROOT / "desktop" if (ROOT / "desktop").exists() else ROOT / "pc"
-    manifest = "desktop/Cargo.toml" if (ROOT / "desktop").exists() else "desktop/Cargo.toml"
+    desktop_dir = ROOT / "desktop"
+    manifest = "desktop/Cargo.toml"
     print("  Compiling release binaries (cargo build --release) ...")
     env = os.environ.copy()
     env["RUSTFLAGS"] = "-C target-feature=+crt-static"
@@ -500,8 +500,8 @@ def build_linux(version: str, out_dir: Path = DIST_LINUX) -> Path | None:
     if setup.exists():
         shutil.copy2(setup, staging_dir / "setup-linux-devices.sh")
 
-    desktop_dir = ROOT / "desktop" if (ROOT / "desktop").exists() else ROOT / "pc"
-    manifest = "desktop/Cargo.toml" if (ROOT / "desktop").exists() else "desktop/Cargo.toml"
+    desktop_dir = ROOT / "desktop"
+    manifest = "desktop/Cargo.toml"
     if platform.system() == "Linux":
         print("  Compiling release binaries (cargo build --release) ...")
         res = subprocess.run(["cargo", "build", "--release", "--manifest-path", manifest], cwd=ROOT)

@@ -9,8 +9,8 @@ on:
   pull_request:
     paths:
       - 'scripts/packaging/windows/**'
-      - 'desktop/ktop/Cargo.toml'
-      - 'desktop/ktop/crates/**'
+      - 'desktop/Cargo.toml'
+      - 'desktop/crates/**'
       - '.github/workflows/windows-installer.yml'
 
 permissions:
@@ -48,7 +48,7 @@ jobs:
       - name: Build owlmic.exe
         env:
           RUSTFLAGS: -C target-feature=+crt-static
-        run: cargo build --release --manifest-path desktop/ktop/Cargo.toml
+        run: cargo build --release --manifest-path desktop/Cargo.toml
 
       - name: Check the microphone setup script
         shell: pwsh

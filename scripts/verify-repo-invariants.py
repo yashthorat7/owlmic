@@ -105,19 +105,82 @@ def check_version_lockstep():
     if len(set(versions.values())) > 1:
         ERRORS.append(f"[VERSION LOCKSTEP] Version mismatch across manifests: {versions}")
 
+def check_workflow_paths():
+    workflows_dir = ROOT / ".github" / "workflows"
+    if not workflows_dir.exists():
+        return
+    for yml in workflows_dir.glob("*.yml"):
+        content = yml.read_text(encoding="utf-8")
+        lines = content.splitlines()
+        in_paths = False
+        for idx, line in enumerate(lines, 1):
+            stripped = line.strip()
+            if stripped.startswith("paths:"):
+                in_paths = True
+                continue
+            if in_paths:
+                if stripped.startswith("- "):
+                    raw_path = stripped[2:].strip().strip("'\"")
+                    # Remove trailing glob stars (e.g. dir/** or dir/*)
+                    clean_path = re.sub(r"/\*+.*$", "", raw_path)
+                    target = ROOT / clean_path
+                    if not target.exists():
+                        ERRORS.append(
+                            f"[WORKFLOW PATH] {yml.relative_to(ROOT)}:{idx} references missing path: '{raw_path}'"
+                        )
+                elif stripped and not stripped.startswith("#"):
+                    in_paths = False
+
+            # Check working-directory
+            m_wd = re.search(r"working-directory:\s*['\"]?([^'\"\s#]+)", line)
+            if m_wd:
+                wd = m_wd.group(1)
+                if not (ROOT / wd).exists():
+                    ERRORS.append(
+                        f"[WORKFLOW PATH] {yml.relative_to(ROOT)}:{idx} references missing working-directory: '{wd}'"
+                    )
+
+            # Check --manifest-path
+            m_mp = re.search(r"--manifest-path\s+['\"]?([^'\"\s]+)", line)
+            if m_mp:
+                mp = m_mp.group(1)
+                if not (ROOT / mp).exists():
+                    ERRORS.append(
+                        f"[WORKFLOW PATH] {yml.relative_to(ROOT)}:{idx} references missing --manifest-path: '{mp}'"
+                    )
+
+            # Check cache-dependency-path
+            m_cd = re.search(r"cache-dependency-path:\s*['\"]?([^'\"\s#]+)", line)
+            if m_cd:
+                cd = m_cd.group(1)
+                if not (ROOT / cd).exists():
+                    ERRORS.append(
+                        f"[WORKFLOW PATH] {yml.relative_to(ROOT)}:{idx} references missing cache-dependency-path: '{cd}'"
+                    )
+
+            # Check local workflow uses
+            m_uses = re.search(r"uses:\s*\./([^\s#]+)", line)
+            if m_uses:
+                wf = m_uses.group(1)
+                if not (ROOT / wf).exists():
+                    ERRORS.append(
+                        f"[WORKFLOW PATH] {yml.relative_to(ROOT)}:{idx} references missing local workflow: '{wf}'"
+                    )
+
 def main():
     files = git_tracked_files()
     check_binaries_and_casing(files)
     check_tokio_restriction(files)
     check_json_sources()
     check_version_lockstep()
+    check_workflow_paths()
 
     if ERRORS:
         print("\n❌ Owlmic Repository Invariant Checks FAILED:")
         for err in ERRORS:
             print(f"  - {err}")
         sys.exit(1)
-    print("✅ All Owlmic repository invariants passed (casing, binary ban, concurrency, JSON, versions).")
+    print("✅ All Owlmic repository invariants passed (casing, binary ban, concurrency, JSON, versions, workflows).")
 
 if __name__ == "__main__":
     main()
