@@ -10,7 +10,8 @@ AI agents operating in this repository must strictly adhere to the following saf
 
 - **STRICTLY FORBIDDEN COMMANDS**:
   Agents are NEVER permitted to execute mutating or state-changing Git commands:
-  `git add`, `git commit`, `git push`, `git checkout -b`, `git branch`, `git switch`, `git merge`, `git rebase`, `git stash`, `git reset`, `git clean`, `git cherry-pick`.
+  `git add`, `git add .`, `git commit`, `git push`, `git checkout -b`, `git branch`, `git switch`, `git merge`, `git rebase`, `git stash`, `git reset`, `git clean`, `git cherry-pick`.
+  Agents must NEVER run `git add .` or any staging/commit commands by themselves.
 - **ALLOWED READ-ONLY COMMANDS**:
   `git status`, `git diff`, and `git log` ONLY.
 - **On-Demand Rule**:
@@ -26,12 +27,10 @@ When the user asks to formulate or make a Git commit (e.g., *"make a commit"*, *
    Run `git log -1` (or `git log -n 5 --oneline`) to inspect the previous commit style, scope, and history.
 2. **Inspect All Changes Since Last Commit**:
    Run `git status`, `git diff --stat`, and `git diff` (plus `git diff --staged`) to thoroughly review every modified, added, and deleted path.
-3. **Strict Ban on `git add .` (Explicit Staging Only)**:
-   - **NEVER** recommend or write `git add .` or `git add -A`.
-   - Always formulate explicit staging commands listing only the specific files or folders touched:
-     ```bash
-     git add <path/to/file1> <path/to/folder/>
-     ```
+3. **Convenient Staging in User Messages (`git add .`)**:
+   - In response messages formulated for the user, output `git add .` as the convenient staging command so the user can quickly stage all changes.
+   - **Agent Safety Rule**: `git add .` belongs in output messages for the user—agents must **never** run `git add .` by themselves.
+   - When staging surgical or partial changes, explicit file/folder paths may be provided as an alternative.
 4. **Formulate Concise, Context-Aware Conventional Commit**:
    Summarize all changes done since the last commit into a concise, accurate Conventional Commit message:
    ```bash
@@ -102,9 +101,9 @@ git checkout -b <type>/<short-kebab-name>
 *(Example: `git checkout -b feat/android-camera-stream` or `git checkout -b chore/reduce-repo-size`)*
 
 #### Step C: Commit Any Remaining Changes (if applicable)
-If there are uncommitted working tree changes, stage them explicitly (no `git add .`) and commit them on the new branch:
+If there are uncommitted working tree changes, stage and commit them on the new branch:
 ```bash
-git add <explicit/file1> <explicit/file2>
+git add .
 git commit -m "<type>(<scope>): <concise imperative summary>"
 ```
 

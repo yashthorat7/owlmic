@@ -58,7 +58,7 @@ Least priority; kept out of context until explicitly requested by the user:
 
 | Skill File | Scope / Trigger | Core Invariants |
 |---|---|---|
-| **[`git-workflow.md`](git-workflow.md)** | Version control & PRs (on user request only) | Strict read-only agent rule, ban on `git add .`, on-demand Conventional Commits only. |
+| **[`git-workflow.md`](git-workflow.md)** | Version control & PRs (on user request only) | Strict read-only agent rule, convenient `git add .` staging, on-demand Conventional Commits only. |
 | **[`build-and-bundle.md`](build-and-bundle.md)** | Developer menu & build system (`menu.py`, `scripts/build.py`) | Interactive developer menu, release binaries, installer packaging, or managing `dist/`. |
 | **[`web-landing.md`](web-landing.md)** | Web landing website (`website/`) | React 19, TypeScript, Vite, zero telemetry, pure OLED tokens, lightweight bundle. |
 

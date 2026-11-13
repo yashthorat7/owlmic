@@ -50,8 +50,8 @@ Least priority; load only when explicitly requested:
 
 All Git practices, PR standards, and agent rules are fully detailed in [`docs/skills/git-workflow.md`](docs/skills/git-workflow.md). Key mandates:
 
-1. **Strict Read-Only Agent Rule**: Agents NEVER execute state-changing Git commands (`git add`, `git commit`, `git push`, `git checkout`, `git branch`, `git merge`, etc.). ONLY `git status`, `git diff`, and `git log` are permitted.
+1. **Strict Read-Only Agent Rule**: Agents NEVER execute state-changing Git commands (`git add`, `git add .`, `git commit`, `git push`, `git checkout`, `git branch`, `git merge`, etc.) by themselves. ONLY `git status`, `git diff`, and `git log` are permitted.
 2. **On-Demand Commit Generation**: Never output unsolicited commit suggestions. Only formulate Git commands when explicitly requested by the user.
-3. **Explicit Staging Only (Ban on `git add .`)**: When generating commit instructions, NEVER use `git add .` or `git add -A`. Always list explicit files and folders.
-4. **Context-Aware Commits**: When asked to formulate or make a commit, inspect all changes since the last commit (`git status`, `git diff`), stage files with explicit paths (no `git add .`), and craft concise Conventional Commit messages.
+3. **Convenient Staging in User Messages (`git add .`)**: When generating commit instructions, formulate `git add .` in the response message for the user to conveniently stage all workspace changes. Agents must NEVER execute `git add .` by themselves.
+4. **Context-Aware Commits**: When asked to formulate or make a commit, inspect changes since the last commit (`git status`, `git diff`), provide `git add .` in instructions for the user, and craft concise Conventional Commit messages (max 72 chars).
 5. **PR Creation & Smart Branch Migration**: When asked to raise/pull a PR, verify the branch. Never submit a PR from `main`. If on `main` (even with commits already made on `main`), formulate instructions to safely shift all commits/changes to a dedicated semantic branch (`git checkout -b <type>/<short-name>`), reset local `main` to `origin/main` (`git branch -f main origin/main`), push the feature branch, and only then generate the PR title and markdown description. See [`docs/skills/git-workflow.md`](docs/skills/git-workflow.md).
