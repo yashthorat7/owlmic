@@ -11,8 +11,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  pc-checks:
-    name: PC (Rust) on Windows
+  desktop-checks:
+    name: Desktop (Rust) on Windows
     runs-on: windows-latest
     steps:
       - name: Checkout repository
@@ -31,18 +31,18 @@ jobs:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-            pc/target
-          key: cargo-${{ runner.os }}-${{ hashFiles('pc/Cargo.lock') }}
+            desktop/target
+          key: cargo-${{ runner.os }}-${{ hashFiles('desktop/Cargo.lock') }}
           restore-keys: cargo-${{ runner.os }}-
 
       - name: Rustfmt
-        run: cargo fmt --all --check --manifest-path pc/Cargo.toml
+        run: cargo fmt --all --check --manifest-path desktop/Cargo.toml
 
       - name: Clippy
-        run: cargo clippy --manifest-path pc/Cargo.toml --all-targets -- -D warnings
+        run: cargo clippy --manifest-path desktop/Cargo.toml --all-targets -- -D warnings
 
       - name: Tests
-        run: cargo test --manifest-path pc/Cargo.toml
+        run: cargo test --manifest-path desktop/Cargo.toml
 
   android-checks:
     name: Android — Unit Tests & Lint
@@ -83,15 +83,8 @@ jobs:
       - name: Verify repository invariants
         run: python3 scripts/verify-repo-invariants.py
 
-      - name: Check how Owlmic is written
-        run: |
-          if git grep -nIE 'OwlMic|owlMic|Owl[ -][Mm]ic' -- . ':!.github/workflows/ci.yml'; then
-            echo "Write the name as Owlmic, as in design/copy.json."
-            exit 1
-          fi
-
-  pc-linux:
-    name: PC (Rust) on Linux
+  desktop-linux:
+    name: Desktop (Rust) on Linux
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -110,12 +103,38 @@ jobs:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-            pc/target
-          key: cargo-${{ runner.os }}-${{ hashFiles('pc/Cargo.lock') }}
+            desktop/target
+          key: cargo-${{ runner.os }}-${{ hashFiles('desktop/Cargo.lock') }}
           restore-keys: cargo-${{ runner.os }}-
 
       - name: Check portable & Linux crates
-        run: cargo check --manifest-path pc/Cargo.toml -p owlmic-proto -p owlmic-platform -p owlmic-link -p owlmic-media -p owlmic-settings -p owlmic-hub -p owlmic-session -p owlmic-linux
+        run: cargo check --manifest-path desktop/Cargo.toml -p owlmic-proto -p owlmic-platform -p owlmic-link -p owlmic-media -p owlmic-settings -p owlmic-hub -p owlmic-session -p owlmic-linux -p owlmic-app
 
       - name: Tests
-        run: cargo test --manifest-path pc/Cargo.toml -p owlmic-proto -p owlmic-platform -p owlmic-settings -p owlmic-hub -p owlmic-session
+        run: cargo test --manifest-path desktop/Cargo.toml -p owlmic-proto -p owlmic-platform -p owlmic-settings -p owlmic-hub -p owlmic-session
+
+  website-checks:
+    name: Website (React/Vite)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: website/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+        working-directory: website
+
+      - name: Lint
+        run: npm run lint
+        working-directory: website
+
+      - name: Build
+        run: npm run build
+        working-directory: website

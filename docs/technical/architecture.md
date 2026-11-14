@@ -1,6 +1,6 @@
 # Technical Architecture
 
-This document specifies the internal architecture of Owlmic across Android (client) and Windows (server), detailing concurrency models, hub topology, message passing, and core system invariants.
+This document specifies the internal architecture of Owlmic across Android (client) and Windows/Linux (server), detailing concurrency models, hub topology, message passing, and core system invariants.
 
 ---
 
@@ -8,7 +8,7 @@ This document specifies the internal architecture of Owlmic across Android (clie
 
 Owlmic enforces a strict, asymmetrical role division:
 - **Phone is Always the Client**: The Android device runs `OwlmicService` as a persistent foreground service. It initiates network discovery, opens TCP/UDP connections to the PC, captures local audio/video hardware, and transmits packets upstream.
-- **PC is Always the Server**: The Windows host runs `owlmic.exe` as a per-user tray process. It listens on TCP 7653 and UDP 7654/7655, negotiates sessions, decodes incoming media, feeds virtual camera and audio drivers, and coordinates bidirectional control.
+- **PC is Always the Server**: The host runs `owlmic` as a per-user tray process (Windows) or daemon/tray process (Linux). It listens on TCP 7653 and UDP 7654/7655, negotiates sessions, decodes incoming media, feeds virtual camera and audio drivers, and coordinates bidirectional control.
 
 ```
 +─────────────────────────────────────────────────────────────+
@@ -47,7 +47,7 @@ Both client and server organize functionality into decoupled **Hubs** that commu
 ### PC Concurrency Rules (Rust)
 - **Standard Threads + Bounded Channels**: The PC application uses Rust `std::thread` and bounded channels (`crossbeam_channel` or `std::sync::mpsc`). Unbounded queues are strictly forbidden to prevent memory leaks under backpressure.
 - **Strict No-Async Invariant**: Async runtimes (such as Tokio) are **strictly prohibited** in the PC app core. Thread pools and blocking I/O with explicit timeouts provide predictable, deterministic, real-time audio and video delivery.
-  - *Exception*: Tokio is permitted exclusively in Linux Bluetooth RFCOMM handling (`pc/src/transport/bt.rs`) due to the async requirements of the `bluer` D-Bus crate.
+  - *Exception*: Tokio is permitted exclusively in Linux Bluetooth RFCOMM handling (`desktop/crates/owlmic-link/src/bt.rs`) due to the async requirements of the `bluer` D-Bus crate.
 - **Supervision**: Every hub runs inside a supervised thread loop. If an unhandled panic occurs within a non-critical worker, the supervisor logs the event, cleans up stale handles, and restarts the hub state machine cleanly.
 
 ### Android Concurrency Rules (Kotlin)
@@ -78,15 +78,15 @@ Both client and server organize functionality into decoupled **Hubs** that commu
 - Mixes and streams PC system audio loopback back to the phone speaker.
 
 ### 4. DeviceHub (PC Only)
-- Feeds processed microphone PCM audio into the Windows virtual audio endpoint ("Owlmic Mic").
-- Writes decoded NV12 video frames into the shared memory ring buffer read by `owlmic_vcam.dll` (Windows 11) or `softcam.dll` (Windows 10).
-- Captures default audio output via WASAPI loopback.
+- Feeds processed microphone PCM audio into the Windows virtual audio endpoint ("Owlmic Mic") or Linux PipeWire virtual source.
+- Writes decoded NV12 video frames into the shared memory ring buffer read by `owlmic_vcam.dll` (Windows 11) or `softcam.dll` (Windows 10), or feeds v4l2loopback on Linux.
+- Captures default audio output via WASAPI loopback on Windows or PipeWire monitoring on Linux.
 - Coordinates one-click elevated repairs for drivers and firewall rules.
 
 ### 5. SettingsHub
 - Maintains a versioned store of shared and local settings.
 - Automatically synchronizes shared settings (e.g., lens, noise reduction, frame rate) between phone and PC via protocol `SETTINGS` frames.
-- Persists PC settings to `%APPDATA%\Owlmic\owlmic.json`.
+- Persists PC settings to `%APPDATA%\Owlmic\owlmic.json` on Windows and `$XDG_CONFIG_HOME/owlmic/owlmic.json` on Linux.
 
 ---
 

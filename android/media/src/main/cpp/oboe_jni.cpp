@@ -80,7 +80,25 @@ JNIEXPORT jint JNICALL Java_com_owlmic_media_audio_Oboe_read(JNIEnv *env, jclass
     auto result = h->stream->read(h->buffer.data(), frames, static_cast<int64_t>(timeoutMs) * 1000000);
     if (!result) return static_cast<jint>(result.error());
     int got = result.value();
-    if (got > 0) env->SetShortArrayRegion(out, 0, got * h->stream->getChannelCount(), h->buffer.data());
+    if (got > 0) {
+        int channels = h->stream->getChannelCount();
+        if (channels <= 1) {
+            env->SetShortArrayRegion(out, 0, got, h->buffer.data());
+        } else {
+            jsize outLen = env->GetArrayLength(out);
+            int toCopy = got < outLen ? got : outLen;
+            std::vector<int16_t> mono(toCopy);
+            for (int i = 0; i < toCopy; ++i) {
+                int32_t sum = 0;
+                for (int c = 0; c < channels; ++c) {
+                    sum += h->buffer[i * channels + c];
+                }
+                mono[i] = static_cast<int16_t>(sum / channels);
+            }
+            env->SetShortArrayRegion(out, 0, toCopy, mono.data());
+            return toCopy;
+        }
+    }
     return got;
 }
 

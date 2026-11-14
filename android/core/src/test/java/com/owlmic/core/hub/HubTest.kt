@@ -31,7 +31,7 @@ class HubTest {
 
         override fun droppable(message: Int) = message % 2 == 0
 
-        override fun onFailure(message: Int, error: Exception) {
+        override fun onFailure(message: Int, error: Throwable) {
             failures++
         }
 

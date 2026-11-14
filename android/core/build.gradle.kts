@@ -166,7 +166,7 @@ abstract class GenerateDesign : DefaultTask() {
 }
 
 val generateDesign = tasks.register<GenerateDesign>("generateDesign") {
-    designDir.set(rootProject.layout.projectDirectory.dir("../design"))
+    designDir.set(rootProject.layout.projectDirectory.dir("../shared/design"))
     kotlinDir.set(layout.buildDirectory.dir("generated/design/kotlin"))
     resDir.set(layout.buildDirectory.dir("generated/design/res"))
 }

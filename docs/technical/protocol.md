@@ -1,7 +1,7 @@
 # Wire Protocol Version 3
 
 This document is the normative technical specification for **Owlmic Wire Protocol Version 3**.
-Official test vectors are maintained in [`protocol/vectors/`](../../protocol/vectors/).
+Official test vectors are maintained in [`shared/protocol/vectors/`](../../shared/protocol/vectors/).
 
 All integers are big-endian (BE). All text strings are UTF-8 encoded.
 

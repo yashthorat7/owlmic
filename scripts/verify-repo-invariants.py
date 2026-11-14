@@ -23,7 +23,12 @@ def git_tracked_files():
     res = subprocess.run(
         ["git", "ls-files"], cwd=ROOT, capture_output=True, text=True, check=True
     )
-    return [ROOT / line.strip() for line in res.stdout.splitlines() if line.strip()]
+    untracked = subprocess.run(
+        ["git", "ls-files", "--others", "--exclude-standard"],
+        cwd=ROOT, capture_output=True, text=True, check=True
+    )
+    all_files = set(res.stdout.splitlines() + untracked.stdout.splitlines())
+    return [ROOT / line.strip() for line in all_files if line.strip()]
 
 def check_binaries_and_casing(files):
     for path in files:
@@ -49,8 +54,10 @@ def check_binaries_and_casing(files):
 
 def check_tokio_restriction(files):
     for path in files:
+        if not path.exists():
+            continue
         rel = path.relative_to(ROOT).as_posix()
-        if rel.startswith("pc/") and path.suffix == ".rs" and not rel.endswith("bt.rs"):
+        if (rel.startswith("desktop/") or rel.startswith("desktop/")) and path.suffix == ".rs" and not rel.endswith("bt.rs"):
             content = path.read_text(encoding="utf-8")
             if re.search(r"\buse\s+tokio\b|\btokio::", content):
                 ERRORS.append(
@@ -59,7 +66,7 @@ def check_tokio_restriction(files):
                 )
 
 def check_json_sources():
-    json_dirs = [ROOT / "design", ROOT / "protocol" / "vectors"]
+    json_dirs = [ROOT / "shared" / "design", ROOT / "shared" / "protocol" / "vectors"]
     for d in json_dirs:
         if not d.exists():
             continue
@@ -71,11 +78,13 @@ def check_json_sources():
 
 def check_version_lockstep():
     versions = {}
-    cargo_toml = ROOT / "pc" / "Cargo.toml"
+    cargo_toml = ROOT / "desktop" / "Cargo.toml"
+    if not cargo_toml.exists():
+        cargo_toml = ROOT / "pc" / "Cargo.toml"
     if cargo_toml.exists():
         m = re.search(r'^version\s*=\s*"([^"]+)"', cargo_toml.read_text(encoding="utf-8"), re.M)
         if m:
-            versions["pc/Cargo.toml"] = m.group(1)
+            versions["desktop/Cargo.toml"] = m.group(1)
 
     gradle = ROOT / "android" / "app" / "build.gradle.kts"
     if gradle.exists():
@@ -83,7 +92,9 @@ def check_version_lockstep():
         if m:
             versions["android/app/build.gradle.kts"] = m.group(1)
 
-    iss = ROOT / "pc" / "installer" / "owlmic.iss"
+    iss = ROOT / "scripts" / "packaging" / "windows" / "owlmic.iss"
+    if not iss.exists():
+        iss = ROOT / "packaging" / "windows" / "owlmic.iss"
     if not iss.exists():
         iss = ROOT / "pc" / "installer" / "windows" / "owlmic.iss"
     if iss.exists():
@@ -94,19 +105,82 @@ def check_version_lockstep():
     if len(set(versions.values())) > 1:
         ERRORS.append(f"[VERSION LOCKSTEP] Version mismatch across manifests: {versions}")
 
+def check_workflow_paths():
+    workflows_dir = ROOT / ".github" / "workflows"
+    if not workflows_dir.exists():
+        return
+    for yml in workflows_dir.glob("*.yml"):
+        content = yml.read_text(encoding="utf-8")
+        lines = content.splitlines()
+        in_paths = False
+        for idx, line in enumerate(lines, 1):
+            stripped = line.strip()
+            if stripped.startswith("paths:"):
+                in_paths = True
+                continue
+            if in_paths:
+                if stripped.startswith("- "):
+                    raw_path = stripped[2:].strip().strip("'\"")
+                    # Remove trailing glob stars (e.g. dir/** or dir/*)
+                    clean_path = re.sub(r"/\*+.*$", "", raw_path)
+                    target = ROOT / clean_path
+                    if not target.exists():
+                        ERRORS.append(
+                            f"[WORKFLOW PATH] {yml.relative_to(ROOT)}:{idx} references missing path: '{raw_path}'"
+                        )
+                elif stripped and not stripped.startswith("#"):
+                    in_paths = False
+
+            # Check working-directory
+            m_wd = re.search(r"working-directory:\s*['\"]?([^'\"\s#]+)", line)
+            if m_wd:
+                wd = m_wd.group(1)
+                if not (ROOT / wd).exists():
+                    ERRORS.append(
+                        f"[WORKFLOW PATH] {yml.relative_to(ROOT)}:{idx} references missing working-directory: '{wd}'"
+                    )
+
+            # Check --manifest-path
+            m_mp = re.search(r"--manifest-path\s+['\"]?([^'\"\s]+)", line)
+            if m_mp:
+                mp = m_mp.group(1)
+                if not (ROOT / mp).exists():
+                    ERRORS.append(
+                        f"[WORKFLOW PATH] {yml.relative_to(ROOT)}:{idx} references missing --manifest-path: '{mp}'"
+                    )
+
+            # Check cache-dependency-path
+            m_cd = re.search(r"cache-dependency-path:\s*['\"]?([^'\"\s#]+)", line)
+            if m_cd:
+                cd = m_cd.group(1)
+                if not (ROOT / cd).exists():
+                    ERRORS.append(
+                        f"[WORKFLOW PATH] {yml.relative_to(ROOT)}:{idx} references missing cache-dependency-path: '{cd}'"
+                    )
+
+            # Check local workflow uses
+            m_uses = re.search(r"uses:\s*\./([^\s#]+)", line)
+            if m_uses:
+                wf = m_uses.group(1)
+                if not (ROOT / wf).exists():
+                    ERRORS.append(
+                        f"[WORKFLOW PATH] {yml.relative_to(ROOT)}:{idx} references missing local workflow: '{wf}'"
+                    )
+
 def main():
     files = git_tracked_files()
     check_binaries_and_casing(files)
     check_tokio_restriction(files)
     check_json_sources()
     check_version_lockstep()
+    check_workflow_paths()
 
     if ERRORS:
         print("\n❌ Owlmic Repository Invariant Checks FAILED:")
         for err in ERRORS:
             print(f"  - {err}")
         sys.exit(1)
-    print("✅ All Owlmic repository invariants passed (casing, binary ban, concurrency, JSON, versions).")
+    print("✅ All Owlmic repository invariants passed (casing, binary ban, concurrency, JSON, versions, workflows).")
 
 if __name__ == "__main__":
     main()

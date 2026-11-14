@@ -8,10 +8,9 @@ on:
   workflow_call:
   pull_request:
     paths:
-      - 'pc/installer/**'
-      - 'pc/Cargo.toml'
-      - 'pc/crates/**'
-      - 'pc/vcam/**'
+      - 'scripts/packaging/windows/**'
+      - 'desktop/Cargo.toml'
+      - 'desktop/crates/**'
       - '.github/workflows/windows-installer.yml'
 
 permissions:
@@ -34,11 +33,12 @@ jobs:
       - name: Ensure softcam.dll
         shell: pwsh
         run: |
-          if (-not (Test-Path "pc\softcam.dll")) {
+          if (-not (Test-Path "scripts\packaging\cache\softcam.dll")) {
             $expectedHash = '9D635E0AF682A883C3C7D407513D47E59B0883771701B101216820DFCF997F0B'
-            $url = 'https://raw.githubusercontent.com/diveshpatil9104/owlmic/3f78b5767f64f4542b4307c586da4b609d54d38e/pc/softcam.dll'
-            Invoke-WebRequest -Uri $url -OutFile pc\softcam.dll -UseBasicParsing
-            $hash = (Get-FileHash pc\softcam.dll -Algorithm SHA256).Hash
+            $url = 'https://raw.githubusercontent.com/diveshpatil9104/owlmic/3f78b5767f64f4542b4307c586da4b609d54d38e/desktop/softcam.dll'
+            if (-not (Test-Path "scripts\packaging\cache")) { New-Item -ItemType Directory -Path scripts\packaging\cache | Out-Null }
+            Invoke-WebRequest -Uri $url -OutFile scripts\packaging\cache\softcam.dll -UseBasicParsing
+            $hash = (Get-FileHash scripts\packaging\cache\softcam.dll -Algorithm SHA256).Hash
             if ($hash -ne $expectedHash) {
               throw "Downloaded softcam.dll checksum mismatch: $hash"
             }
@@ -48,13 +48,13 @@ jobs:
       - name: Build owlmic.exe
         env:
           RUSTFLAGS: -C target-feature=+crt-static
-        run: cargo build --release --manifest-path pc/Cargo.toml
+        run: cargo build --release --manifest-path desktop/Cargo.toml
 
       - name: Check the microphone setup script
         shell: pwsh
         run: |
           $errors = $null
-          [System.Management.Automation.Language.Parser]::ParseFile("$PWD\pc\installer\windows\setup-audio-device.ps1", [ref]$null, [ref]$errors) | Out-Null
+          [System.Management.Automation.Language.Parser]::ParseFile("$PWD\scripts\packaging\windows\setup-audio-device.ps1", [ref]$null, [ref]$errors) | Out-Null
           if ($errors) { $errors | ForEach-Object { Write-Error $_.ToString() }; exit 1 }
 
       - name: Download the microphone driver files
@@ -100,7 +100,7 @@ jobs:
           if (-not $downloaded) {
             throw "Failed to download verified driver pack from any source."
           }
-          Expand-Archive $zip -DestinationPath pc\installer\windows\driver -Force
+          Expand-Archive $zip -DestinationPath scripts\packaging\windows\driver -Force
 
       - name: Install Inno Setup
         run: choco install innosetup --no-progress -y
@@ -108,23 +108,24 @@ jobs:
       - name: Build the installer
         shell: pwsh
         run: |
-          $version = (Select-String -Path pc\Cargo.toml -Pattern '^version = "(.+)"').Matches[0].Groups[1].Value
+          $version = (Select-String -Path desktop\Cargo.toml -Pattern '^version = "(.+)"').Matches[0].Groups[1].Value
           $iscc = Get-ChildItem "${env:ProgramFiles(x86)}\Inno Setup *\ISCC.exe", "$env:ProgramFiles\Inno Setup *\ISCC.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
           if (-not $iscc) { throw "Inno Setup's compiler wasn't found" }
-          & $iscc.FullName "/DMyAppVersion=$version" pc\installer\windows\owlmic.iss
+          if (-not (Test-Path "dist\windows")) { New-Item -ItemType Directory -Path dist\windows | Out-Null }
+          & $iscc.FullName "/DMyAppVersion=$version" scripts\packaging\windows\owlmic.iss
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          Copy-Item pc\target\release\owlmic.exe "pc\installer\windows\Output\Owlmic-v$version-windows-x64.exe"
+          Copy-Item desktop\target\release\owlmic.exe "dist\windows\Owlmic-v$version-windows-x64.exe"
 
       - name: Check the installer size
         shell: pwsh
         run: |
           # The design's budget: about 4 MB, never above 5 MB.
           $limit = 5MB
-          foreach ($f in 'pc\target\release\owlmic.exe', 'pc\target\release\owlmic_vcam.dll', 'pc\softcam.dll') {
+          foreach ($f in 'desktop\target\release\owlmic.exe', 'desktop\target\release\owlmic_vcam.dll', 'scripts\packaging\cache\softcam.dll') {
             '{0,-40} {1,8:N2} MB' -f $f, ((Get-Item $f).Length / 1MB)
           }
-          '{0,-40} {1,8:N2} MB' -f 'pc\installer\windows\driver (all files)', ((Get-ChildItem pc\installer\windows\driver -Recurse -File | Measure-Object Length -Sum).Sum / 1MB)
-          $setup = Get-Item pc\installer\windows\Output\Owlmic-Setup-*.exe
+          '{0,-40} {1,8:N2} MB' -f 'scripts\packaging\windows\driver (all files)', ((Get-ChildItem scripts\packaging\windows\driver -Recurse -File | Measure-Object Length -Sum).Sum / 1MB)
+          $setup = Get-Item dist\windows\Owlmic-Setup-*.exe
           $size = $setup.Length
           '{0,-40} {1,8:N2} MB' -f $setup.Name, ($size / 1MB)
           if ($size -gt $limit) { throw ("The installer is {0:N2} MB, above the 5 MB budget." -f ($size / 1MB)) }
@@ -133,5 +134,5 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: owlmic-windows
-          path: pc/installer/windows/Output/*.exe
+          path: dist/windows/*.exe
           if-no-files-found: error

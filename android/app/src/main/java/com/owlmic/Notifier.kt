@@ -6,6 +6,7 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
 import android.content.Intent
+import android.graphics.drawable.Icon
 import com.owlmic.core.hub.AppState
 import com.owlmic.core.hub.Connection
 import com.owlmic.core.hub.Feature
@@ -70,7 +71,7 @@ class Notifier(private val service: Service) {
     }
 
     private fun action(label: Int, action: String, code: Int) = Notification.Action.Builder(
-        null,
+        Icon.createWithResource(service, R.drawable.ic_notification),
         service.getString(label),
         PendingIntent.getService(service, code, OwlmicService.intent(service, action), PendingIntent.FLAG_IMMUTABLE),
     ).build()

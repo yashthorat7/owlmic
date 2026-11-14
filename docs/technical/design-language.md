@@ -2,7 +2,7 @@
 
 This document outlines the visual design system, typography tokens, layout specifications, and rendering implementations for Owlmic across Android (Jetpack Compose) and Windows (Native Win32 GDI/GDI+).
 
-The definitive design tokens and strings are defined in [`design/tokens.json`](../../design/tokens.json) and [`design/copy.json`](../../design/copy.json).
+The definitive design tokens and strings are defined in [`shared/design/tokens.json`](../../shared/design/tokens.json) and [`shared/design/copy.json`](../../shared/design/copy.json).
 
 ---
 
@@ -21,7 +21,7 @@ Owlmic adheres to a strict **pure functional** design aesthetic:
 
 ---
 
-## 2. Design Tokens (`design/tokens.json`)
+## 2. Design Tokens (`shared/design/tokens.json`)
 
 ### Color Palette
 | Token | Hex Value | Purpose |
@@ -64,7 +64,7 @@ The phone uses no colour: green, yellow and red are the PC panel's. On the phone
 
 ---
 
-## 3. Windows Native Flyout Panel (`pc/crates/owlmic-ui`)
+## 3. Windows Native Flyout Panel (`desktop/crates/owlmic-ui`)
 
 Rather than shipping Chromium/Electron or bloated webview engines, Owlmic PC uses a **100% native Win32 GDI/GDI+ renderer**:
 - **Geometry**: Fixed 560 × 255 px panel positioned above the taskbar system tray.
@@ -76,7 +76,7 @@ Rather than shipping Chromium/Electron or bloated webview engines, Owlmic PC use
 
 ## 4. Android Compose UI (`android/app`)
 
-The main screen follows the prototype in `landing/proto-templates`: black tiles on a 1 dp grey seam, in three bands.
+The main screen follows the prototype in `website/proto-templates`: black tiles on a 1 dp grey seam, in three bands.
 
 | Band | Contents |
 | :--- | :--- |

@@ -36,6 +36,10 @@ class OpusEncoder(channels: Int, application: Application, bitrate: Int, fec: Bo
         const val MAX_PACKET = 1275
 
         init {
+            try {
+                System.loadLibrary("oboe")
+            } catch (_: Throwable) {
+            }
             System.loadLibrary("owlmic")
         }
 
@@ -72,6 +76,10 @@ class OpusDecoder(private val channels: Int) : AutoCloseable {
 
     private companion object {
         init {
+            try {
+                System.loadLibrary("oboe")
+            } catch (_: Throwable) {
+            }
             System.loadLibrary("owlmic")
         }
 

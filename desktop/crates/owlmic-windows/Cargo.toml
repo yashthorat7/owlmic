@@ -1,0 +1,20 @@
+[package]
+name = "owlmic-windows"
+description = "Owlmic for Windows: WASAPI virtual microphone and loopback, Media Foundation virtual camera, and Direct2D tray flyout"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[dependencies]
+owlmic-devices.workspace = true
+owlmic-hub.workspace = true
+owlmic-platform.workspace = true
+owlmic-settings.workspace = true
+owlmic-ui.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+owlmic-vcam.workspace = true
+windows.workspace = true
+windows-core.workspace = true

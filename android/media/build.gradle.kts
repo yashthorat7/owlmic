@@ -1,5 +1,13 @@
+import java.io.File
+import java.util.zip.ZipFile
+
 plugins {
     alias(libs.plugins.android.library)
+}
+
+val oboeAar = configurations.create("oboeAar") {
+    isCanBeResolved = true
+    isCanBeConsumed = false
 }
 
 android {
@@ -40,7 +48,8 @@ android {
 
 dependencies {
     implementation(project(":core"))
-    implementation(libs.oboe)
+    api(libs.oboe)
+    oboeAar(libs.oboe)
     implementation(libs.androidx.camera.core)
     implementation(libs.androidx.camera.camera2)
     implementation(libs.androidx.camera.lifecycle)
@@ -48,4 +57,52 @@ dependencies {
 
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
+}
+
+abstract class ExtractOboeJni : DefaultTask() {
+    @get:InputFiles
+    @get:PathSensitive(PathSensitivity.RELATIVE)
+    abstract val oboeAarFiles: ConfigurableFileCollection
+
+    @get:OutputDirectory
+    abstract val outputDir: DirectoryProperty
+
+    @TaskAction
+    fun extract() {
+        val out = outputDir.get().asFile
+        out.deleteRecursively()
+        out.mkdirs()
+        for (file in oboeAarFiles.files) {
+            if (file.name.endsWith(".aar")) {
+                ZipFile(file).use { zip ->
+                    for (entry in zip.entries().asSequence()) {
+                        val name = entry.name
+                        if (name.startsWith("prefab/modules/oboe/libs/android.") && name.endsWith("/liboboe.so")) {
+                            val parts = name.split("/")
+                            val abiPart = parts.getOrNull(4)
+                            val abi = abiPart?.removePrefix("android.") ?: continue
+                            val dest = File(out, "$abi/liboboe.so")
+                            dest.parentFile.mkdirs()
+                            zip.getInputStream(entry).use { input ->
+                                dest.outputStream().use { output ->
+                                    input.copyTo(output)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+val extractOboeJni = tasks.register<ExtractOboeJni>("extractOboeJni") {
+    oboeAarFiles.from(oboeAar)
+    outputDir.set(layout.buildDirectory.dir("generated/oboeJniLibs"))
+}
+
+androidComponents {
+    onVariants { variant ->
+        variant.sources.jniLibs?.addGeneratedSourceDirectory(extractOboeJni, ExtractOboeJni::outputDir)
+    }
 }

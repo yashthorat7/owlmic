@@ -16,10 +16,10 @@ Owlmic for PC runs as a lightweight, per-user background application in your Win
 ## 2. Download and Installation
 
 1. **Download the Setup Package**:
-   Download the latest `Owlmic-Setup-1.0.0.exe` installer from [GitHub Releases](https://github.com/diveshpatil9104/owlmic/releases) or the official website at [owlmic.app](https://owlmic.app).
+   Download the latest `Owlmic-Setup-0.1.0.exe` installer from [GitHub Releases](https://github.com/diveshpatil9104/owlmic/releases) or the official website at [owlmic.app](https://owlmic.app).
 
 2. **Run the Installer**:
-   - Double-click `Owlmic-Setup-1.0.0.exe`.
+   - Double-click `Owlmic-Setup-0.1.0.exe`.
    - Accept the license agreement.
    - Choose whether Owlmic should launch automatically when you log in to Windows (recommended).
    - Click **Install**.

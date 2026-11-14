@@ -76,7 +76,7 @@ abstract class Hub<M>(
     /** Messages that may be lost when the mailbox is full. */
     protected open fun droppable(message: M) = false
 
-    protected open fun onFailure(message: M, error: Exception) = Unit
+    protected open fun onFailure(message: M, error: Throwable) = Unit
 
     /** Brings the hub back to a known state after a failure. */
     protected open fun restart() = Unit
@@ -94,7 +94,7 @@ abstract class Hub<M>(
             val message = synchronized(mailbox) { mailbox.removeFirstOrNull() } ?: return
             try {
                 handle(message)
-            } catch (e: Exception) {
+            } catch (e: Throwable) {
                 runCatching { onFailure(message, e) }
                 failed(e)
             }
@@ -104,12 +104,12 @@ abstract class Hub<M>(
     private fun guarded(block: () -> Unit) {
         try {
             block()
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             failed(e)
         }
     }
 
-    private fun failed(error: Exception) {
+    private fun failed(error: Throwable) {
         val reason = error.message ?: error.javaClass.simpleName
         if (restartPending) return
         val delayMs = restarts.nextDelayMs()

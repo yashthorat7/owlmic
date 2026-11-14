@@ -13,6 +13,10 @@ internal object Oboe {
     const val ERROR_DISCONNECTED = -899
 
     init {
+        try {
+            System.loadLibrary("oboe")
+        } catch (_: Throwable) {
+        }
         System.loadLibrary("owlmic")
     }
 

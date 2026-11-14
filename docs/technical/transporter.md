@@ -1,6 +1,6 @@
 # The Transporter
 
-The **Transporter** is Owlmic's networking engine, implemented in `pc/crates/owlmic-link` and `android/core/src/main/java/com/owlmic/core/link`. It provides automatic endpoint discovery, multi-carrier transport negotiation, seamless make-before-break carrier switching, and link health monitoring.
+The **Transporter** is Owlmic's networking engine, implemented in `desktop/crates/owlmic-link` and `android/core/src/main/java/com/owlmic/core/link`. It provides automatic endpoint discovery, multi-carrier transport negotiation, seamless make-before-break carrier switching, and link health monitoring.
 
 ---
 

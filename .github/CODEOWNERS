@@ -8,7 +8,7 @@
 android/                   @diveshpatil9104
 
 # Windows app
-pc/                        @diveshpatil9104
+desktop/                        @diveshpatil9104
 
 # CI and community governance
 .github/                   @diveshpatil9104

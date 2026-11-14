@@ -2,7 +2,7 @@
 
 This document details the cryptographic algorithms, handshake verification, key derivation functions, and replay protection rules implemented across Owlmic.
 
-Official test vectors verifying this specification are located in [`protocol/vectors/crypto.json`](../../protocol/vectors/crypto.json).
+Official test vectors verifying this specification are located in [`shared/protocol/vectors/crypto.json`](../../shared/protocol/vectors/crypto.json).
 
 ---
 

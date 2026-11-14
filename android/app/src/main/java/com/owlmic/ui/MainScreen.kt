@@ -68,7 +68,7 @@ import com.owlmic.hub.AppMsg
 import com.owlmic.core.R as Copy
 
 /**
- * The one screen, as drawn in the prototype (landing/proto-templates): the wordmark with the help and link tiles on top,
+ * The one screen, as drawn in the prototype (website/proto-templates): the wordmark with the help and link tiles on top,
  * the preview area in the middle, and the camera, mic and speaker tiles below, in a bento grid of rounded tiles.
  * [turn] is how the phone is held (see Turn.kt): the grid never moves; a change fades the preview's content out, turns
  * the icons, and fades it back in. [onLayoutTurn] hears when the content changes, for the status bar. [onFeature] and

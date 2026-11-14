@@ -25,7 +25,7 @@ object Theme {
     val disabled = Color(Tokens.Color.DISABLED)
     val onContent = Color(Tokens.Color.ON_CONTENT)
 
-    // The main screen's bento grid (the prototype in landing/proto-templates).
+    // The main screen's bento grid (the prototype in website/proto-templates).
     val ink = Color(Tokens.Color.INK)
     val seam = Color(Tokens.Color.GAP)
     val pressed = Color(Tokens.Color.PRESSED)

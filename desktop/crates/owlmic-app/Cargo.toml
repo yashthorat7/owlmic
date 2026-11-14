@@ -1,0 +1,31 @@
+[package]
+name = "owlmic-app"
+description = "Owlmic PC host: the App Hub, the tray and panel shell, startup and single instance"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[[bin]]
+name = "owlmic"
+path = "src/main.rs"
+
+[dependencies]
+owlmic-devices.workspace = true
+owlmic-hub.workspace = true
+owlmic-link.workspace = true
+owlmic-media.workspace = true
+owlmic-proto.workspace = true
+owlmic-session.workspace = true
+owlmic-settings.workspace = true
+owlmic-ui.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+owlmic-windows.workspace = true
+owlmic-vcam.workspace = true
+windows.workspace = true
+windows-core.workspace = true
+
+[target.'cfg(target_os = "linux")'.dependencies]
+owlmic-linux.workspace = true

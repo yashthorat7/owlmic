@@ -7,20 +7,20 @@ updates:
   # Only what Cargo itself treats as compatible: Cargo.lock moves, Cargo.toml doesn't. For 0.x
   # crates even a "minor" bump can break the code, so skipping majors isn't enough here.
   - package-ecosystem: "cargo"
-    directory: "/pc"
+    directory: "/desktop"
     schedule:
       interval: "weekly"
       day: "monday"
     versioning-strategy: "lockfile-only"
     open-pull-requests-limit: 1
     groups:
-      pc:
+      desktop:
         patterns: ["*"]
     labels:
       - "dependencies"
-      - "pc"
+      - "desktop"
     commit-message:
-      prefix: "chore(pc)"
+      prefix: "chore(desktop)"
 
   - package-ecosystem: "gradle"
     directory: "/android"

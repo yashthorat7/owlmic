@@ -1,0 +1,89 @@
+[workspace]
+members = ["crates/*"]
+resolver = "3"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+repository = "https://github.com/diveshpatil9104/owlmic"
+
+[workspace.dependencies]
+owlmic-hub = { path = "crates/owlmic-hub" }
+owlmic-platform = { path = "crates/owlmic-platform" }
+owlmic-proto = { path = "crates/owlmic-proto" }
+owlmic-link = { path = "crates/owlmic-link" }
+owlmic-session = { path = "crates/owlmic-session" }
+owlmic-devices = { path = "crates/owlmic-devices" }
+owlmic-windows = { path = "crates/owlmic-windows" }
+owlmic-linux = { path = "crates/owlmic-linux" }
+owlmic-settings = { path = "crates/owlmic-settings" }
+owlmic-ui = { path = "crates/owlmic-ui" }
+owlmic-vcam = { path = "crates/owlmic-vcam" }
+cc = "1.2"
+windows-core = "0.62"
+windows-numerics = "0.3"
+windows = { version = "0.62", features = [
+    "Win32_Foundation",
+    "Win32_Devices_Bluetooth",
+    "Win32_Devices_DeviceAndDriverInstallation",
+    "Win32_Devices_FunctionDiscovery",
+    "Win32_Devices_Properties",
+    "Win32_Graphics_Direct2D",
+    "Win32_Graphics_Direct2D_Common",
+    "Win32_Graphics_DirectWrite",
+    "Win32_Graphics_Dwm",
+    "Win32_Graphics_Dxgi_Common",
+    "Win32_Graphics_Gdi",
+    "Win32_Media_Audio",
+    "Win32_Media_Audio_Endpoints",
+    "Win32_Media_KernelStreaming",
+    "Win32_Media_MediaFoundation",
+    "Win32_NetworkManagement_IpHelper",
+    "Win32_NetworkManagement_Ndis",
+    "Win32_NetworkManagement_WindowsFirewall",
+    "Win32_Networking_WinSock",
+    "Win32_Security",
+    "Win32_Security_Authorization",
+    "Win32_Security_Cryptography",
+    "Win32_Storage_FileSystem",
+    "Win32_System_Com",
+    "Win32_System_Com_StructuredStorage",
+    "Win32_System_LibraryLoader",
+    "Win32_System_Memory",
+    "Win32_System_Ole",
+    "Win32_System_Registry",
+    "Win32_System_SystemInformation",
+    "Win32_System_Threading",
+    "Win32_System_Variant",
+    "Win32_UI_HiDpi",
+    "Win32_UI_Input_KeyboardAndMouse",
+    "Win32_UI_Shell",
+    "Win32_UI_Shell_PropertiesSystem",
+    "Win32_UI_WindowsAndMessaging",
+] }
+owlmic-media = { path = "crates/owlmic-media" }
+nnnoiseless = { version = "0.5", default-features = false }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+base64 = "0.22"
+p256 = { version = "0.13", features = ["ecdh"] }
+sha2 = "0.10"
+hkdf = "0.12"
+hmac = "0.12"
+aes-gcm = "0.10"
+rand_core = { version = "0.6", features = ["getrandom"] }
+
+# Unoptimized, noise suppression and resampling run about 20 times slower and the mic
+# stutters, so even `cargo run` optimizes them. Ship release builds all the same.
+[profile.dev]
+opt-level = 1
+
+[profile.dev.package."*"]
+opt-level = 3
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+strip = true

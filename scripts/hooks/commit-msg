@@ -15,7 +15,7 @@ if [ "${#FIRST_LINE}" -gt 72 ]; then
     exit 1
 fi
 
-PATTERN='^(feat|fix|perf|refactor|docs|test|ci|chore|build)\((android|pc|win|linux|proto|design|installer|scripts|ci|site)\): [a-z0-9].{3,68}[^\.]$'
+PATTERN='^(feat|fix|perf|refactor|docs|test|ci|chore|build)\((android|desktop|pc|win|linux|proto|design|installer|scripts|ci|site|repo)\): [a-z0-9].{3,68}[^\.]$'
 
 if ! [[ "$FIRST_LINE" =~ $PATTERN ]]; then
     echo "❌ INVALID COMMIT MESSAGE:"
@@ -24,7 +24,7 @@ if ! [[ "$FIRST_LINE" =~ $PATTERN ]]; then
     echo "Required format:"
     echo "   <type>(<scope>): <lowercase imperative description, max 72 chars, no period>"
     echo "Allowed types:  feat, fix, perf, refactor, docs, test, ci, chore, build"
-    echo "Allowed scopes: android, pc, win, linux, proto, design, installer, scripts, ci, site"
+    echo "Allowed scopes: android, desktop, pc, win, linux, proto, design, installer, scripts, ci, site, repo"
     echo "Example:        chore(scripts): add automated invariant verifier and git hooks"
     exit 1
 fi

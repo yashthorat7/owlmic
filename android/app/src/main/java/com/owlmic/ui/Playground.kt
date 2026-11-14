@@ -52,7 +52,6 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.RoundRect
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathFillType
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -165,8 +164,7 @@ private fun Content(
             Image(
                 painterResource(R.drawable.owl),
                 null,
-                Modifier.size(Tokens.Phone.OWL_DP.dp),
-                colorFilter = ColorFilter.tint(Theme.ink.copy(alpha = Tokens.Phone.OWL_ALPHA)),
+                Modifier.size(Tokens.Phone.OWL_DP.dp).graphicsLayer { alpha = Tokens.Phone.OWL_ALPHA },
             )
         }
 
