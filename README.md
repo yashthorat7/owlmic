@@ -159,7 +159,7 @@ Specialized engineering context rulebooks in [`docs/skills/`](docs/skills/README
   - [`token-saving-and-context.md`](docs/skills/token-saving-and-context.md) — Surgical inspection, targeted edits, context hygiene
   - [`procedures-and-verification.md`](docs/skills/procedures-and-verification.md) — 5-stage task lifecycle, pre-flight verification gates
 - **Priority 2 (Subsystem & Platform Development — Active on Modification)**:
-  - [`pc-rust.md`](docs/skills/pc-rust.md) — Rust 2024 desktop server, thread supervision, Tokio bans outside Linux BT
+  - [`desktop-rust.md`](docs/skills/desktop-rust.md) — Rust 2024 desktop server, thread supervision, Tokio bans outside Linux BT
   - [`windows-backend.md`](docs/skills/windows-backend.md) — WASAPI virtual audio, Media Foundation camera, Direct2D tray
   - [`linux-backend.md`](docs/skills/linux-backend.md) — PipeWire virtual audio source, v4l2loopback virtual camera, KSNI tray
   - [`android-kotlin.md`](docs/skills/android-kotlin.md) — Jetpack Compose, foreground service lifecycle, zero-alloc Oboe JNI
@@ -168,7 +168,7 @@ Specialized engineering context rulebooks in [`docs/skills/`](docs/skills/README
 - **Priority 3 (On-Demand & Specialized Operations — Explicit Call Only)**:
   - [`git-workflow.md`](docs/skills/git-workflow.md) — Strict read-only agent rule, convenient `git add .` staging, Conventional Commits
   - [`build-and-bundle.md`](docs/skills/build-and-bundle.md) — Builder procedures, driver caching, centralized `dist/` distribution
-  - [`web-landing.md`](docs/skills/web-landing.md) — React 19, TypeScript, Vite, zero telemetry landing site
+  - [`website.md`](docs/skills/website.md) — React 19, TypeScript, Vite, zero telemetry website
 
 ---
 

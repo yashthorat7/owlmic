@@ -24,8 +24,6 @@ RESET = "\033[0m"
 
 def get_version() -> str:
     cargo_toml = ROOT / "desktop" / "Cargo.toml"
-    if not cargo_toml.exists():
-        cargo_toml = ROOT / "pc" / "Cargo.toml"
     if cargo_toml.exists():
         m = re.search(r'^version\s*=\s*"([^"]+)"', cargo_toml.read_text(encoding="utf-8"), re.M)
         if m:

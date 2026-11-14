@@ -19,7 +19,7 @@ The Windows platform implementation provides virtual audio, virtual camera, and 
 ## 2. Invariants & Implementation Guidelines
 
 1. **Zero Tokio Prohibition**:
-   - Like all PC crates outside Linux `bt.rs`, Windows platform code must run on standard blocking threads (`std::thread::Builder`).
+   - Like all desktop crates outside Linux `bt.rs`, Windows platform code must run on standard blocking threads (`std::thread::Builder`).
    - Cross-thread synchronization is handled via bounded crossbeam channels (`crossbeam_channel::bounded`).
 2. **Real-Time WASAPI Safety**:
    - Audio feed loops must maintain steady 10 ms cadence (480 samples at 48,000 Hz).

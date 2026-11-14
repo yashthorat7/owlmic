@@ -68,7 +68,7 @@ python menu.py verify     # Repository invariants check only
 2. When explicitly requested by the user (*"give me a commit command"*, *"how do I commit this?"*):
    - Inspect all changes (`git status`, `git diff`).
    - Ban `git add .` or `git add -A`. Provide explicit paths: `git add <file1> <file2>`.
-   - Craft a concise Conventional Commit (`feat(pc): ...`, `fix(android): ...`).
+   - Craft a concise Conventional Commit (`feat(desktop): ...`, `fix(android): ...`).
    - If on `main`, formulate smart branch migration instructions per [`git-workflow.md`](git-workflow.md).
 
 ---

@@ -35,7 +35,7 @@ jobs:
         run: |
           if (-not (Test-Path "scripts\packaging\cache\softcam.dll")) {
             $expectedHash = '9D635E0AF682A883C3C7D407513D47E59B0883771701B101216820DFCF997F0B'
-            $url = 'https://raw.githubusercontent.com/diveshpatil9104/owlmic/3f78b5767f64f4542b4307c586da4b609d54d38e/desktop/softcam.dll'
+            $url = 'https://raw.githubusercontent.com/diveshpatil9104/owlmic/3f78b5767f64f4542b4307c586da4b609d54d38e/pc/softcam.dll'
             if (-not (Test-Path "scripts\packaging\cache")) { New-Item -ItemType Directory -Path scripts\packaging\cache | Out-Null }
             Invoke-WebRequest -Uri $url -OutFile scripts\packaging\cache\softcam.dll -UseBasicParsing
             $hash = (Get-FileHash scripts\packaging\cache\softcam.dll -Algorithm SHA256).Hash

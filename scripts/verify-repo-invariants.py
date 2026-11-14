@@ -57,7 +57,7 @@ def check_tokio_restriction(files):
         if not path.exists():
             continue
         rel = path.relative_to(ROOT).as_posix()
-        if (rel.startswith("desktop/") or rel.startswith("desktop/")) and path.suffix == ".rs" and not rel.endswith("bt.rs"):
+        if rel.startswith("desktop/") and path.suffix == ".rs" and not rel.endswith("bt.rs"):
             content = path.read_text(encoding="utf-8")
             if re.search(r"\buse\s+tokio\b|\btokio::", content):
                 ERRORS.append(
@@ -79,8 +79,6 @@ def check_json_sources():
 def check_version_lockstep():
     versions = {}
     cargo_toml = ROOT / "desktop" / "Cargo.toml"
-    if not cargo_toml.exists():
-        cargo_toml = ROOT / "pc" / "Cargo.toml"
     if cargo_toml.exists():
         m = re.search(r'^version\s*=\s*"([^"]+)"', cargo_toml.read_text(encoding="utf-8"), re.M)
         if m:
@@ -95,8 +93,6 @@ def check_version_lockstep():
     iss = ROOT / "scripts" / "packaging" / "windows" / "owlmic.iss"
     if not iss.exists():
         iss = ROOT / "packaging" / "windows" / "owlmic.iss"
-    if not iss.exists():
-        iss = ROOT / "pc" / "installer" / "windows" / "owlmic.iss"
     if iss.exists():
         m = re.search(r'#define\s+MyAppVersion\s+"([^"]+)"', iss.read_text(encoding="utf-8"))
         if m:
@@ -131,11 +127,11 @@ def check_workflow_paths():
                 elif stripped and not stripped.startswith("#"):
                     in_paths = False
 
-            # Check working-directory
+            # Check working-directory (ignore build output directories created during jobs)
             m_wd = re.search(r"working-directory:\s*['\"]?([^'\"\s#]+)", line)
             if m_wd:
                 wd = m_wd.group(1)
-                if not (ROOT / wd).exists():
+                if wd not in {"dist", "target", "build", "out"} and not (ROOT / wd).exists():
                     ERRORS.append(
                         f"[WORKFLOW PATH] {yml.relative_to(ROOT)}:{idx} references missing working-directory: '{wd}'"
                     )

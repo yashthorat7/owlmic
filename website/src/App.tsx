@@ -197,7 +197,7 @@ export default function App() {
         </nav>
       </header>
 
-      {/* Main View: Landing or Docs */}
+      {/* Main View: Website or Docs */}
       {currentPath === '/docs' ? (
         <main id="main-content" className="docs-layout">
           <aside className="docs-sidebar" aria-label="Documentation Navigation">
