@@ -44,9 +44,9 @@ Owlmic enforces a strict, asymmetrical role division:
 
 Both client and server organize functionality into decoupled **Hubs** that communicate strictly through bounded message queues (mailboxes) and broadcast state updates.
 
-### PC Concurrency Rules (Rust)
-- **Standard Threads + Bounded Channels**: The PC application uses Rust `std::thread` and bounded channels (`crossbeam_channel` or `std::sync::mpsc`). Unbounded queues are strictly forbidden to prevent memory leaks under backpressure.
-- **Strict No-Async Invariant**: Async runtimes (such as Tokio) are **strictly prohibited** in the PC app core. Thread pools and blocking I/O with explicit timeouts provide predictable, deterministic, real-time audio and video delivery.
+### Desktop Concurrency Rules (Rust)
+- **Standard Threads + Bounded Channels**: The desktop application uses Rust `std::thread` and bounded channels (`crossbeam_channel` or `std::sync::mpsc`). Unbounded queues are strictly forbidden to prevent memory leaks under backpressure.
+- **Strict No-Async Invariant**: Async runtimes (such as Tokio) are **strictly prohibited** in the desktop app core. Thread pools and blocking I/O with explicit timeouts provide predictable, deterministic, real-time audio and video delivery.
   - *Exception*: Tokio is permitted exclusively in Linux Bluetooth RFCOMM handling (`desktop/crates/owlmic-link/src/bt.rs`) due to the async requirements of the `bluer` D-Bus crate.
 - **Supervision**: Every hub runs inside a supervised thread loop. If an unhandled panic occurs within a non-critical worker, the supervisor logs the event, cleans up stale handles, and restarts the hub state machine cleanly.
 

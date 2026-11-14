@@ -92,8 +92,8 @@ Never hardcode colors, strings, or settings in platform code. Edit the shared JS
    [optional body explaining why this change was made]
    ```
    - Types: `feat`, `fix`, `perf`, `refactor`, `docs`, `test`, `ci`, `chore`, `build`.
-   - Scopes: `android`, `pc`, `win`, `linux`, `proto`, `design`, `installer`, `scripts`, `ci`, `site`.
-   - Example: `fix(pc): prevent audio jitter buffer underflow on rapid link switch`
+   - Scopes: `android`, `desktop`, `win`, `linux`, `proto`, `design`, `installer`, `scripts`, `ci`, `site`, `repo`.
+   - Example: `fix(desktop): prevent audio jitter buffer underflow on rapid link switch`
 3. **Lean Engineering**:
    - Zero speculative code or premature abstractions.
    - Surgical diffs: do not reformat lines outside your change scope.

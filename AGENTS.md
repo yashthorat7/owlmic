@@ -19,7 +19,7 @@ Enforced across every prompt turn, inspection, and response:
 
 ### Priority 2: Subsystem & Platform Development (Active on Modification)
 Load only the specific domain rulebook matching the modified path:
-- **Touching Desktop Companion (`desktop/` - Rust Core, Audio DSP, Transporter):** Read [`docs/skills/pc-rust.md`](docs/skills/pc-rust.md)
+- **Touching Desktop Companion (`desktop/` - Rust Core, Audio DSP, Transporter):** Read [`docs/skills/desktop-rust.md`](docs/skills/desktop-rust.md)
 - **Touching Windows Platform (`owlmic-windows`, `owlmic-vcam`):** Read [`docs/skills/windows-backend.md`](docs/skills/windows-backend.md)
 - **Touching Linux Backend (`owlmic-linux`, PipeWire, V4L2):** Read [`docs/skills/linux-backend.md`](docs/skills/linux-backend.md)
 - **Touching `android/` (Kotlin, Compose, Oboe, CameraX):** Read [`docs/skills/android-kotlin.md`](docs/skills/android-kotlin.md) (no APK builds unless asked)
@@ -30,7 +30,7 @@ Load only the specific domain rulebook matching the modified path:
 Least priority; load only when explicitly requested:
 - **Committing / Git Actions (On-Demand Only):** Read [`docs/skills/git-workflow.md`](docs/skills/git-workflow.md)
 - **Building, Packaging & Developer Menu (`menu.py`, `scripts/build.py`, `dist/`):** Read [`docs/skills/build-and-bundle.md`](docs/skills/build-and-bundle.md)
-- **Touching Website (`website/`):** Read [`docs/skills/web-landing.md`](docs/skills/web-landing.md)
+- **Touching Website (`website/`):** Read [`docs/skills/website.md`](docs/skills/website.md)
 
 ---
 

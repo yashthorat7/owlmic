@@ -1,17 +1,17 @@
 # Building Owlmic
 
-This document provides step-by-step instructions for building the Android client and the PC desktop application (Windows and Linux) from source.
+This document provides step-by-step instructions for building the Android client and the desktop application (Windows and Linux) from source.
 
 ---
 
 ## 1. Prerequisites
 
-### Windows PC App
+### Windows Desktop App
 - **Rust**: Version 1.80+ (stable toolchain: `x86_64-pc-windows-msvc` or `x86_64-pc-windows-gnu`).
 - **Inno Setup**: Version 6.2+ (for building the installer executable `ISCC.exe`).
 - **Git**: With submodule support.
 
-### Linux PC App
+### Linux Desktop App
 - **Rust**: Version 1.80+ (stable toolchain: `x86_64-unknown-linux-gnu`).
 - **System Libraries**: `pkg-config`, `libasound2-dev`, `libdbus-1-dev`, `libpipewire-0.3-dev`, and `v4l2loopback-dkms`.
 - **Systemd**: For user service activation (`owlmic.service`).
@@ -23,7 +23,7 @@ This document provides step-by-step instructions for building the Android client
 
 ---
 
-## 2. Building the PC App (Rust)
+## 2. Building the Desktop App (Rust)
 
 1. **Clone the Repository with Submodules**:
    ```bash

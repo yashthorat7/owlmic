@@ -11,7 +11,7 @@ Context windows and model attention are finite resources. Bloating the prompt wi
 ### Core Rules for Context Hygiene
 
 1. **Targeted Pre-Task Routing**:
-   - Only load the single domain skill required for the active subsystem (e.g., if editing `android/`, do not inspect `linux-backend.md` or `pc-rust.md`).
+   - Only load the single domain skill required for the active subsystem (e.g., if editing `android/`, do not inspect `linux-backend.md` or `desktop-rust.md`).
    - Keep conversation context focused on the active problem domain.
 2. **Surgical File Reading**:
    - **Never read entire 500+ line files** when inspecting a specific function, struct, or configuration block.

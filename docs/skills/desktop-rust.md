@@ -1,10 +1,10 @@
-# PC Companion App (Rust) - Domain Skill
+# Desktop Companion App (Rust) - Domain Skill
 
 > **Scope**: Code living in `desktop/crates/*`.
 
 ## 1. Architectural Boundaries
 
-- The PC companion application is strictly a **server** and a **per-user tray application** (`owlmic.exe` on Windows, `owlmic` on Linux).
+- The desktop companion application is strictly a **server** and a **per-user tray application** (`owlmic.exe` on Windows, `owlmic` on Linux).
 - **Workspace Crates**:
   - `owlmic-app`: CLI dispatch, single-instance mutex, and background orchestration.
   - `owlmic-hub`: Actor-like supervision tree and bounded crossbeam channels.
@@ -28,7 +28,7 @@
    - Every worker, supervisor, and I/O pump runs on a blocking standard thread (`std::thread::Builder::new().name(...).spawn(...)`).
    - Thread communication is handled exclusively via bounded channels (`crossbeam_channel::bounded(CAP)`).
 2. **Strict Tokio Prohibition**:
-   - Tokio and any other async runtime are **strictly forbidden** in all PC crates, with **one solitary exception**: `desktop/crates/owlmic-link/src/bt.rs` on Linux (required by the `bluer` D-Bus crate).
+   - Tokio and any other async runtime are **strictly forbidden** in all desktop crates, with **one solitary exception**: `desktop/crates/owlmic-link/src/bt.rs` on Linux (required by the `bluer` D-Bus crate).
    - Any attempt to import or reference `tokio` in `desktop/` outside `bt.rs` fails automated invariant verification (`scripts/verify-repo-invariants.py`).
 
 ---

@@ -281,9 +281,9 @@ All integers are big-endian. Text strings are UTF-8.
     category: 'Technical Reference',
     content: `# Building from Source
 
-### PC App
+### Desktop App
 \`\`\`powershell
-cd pc
+cd desktop
 cargo test --workspace
 cargo build --release
 \`\`\`

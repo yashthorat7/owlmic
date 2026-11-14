@@ -1,6 +1,6 @@
-# Web Landing & Release Site - Domain Skill
+# Website & Release Site - Domain Skill
 
-> **Scope**: Code living in `website/` (React, TypeScript, Vite, web styling, and documentation landing).
+> **Scope**: Code living in `website/` (React, TypeScript, Vite, web styling, and documentation).
 
 ---
 

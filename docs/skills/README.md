@@ -13,14 +13,14 @@ Task Request
      │      └─ procedures-and-verification.md (Invariants, lint, clippy, unit tests)
      │
      ├──► Priority 2: Subsystem Development (ACTIVE ON MODIFICATION)
-     │      ├─ pc-rust.md / windows-backend.md / linux-backend.md
+     │      ├─ desktop-rust.md / windows-backend.md / linux-backend.md
      │      ├─ android-kotlin.md / media-and-dsp.md
      │      └─ protocol-design-sync.md
      │
      └──► Priority 3: On-Demand & Specialized Operations (EXPLICIT CALL ONLY)
             ├─ git-workflow.md    (Read-only agent, explicit staging on-demand)
             ├─ build-and-bundle.md (Developer menu & release builder: menu.py, build.py)
-            └─ web-landing.md     (Marketing & web landing site)
+            └─ website.md         (Marketing & product website)
 ```
 
 ---
@@ -43,7 +43,7 @@ Targeted context rulebooks loaded **only when touching files in the correspondin
 
 | Skill File | Target Path / Subsystem | Core Technical Invariants |
 |---|---|---|
-| **[`pc-rust.md`](pc-rust.md)** | `desktop/crates/*` | Standard blocking threads, bounded channels, Tokio banned outside Linux `bt.rs`. |
+| **[`desktop-rust.md`](desktop-rust.md)** | `desktop/crates/*` | Standard blocking threads, bounded channels, Tokio banned outside Linux `bt.rs`. |
 | **[`windows-backend.md`](windows-backend.md)** | `desktop/crates/owlmic-windows/`, `desktop/crates/owlmic-vcam/` | WASAPI virtual mic & loopback, Win 11 Media Foundation, Direct2D OLED tray. |
 | **[`linux-backend.md`](linux-backend.md)** | `desktop/crates/owlmic-linux/` | PipeWire virtual source, v4l2loopback frame feeder, `ksni` tray, systemd user service. |
 | **[`android-kotlin.md`](android-kotlin.md)** | `android/app/`, `android/core/` | Jetpack Compose UI, foreground service lifecycle, zero heap alloc on Oboe JNI threads, no APK builds unless asked. |
@@ -60,7 +60,7 @@ Least priority; kept out of context until explicitly requested by the user:
 |---|---|---|
 | **[`git-workflow.md`](git-workflow.md)** | Version control & PRs (on user request only) | Strict read-only agent rule, convenient `git add .` staging, on-demand Conventional Commits only. |
 | **[`build-and-bundle.md`](build-and-bundle.md)** | Developer menu & build system (`menu.py`, `scripts/build.py`) | Interactive developer menu, release binaries, installer packaging, or managing `dist/`. |
-| **[`web-landing.md`](web-landing.md)** | Web landing website (`website/`) | React 19, TypeScript, Vite, zero telemetry, pure OLED tokens, lightweight bundle. |
+| **[`website.md`](website.md)** | Website (`website/`) | React 19, TypeScript, Vite, zero telemetry, pure OLED tokens, lightweight bundle. |
 
 ---
 

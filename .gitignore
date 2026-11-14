@@ -79,8 +79,11 @@ pnpm-debug.log*
 !.env.example
 
 # =============================================================================
-# 5. IDE, EDITOR & OS ARTIFACTS (Windows, Linux, macOS)
+# 5. IDE, EDITOR, PYTHON & OS ARTIFACTS (Windows, Linux, macOS)
 # =============================================================================
+__pycache__/
+*.py[cod]
+*$py.class
 .idea/
 .vscode/*
 !.vscode/settings.json

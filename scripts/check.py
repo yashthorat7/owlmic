@@ -59,8 +59,6 @@ def check_rust(fix: bool = False) -> bool:
     log_step("2/4", "Checking Rust Workspace (desktop/)")
     desktop_dir = ROOT / "desktop"
     if not desktop_dir.exists():
-        desktop_dir = ROOT / "pc"
-    if not desktop_dir.exists():
         log_warn("desktop/ directory not found, skipping Rust checks.")
         return True
 

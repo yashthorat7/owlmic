@@ -27,7 +27,7 @@ DIST_LINUX = DIST / "linux"
 PACKAGING_MANIFEST = ROOT / "scripts" / "packaging" / "windows" / "dependencies.json"
 
 SOFTCAM_HASH = "9D635E0AF682A883C3C7D407513D47E59B0883771701B101216820DFCF997F0B"
-SOFTCAM_URL = "https://raw.githubusercontent.com/diveshpatil9104/owlmic/3f78b5767f64f4542b4307c586da4b609d54d38e/desktop/softcam.dll"
+SOFTCAM_URL = "https://raw.githubusercontent.com/diveshpatil9104/owlmic/3f78b5767f64f4542b4307c586da4b609d54d38e/pc/softcam.dll"
 
 DRIVER_HASH = "B950E39F01AF1D04EA623C8F6D8EB9B6EA5C477C637295FABF20631C85116BFB"
 DRIVER_URLS = [
@@ -95,8 +95,6 @@ def sha256_file(path: Path) -> str:
 def get_version() -> str:
     """Read canonical version from desktop/Cargo.toml."""
     cargo_toml = ROOT / "desktop" / "Cargo.toml"
-    if not cargo_toml.exists():
-        cargo_toml = ROOT / "pc" / "Cargo.toml"
     if cargo_toml.exists():
         m = re.search(r'^version\s*=\s*"([^"]+)"', cargo_toml.read_text(encoding="utf-8"), re.M)
         if m:
