@@ -19,7 +19,7 @@ Task Request
      │
      └──► Priority 3: On-Demand & Specialized Operations (EXPLICIT CALL ONLY)
             ├─ git-workflow.md    (Read-only agent, explicit staging on-demand)
-            ├─ build-and-bundle.md (Developer menu & release builder: menu.py, build.py)
+            ├─ build-and-bundle.md (Developer menu & release builder: scripts/menu.py, scripts/core/build.py)
             └─ web-landing.md     (Marketing & web landing site)
 ```
 
@@ -33,7 +33,7 @@ Universal rules enforced across **every prompt turn, code generation, and inspec
 |---|---|---|
 | **[`anti-slop-and-lean-code.md`](anti-slop-and-lean-code.md)** | All code changes | Zero chatty comments, zero speculative abstractions, zero code churn, lean YAGNI implementations. |
 | **[`token-saving-and-context.md`](token-saving-and-context.md)** | Agent operations & prompts | Surgical line-range file reading, targeted `edit_file` (no full overwrites), dense factual replies. |
-| **[`procedures-and-verification.md`](procedures-and-verification.md)** | Execution lifecycle | 5-stage task lifecycle, mandatory pre-flight verification gate (`verify-repo-invariants.py`). |
+| **[`procedures-and-verification.md`](procedures-and-verification.md)** | Execution lifecycle | 5-stage task lifecycle, mandatory pre-flight verification gate (`scripts/core/verify-repo-invariants.py`). |
 
 ---
 
@@ -58,8 +58,8 @@ Least priority; kept out of context until explicitly requested by the user:
 
 | Skill File | Scope / Trigger | Core Invariants |
 |---|---|---|
-| **[`git-workflow.md`](git-workflow.md)** | Version control & PRs (on user request only) | Strict read-only agent rule, convenient `git add .` staging, on-demand Conventional Commits only. |
-| **[`build-and-bundle.md`](build-and-bundle.md)** | Developer menu & build system (`menu.py`, `scripts/build.py`) | Interactive developer menu, release binaries, installer packaging, or managing `dist/`. |
+| **[`git-workflow.md`](git-workflow.md)** | Version control, PRs & sync (on user request only) | Strict read-only agent rule, single copy-paste commands, strict branch naming, <= 72 char commits. |
+| **[`build-and-bundle.md`](build-and-bundle.md)** | Developer menu & build system (`scripts/menu.py`, `scripts/core/build.py`) | Interactive developer menu, release binaries, installer packaging, or managing `dist/`. |
 | **[`web-landing.md`](web-landing.md)** | Web landing website (`website/`) | React 19, TypeScript, Vite, zero telemetry, pure OLED tokens, lightweight bundle. |
 
 ---
@@ -70,4 +70,4 @@ Agents must **never load the entire skills directory or full technical specs** i
 1. Apply Priority 1 rules universally.
 2. Inspect the path to be touched, and load **only** the single matching Priority 2 subsystem skill (~300–770 tokens).
 3. Access Priority 3 skills only when explicitly instructed.
-4. Run `python scripts/verify-repo-invariants.py` before concluding.
+4. Run `python scripts/core/verify-repo-invariants.py` before concluding.

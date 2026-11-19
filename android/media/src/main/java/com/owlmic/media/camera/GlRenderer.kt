@@ -177,7 +177,11 @@ class GlRenderer {
     private fun frame() {
         val st = cameraTexture ?: return
         EGL14.eglMakeCurrent(display, idle, idle, context)
-        st.updateTexImage()
+        try {
+            st.updateTexImage()
+        } catch (_: RuntimeException) {
+            return
+        }
         st.getTransformMatrix(texMatrix)
         val ts = st.timestamp
         val upright = if (rotation % 180 == 0) bufferWidth to bufferHeight else bufferHeight to bufferWidth

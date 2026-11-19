@@ -51,7 +51,8 @@ pub struct Painter {
     d2d: ID2D1Factory,
     dwrite: IDWriteFactory,
     stroke: ID2D1StrokeStyle,
-    target: Option<ID2D1HwndRenderTarget>,
+    hwnd_target: Option<ID2D1HwndRenderTarget>,
+    dc_target: Option<ID2D1DCRenderTarget>,
     brush: Option<ID2D1SolidColorBrush>,
     formats: Option<Formats>,
     family: HSTRING,
@@ -101,7 +102,8 @@ impl Painter {
                 d2d,
                 dwrite,
                 stroke,
-                target: None,
+                hwnd_target: None,
+                dc_target: None,
                 brush: None,
                 formats: None,
                 family,
@@ -148,7 +150,7 @@ impl Painter {
             width: (rc.right - rc.left).max(1) as u32,
             height: (rc.bottom - rc.top).max(1) as u32,
         };
-        if self.target.is_none() {
+        if self.hwnd_target.is_none() {
             let props = D2D1_RENDER_TARGET_PROPERTIES {
                 pixelFormat: D2D1_PIXEL_FORMAT {
                     format: DXGI_FORMAT_B8G8R8A8_UNORM,
@@ -168,7 +170,7 @@ impl Painter {
                 return false;
             };
             self.brush = unsafe { target.CreateSolidColorBrush(&color(0xFFFFFF), None).ok() };
-            self.target = Some(target);
+            self.hwnd_target = Some(target);
             self.preview = None;
         }
         if self.formats.as_ref().is_none_or(|f| f.scale != scale) {
@@ -183,7 +185,7 @@ impl Painter {
             })();
             self.formats = built.ok();
         }
-        let target = self.target.as_ref().unwrap();
+        let target = self.hwnd_target.as_ref().unwrap();
         unsafe {
             let _ = target.Resize(&size);
             target.BeginDraw();
@@ -191,19 +193,72 @@ impl Painter {
         self.brush.is_some() && self.formats.is_some()
     }
 
+    /// Starts an offscreen frame bound to GDI `hdc` within `rc`.
+    #[allow(dead_code)]
+    pub fn begin_dc(
+        &mut self,
+        hdc: windows::Win32::Graphics::Gdi::HDC,
+        rc: &RECT,
+        scale: f32,
+    ) -> bool {
+        self.scale = scale;
+        if self.dc_target.is_none() {
+            let props = D2D1_RENDER_TARGET_PROPERTIES {
+                pixelFormat: D2D1_PIXEL_FORMAT {
+                    format: DXGI_FORMAT_B8G8R8A8_UNORM,
+                    alphaMode: D2D1_ALPHA_MODE_PREMULTIPLIED,
+                },
+                dpiX: 96.0,
+                dpiY: 96.0,
+                ..Default::default()
+            };
+            let Ok(dc) = (unsafe { self.d2d.CreateDCRenderTarget(&props) }) else {
+                return false;
+            };
+            self.brush = unsafe { dc.CreateSolidColorBrush(&color(0xFFFFFF), None).ok() };
+            self.dc_target = Some(dc);
+        }
+        if self.formats.as_ref().is_none_or(|f| f.scale != scale) {
+            let built = (|| {
+                Ok::<_, windows::core::Error>(Formats {
+                    scale,
+                    title: self.format(&self.family, text_style::TITLE)?,
+                    body: self.format(&self.family, text_style::BODY)?,
+                    caption: self.format(&self.family, text_style::CAPTION)?,
+                    code: self.format(&self.mono, text_style::DISPLAY)?,
+                })
+            })();
+            self.formats = built.ok();
+        }
+        let dc = self.dc_target.as_ref().unwrap();
+        unsafe {
+            if dc.BindDC(hdc, rc).is_err() {
+                return false;
+            }
+            dc.BeginDraw();
+        }
+        self.brush.is_some() && self.formats.is_some()
+    }
+
     /// Ends the frame; a lost device is rebuilt on the next one.
     pub fn end(&mut self) {
-        if let Some(t) = &self.target
+        if let Some(t) = &self.hwnd_target
             && let Err(e) = unsafe { t.EndDraw(None, None) }
             && e.code() == D2DERR_RECREATE_TARGET
         {
-            self.target = None;
+            self.hwnd_target = None;
             self.preview = None;
+        } else if let Some(dc) = &self.dc_target {
+            let _ = unsafe { dc.EndDraw(None, None) };
         }
     }
 
-    fn t(&self) -> &ID2D1HwndRenderTarget {
-        self.target.as_ref().unwrap()
+    fn t(&self) -> &ID2D1RenderTarget {
+        if let Some(h) = &self.hwnd_target {
+            h
+        } else {
+            self.dc_target.as_ref().unwrap()
+        }
     }
 
     fn brush(&self, rgb: u32) -> &ID2D1SolidColorBrush {
@@ -230,6 +285,105 @@ impl Painter {
 
     pub fn fill(&self, r: Rect, rgb: u32) {
         unsafe { self.t().FillRectangle(&self.px(r), self.brush(rgb)) };
+    }
+
+    pub fn fill_rounded(&self, r: Rect, radius: f32, rgb: u32) {
+        let s = self.scale;
+        let rr = D2D1_ROUNDED_RECT {
+            rect: self.px(r),
+            radiusX: radius * s,
+            radiusY: radius * s,
+        };
+        unsafe { self.t().FillRoundedRectangle(&rr, self.brush(rgb)) };
+    }
+
+    pub fn stroke_rounded(&self, r: Rect, radius: f32, rgb: u32, width: f32) {
+        let s = self.scale;
+        let rr = D2D1_ROUNDED_RECT {
+            rect: self.px(r),
+            radiusX: radius * s,
+            radiusY: radius * s,
+        };
+        unsafe {
+            self.t()
+                .DrawRoundedRectangle(&rr, self.brush(rgb), width * s, &self.stroke)
+        };
+    }
+
+    pub fn circle(&self, cx: f32, cy: f32, r: f32, rgb: u32) {
+        let s = self.scale;
+        let e = D2D1_ELLIPSE {
+            point: Vector2 {
+                X: cx * s,
+                Y: cy * s,
+            },
+            radiusX: r * s,
+            radiusY: r * s,
+        };
+        unsafe { self.t().FillEllipse(&e, self.brush(rgb)) };
+    }
+
+    pub fn stroke_circle(&self, cx: f32, cy: f32, r: f32, rgb: u32, width: f32) {
+        let s = self.scale;
+        let e = D2D1_ELLIPSE {
+            point: Vector2 {
+                X: cx * s,
+                Y: cy * s,
+            },
+            radiusX: r * s,
+            radiusY: r * s,
+        };
+        unsafe {
+            self.t()
+                .DrawEllipse(&e, self.brush(rgb), width * s, &self.stroke)
+        };
+    }
+
+    pub fn watermark(&self, cx: f32, cy: f32, size: f32, opacity: f32) {
+        let px_size = 128usize;
+        let d2d_size = D2D_SIZE_U {
+            width: px_size as u32,
+            height: px_size as u32,
+        };
+        let dest = D2D_RECT_F {
+            left: (cx - size / 2.0) * self.scale,
+            top: (cy - size / 2.0) * self.scale,
+            right: (cx + size / 2.0) * self.scale,
+            bottom: (cy + size / 2.0) * self.scale,
+        };
+        let props = D2D1_BITMAP_PROPERTIES {
+            pixelFormat: D2D1_PIXEL_FORMAT {
+                format: DXGI_FORMAT_B8G8R8A8_UNORM,
+                alphaMode: D2D1_ALPHA_MODE_PREMULTIPLIED,
+            },
+            dpiX: 96.0,
+            dpiY: 96.0,
+        };
+        let mut pixels = crate::owl::bgra(px_size, true);
+        for px in pixels.as_chunks_mut::<4>().0 {
+            let a = px[3];
+            px[0] = a;
+            px[1] = a;
+            px[2] = a;
+        }
+        if let Ok(bmp) = unsafe {
+            self.t().CreateBitmap(
+                d2d_size,
+                Some(pixels.as_ptr().cast()),
+                (px_size * 4) as u32,
+                &props,
+            )
+        } {
+            unsafe {
+                self.t().DrawBitmap(
+                    &bmp,
+                    Some(&dest),
+                    opacity,
+                    D2D1_BITMAP_INTERPOLATION_MODE_LINEAR,
+                    None,
+                );
+            }
+        }
     }
 
     pub fn clip(&self, r: Rect) {

@@ -18,7 +18,7 @@ from pathlib import Path
 import urllib.request
 import zipfile
 
-ROOT = Path(__file__).resolve().parent.parent
+ROOT = Path(__file__).resolve().parent.parent.parent
 DIST = ROOT / "dist"
 DIST_RELEASE = DIST / "release"
 DIST_ANDROID = DIST / "android"
@@ -297,7 +297,7 @@ def check_dependencies() -> bool:
     if all_ok:
         print("  [SUCCESS] All Windows packaging prerequisites are satisfied locally.")
     else:
-        print("  [NOTICE] Run 'python scripts/build.py --fetch-deps' to download missing local components.")
+        print("  [NOTICE] Run 'python scripts/menu.py deps --fetch' to download missing local components.")
     print("======================================================================\n")
     return all_ok
 
@@ -639,7 +639,7 @@ def verify_repository() -> bool:
     print("\n========================================================")
     print("  RUNNING REPOSITORY INVARIANTS CHECK")
     print("========================================================")
-    res = subprocess.run([sys.executable, str(ROOT / "scripts" / "verify-repo-invariants.py")], cwd=ROOT)
+    res = subprocess.run([sys.executable, str(ROOT / "scripts" / "core" / "verify-repo-invariants.py")], cwd=ROOT)
     return res.returncode == 0
 
 

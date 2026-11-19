@@ -14,7 +14,7 @@
   - `owlmic-settings`: Configuration store (`%APPDATA%\Owlmic\owlmic.json` on Windows, `$XDG_CONFIG_HOME/owlmic/owlmic.json` on Linux).
   - `owlmic-devices`: Audio endpoints (WASAPI loopback, virtual microphone bridge, device repair).
   - `owlmic-platform`: Shared traits (`VirtualMic`, `VirtualCam`, `AudioLoopback`, `TrayUi`).
-  - `owlmic-ui`: Platform UI shell (Win32 Direct2D $560 \times 255\text{ px}$ flyout, tray coordinator).
+  - `owlmic-ui`: Platform UI shell (Win32 Direct2D $312 \times 374\text{ px}$ flyout, tray coordinator).
   - `owlmic-windows`: Windows implementations (WASAPI virtual audio & loopback, MF virtual camera, Direct2D tray).
   - `owlmic-linux`: Linux implementations (PipeWire virtual audio source & sink monitor, `v4l2loopback`, `ksni` tray).
   - `owlmic-vcam`: Windows 11 Media Foundation software camera driver (`owlmic_vcam.dll`).
@@ -29,7 +29,7 @@
    - Thread communication is handled exclusively via bounded channels (`crossbeam_channel::bounded(CAP)`).
 2. **Strict Tokio Prohibition**:
    - Tokio and any other async runtime are **strictly forbidden** in all PC crates, with **one solitary exception**: `desktop/crates/owlmic-link/src/bt.rs` on Linux (required by the `bluer` D-Bus crate).
-   - Any attempt to import or reference `tokio` in `desktop/` outside `bt.rs` fails automated invariant verification (`scripts/verify-repo-invariants.py`).
+   - Any attempt to import or reference `tokio` in `desktop/` outside `bt.rs` fails automated invariant verification (`scripts/core/verify-repo-invariants.py`).
 
 ---
 

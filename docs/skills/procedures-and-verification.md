@@ -42,7 +42,7 @@ Run automated verification before declaring any task complete:
 
 ```bash
 # 1. Master Repository Invariants (Required on every change)
-python scripts/verify-repo-invariants.py
+python scripts/core/verify-repo-invariants.py
 
 # 2. Rust Workspace (When touching desktop/ or shared/)
 cargo fmt --all --check --manifest-path desktop/Cargo.toml
@@ -59,17 +59,19 @@ cd website
 npm run lint && npm run build
 
 # 5. Unified Developer Menu & Multi-Check Runner
-python menu.py check      # Full pre-flight verification across platforms
-python menu.py verify     # Repository invariants check only
+python scripts/menu.py check      # Full pre-flight verification across platforms
+python scripts/menu.py verify     # Repository invariants check only
 ```
 
 ### Stage 5: Safe Git Handoff (On-Demand Only)
 1. Never emit unsolicited Git commands.
 2. When explicitly requested by the user (*"give me a commit command"*, *"how do I commit this?"*):
    - Inspect all changes (`git status`, `git diff`).
-   - Ban `git add .` or `git add -A`. Provide explicit paths: `git add <file1> <file2>`.
-   - Craft a concise Conventional Commit (`feat(pc): ...`, `fix(android): ...`).
-   - If on `main`, formulate smart branch migration instructions per [`git-workflow.md`](git-workflow.md).
+   - Formulate a single copy-pasteable command block with commands on separate lines (no `&&`) per [`git-workflow.md`](git-workflow.md).
+   - Use convenient `git add .` in user instructions (agents never execute it themselves).
+   - Branch names must strictly follow `<type>/<short-kebab-description>`.
+   - Commit messages must strictly follow `<type>(<scope>): <summary>` and never exceed 72 characters.
+   - If on `main`, formulate single-block branch migration instructions per [`git-workflow.md`](git-workflow.md).
 
 ---
 

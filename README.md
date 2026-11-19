@@ -72,9 +72,9 @@ Owlmic turns your Android smartphone into your Windows or Linux PC's studio-grad
 ## Quick Start
 
 ### 1. Install Owlmic
-- **Windows**: Download and run [`Owlmic-Setup-0.1.0.exe`](https://github.com/diveshpatil9104/owlmic/releases) (or compile with `python menu.py build windows`). Owlmic runs silently in the system notification tray.
+- **Windows**: Download and run [`Owlmic-Setup-0.1.0.exe`](https://github.com/diveshpatil9104/owlmic/releases) (or compile with `python scripts/menu.py build windows`). Owlmic runs silently in the system notification tray.
 - **Linux**: Extract the release tarball, install the user service (`systemctl --user enable --now owlmic.service`), or run `owlmic` directly. See the [Linux Installation Guide](docs/user/install-linux.md).
-- **Android**: Install the APK from [GitHub Releases](https://github.com/diveshpatil9104/owlmic/releases) or compile with `python menu.py build android`.
+- **Android**: Install the APK from [GitHub Releases](https://github.com/diveshpatil9104/owlmic/releases) or compile with `python scripts/menu.py build android`.
 
 ### 2. Connect Your Phone
 - **USB Cable (Fastest, Recommended)**:
@@ -93,33 +93,33 @@ Owlmic turns your Android smartphone into your Windows or Linux PC's studio-grad
 
 ## Unified Developer & Release Menu
 
-All builds, test suites, invariant checks, dependency audits, and release packaging are unified in the single root-level tool `menu.py` (zero external dependencies, standard library Python 3):
+All builds, test suites, invariant checks, dependency audits, and release packaging are unified under `scripts/menu.py` (zero external dependencies, standard library Python 3):
 
 ```bash
 # Launch interactive developer & release menu:
-python menu.py
+python scripts/menu.py
 
 # Non-interactive CLI automation:
-python menu.py build [release|all|desktop|android|windows|linux]
-python menu.py check [--fix]
-python menu.py verify
-python menu.py deps [--check|--fetch]
-python menu.py clean
-python menu.py hooks
+python scripts/menu.py build [release|all|desktop|android|windows|linux]
+python scripts/menu.py check [--fix]
+python scripts/menu.py verify
+python scripts/menu.py deps [--check|--fetch]
+python scripts/menu.py clean
+python scripts/menu.py hooks
 ```
 
 | Command | Purpose | Output / Target |
 | :--- | :--- | :--- |
-| `python menu.py` | Full interactive terminal dashboard | Interactive selection |
-| `python menu.py build release` | Build full release bundle (all platforms) | `dist/release/` |
-| `python menu.py build android` | Compile Android release client APK | `dist/android/Owlmic-v0.1.0.apk` |
-| `python menu.py build windows` | Windows installer & portable binaries | `dist/windows/Owlmic-Setup-0.1.0.exe` |
-| `python menu.py build linux` | Linux standalone tarball & systemd unit | `dist/linux/Owlmic-v0.1.0-linux-x86_64.tar.gz` |
-| `python menu.py check [--fix]` | Full pre-flight verification gate | Invariants + Rust + Android lint/tests |
-| `python menu.py verify` | Repository invariants check | Casing, binary ban, JSON, tokio, versions |
-| `python menu.py deps [--check\|--fetch]` | Audit or prefetch packaging dependencies | Driver cache (`VB-CABLE`, `softcam.dll`) |
-| `python menu.py clean` | Clean build artifacts | Reset `dist/` |
-| `python menu.py hooks` | Activate repository git hooks | `core.hooksPath` -> `scripts/hooks` |
+| `python scripts/menu.py` | Full interactive terminal dashboard | Interactive selection |
+| `python scripts/menu.py build release` | Build full release bundle (all platforms) | `dist/release/` |
+| `python scripts/menu.py build android` | Compile Android release client APK | `dist/android/Owlmic-v0.1.0.apk` |
+| `python scripts/menu.py build windows` | Windows installer & portable binaries | `dist/windows/Owlmic-Setup-0.1.0.exe` |
+| `python scripts/menu.py build linux` | Linux standalone tarball & systemd unit | `dist/linux/Owlmic-v0.1.0-linux-x86_64.tar.gz` |
+| `python scripts/menu.py check [--fix]` | Full pre-flight verification gate | Invariants + Rust + Android lint/tests |
+| `python scripts/menu.py verify` | Repository invariants check | Casing, binary ban, JSON, tokio, versions |
+| `python scripts/menu.py deps [--check\|--fetch]` | Audit or prefetch packaging dependencies | Driver cache (`VB-CABLE`, `softcam.dll`) |
+| `python scripts/menu.py clean` | Clean build artifacts | Reset `dist/` |
+| `python scripts/menu.py hooks` | Activate repository git hooks | `core.hooksPath` -> `scripts/hooks` |
 
 Build outputs are saved to `dist/android/`, `dist/windows/`, and `dist/linux/`. Packaging dependencies (`VB-CABLE` audio driver and `softcam.dll` virtual camera fallback) are tracked in `scripts/packaging/windows/dependencies.json`, verified via SHA-256, and cached locally for offline and reproducible builds.
 
@@ -200,19 +200,20 @@ owlmic/
 │   ├── user/         # User manuals: installation (Win/Linux/Android), everyday use, FAQ
 │   ├── technical/    # Deep technical specifications: protocols, media, security, build
 │   └── skills/       # 3-tier modular domain skills catalog for AI agents & contributors
-├── scripts/          # Unified builder (build.py), pre-flight checks, packaging, and Git hooks
+├── scripts/          # Developer menu, core runners, packaging, and Git hooks
+│   ├── core/         # Core scripts: build.py, check.py, verify-repo-invariants.py, setup-hooks.py
 │   ├── packaging/    # Windows Inno Setup installer, Linux packaging, driver cache
 │   │   ├── cache/    # Untracked third-party driver cache (softcam.dll)
 │   │   ├── linux/    # Linux systemd service (owlmic.service) & setup scripts
 │   │   └── windows/  # Windows Inno Setup script (owlmic.iss) & setup-audio-device.ps1
-│   └── hooks/        # Pre-commit & commit-msg verification hooks
+│   ├── hooks/        # Pre-commit & commit-msg verification hooks
+│   └── menu.py       # Unified interactive developer & release dashboard
 ├── shared/           # Single source of truth for assets, design, protocol, and vendor source
 │   ├── assets/       # Canonical visual brand, icons, and fonts
 │   ├── design/       # Tokens, copy, and settings schemas
 │   ├── protocol/     # Protocol v3 wire specification and test vectors
 │   └── vendor/       # Vendored libopus submodule
 ├── website/          # React + Vite website (owlmic.app)
-├── menu.py           # Unified interactive developer & release dashboard
 └── dist/             # Centralized build distribution destination (git-ignored)
 ```
 

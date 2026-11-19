@@ -81,7 +81,7 @@ jobs:
           python-version: '3.12'
 
       - name: Verify repository invariants
-        run: python3 scripts/verify-repo-invariants.py
+        run: python3 scripts/core/verify-repo-invariants.py
 
   desktop-linux:
     name: Desktop (Rust) on Linux

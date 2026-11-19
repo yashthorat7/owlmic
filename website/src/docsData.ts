@@ -272,7 +272,7 @@ All integers are big-endian. Text strings are UTF-8.
 - High-contrast state accents: Green (\`#30D158\`), Yellow (\`#FFD60A\`), Red (\`#FF453A\`).
 
 ### PC Tray Flyout
-- 560 x 255 px Win32 panel rendered in double-buffered GDI/GDI+.
+- 312 x 374 px Win32 panel rendered in double-buffered GDI/GDI+.
 - Cold start in < 15 ms, memory footprint < 15 MB.`,
   },
   {

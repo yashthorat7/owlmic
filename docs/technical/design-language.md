@@ -60,17 +60,17 @@ The phone uses no colour: green, yellow and red are the PC panel's. On the phone
 - **Hairlines**: Exactly 1 px at all display DPI scalings.
 - **Corner Radii**:
   - Android main screen tiles: 12 dp (`phone.tileRadiusDp`), on a 1 dp seam (`phone.gapDp`).
-  - Windows Flyout Panel: 12 px (`radius.panelPx`).
+  - Windows Flyout Panel: 16 px (`radius.panelPx`).
 
 ---
 
 ## 3. Windows Native Flyout Panel (`desktop/crates/owlmic-ui`)
 
 Rather than shipping Chromium/Electron or bloated webview engines, Owlmic PC uses a **100% native Win32 GDI/GDI+ renderer**:
-- **Geometry**: Fixed 560 × 255 px panel positioned above the taskbar system tray.
+- **Geometry**: Bento 6-Square layout with a fixed 312 × 374 px panel positioned above the taskbar system tray.
 - **Double-Buffered Blitting**: Drawn entirely off-screen to a memory device context (DC) and blitted to screen in a single `BitBlt` call to guarantee zero flicker.
 - **Instant Response**: Panel opens in < 15 ms with zero cold-start delay.
-- **Live Video Preview**: A 352 × 198 px camera tile displays a 10 FPS NV12-to-RGB rendered video preview directly inside the flyout.
+- **Live Video Preview & Playground**: A 310 × 310 px square playground tile displays live camera video preview, waveform dock, and overlay drawers directly inside the flyout, with 5 square action buttons across the bottom row.
 
 ---
 

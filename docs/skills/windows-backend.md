@@ -11,7 +11,7 @@ The Windows platform implementation provides virtual audio, virtual camera, and 
 | **Virtual Microphone** | WASAPI bridge to virtual audio cable | Renders incoming 48 kHz 16-bit PCM mono stream into the virtual mic bridge (`WasapiMic`). VB-CABLE driver installed via installer. |
 | **Virtual Camera** | Windows 11 Media Foundation (`IMFVirtualCamera`) & Win 10 DirectShow fallback | High-performance frame feed into `Owlmic Cam` (`WindowsCam`). Win 11 uses native Media Foundation software driver (`owlmic_vcam.dll`); Win 10 uses `softcam.dll`. |
 | **Speaker Loopback** | WASAPI loopback capture (`AUDCLNT_STREAMFLAGS_LOOPBACK`) | Captures default render device audio (`WasapiLoopback`) with optional local speaker mute for Quiet PC mode. |
-| **Tray & Flyout UI** | Direct2D + Win32 `Shell_NotifyIcon` | Native borderless panel ($560 \times 255\text{ px}$) matching `shared/design/tokens.json` OLED black layout. |
+| **Tray & Flyout UI** | Direct2D + Win32 `Shell_NotifyIcon` | Native borderless panel ($312 \times 374\text{ px}$) matching `shared/design/tokens.json` OLED black layout. |
 | **Configuration Path** | `%APPDATA%\Owlmic\owlmic.json` | Managed by `owlmic-settings` with atomic file writes. |
 
 ---

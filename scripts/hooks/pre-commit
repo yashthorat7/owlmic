@@ -14,11 +14,11 @@ if [ "$BRANCH_NAME" != "HEAD" ] && [ "$BRANCH_NAME" != "main" ]; then
 fi
 
 if python -c "import sys" >/dev/null 2>&1; then
-    python scripts/verify-repo-invariants.py
+    python scripts/core/verify-repo-invariants.py
 elif py -3 -c "import sys" >/dev/null 2>&1; then
-    py -3 scripts/verify-repo-invariants.py
+    py -3 scripts/core/verify-repo-invariants.py
 elif python3 -c "import sys" >/dev/null 2>&1; then
-    python3 scripts/verify-repo-invariants.py
+    python3 scripts/core/verify-repo-invariants.py
 fi
 
 if git diff --cached --name-only | grep -qE "^(desktop|pc)/"; then

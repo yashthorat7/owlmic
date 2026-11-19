@@ -145,22 +145,13 @@ export default function App() {
           role="button"
           tabIndex={0}
         >
-          <svg
+          <img
+            src="/icon.svg"
             className="owl-logo"
-            viewBox="0 0 24 24"
             width="28"
             height="28"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.8"
-            aria-hidden="true"
-          >
-            <circle cx="12" cy="12" r="9" />
-            <circle cx="9" cy="10" r="1.5" fill="currentColor" />
-            <circle cx="15" cy="10" r="1.5" fill="currentColor" />
-            <path d="M12 13l-1.5 2h3z" fill="currentColor" />
-            <path d="M7 4L9 6M17 4L15 6" />
-          </svg>
+            alt="Owlmic"
+          />
           <span className="brand-name">owlmic</span>
           <span className="version-tag">v1.0.0</span>
         </div>

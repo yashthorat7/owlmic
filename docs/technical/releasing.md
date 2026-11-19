@@ -7,7 +7,7 @@ This document details the step-by-step procedures for cutting a formal release o
 ## 1. Versioning Standard
 
 Owlmic adheres to [Semantic Versioning 2.0.0](https://semver.org/).
-- Version strings across `desktop/Cargo.toml`, `android/app/build.gradle.kts`, and `scripts/packaging/windows/owlmic.iss` must be bumped in lockstep before tagging (enforced by `scripts/verify-repo-invariants.py`).
+- Version strings across `desktop/Cargo.toml`, `android/app/build.gradle.kts`, and `scripts/packaging/windows/owlmic.iss` must be bumped in lockstep before tagging (enforced by `scripts/core/verify-repo-invariants.py`).
 
 ---
 
@@ -21,7 +21,7 @@ Owlmic adheres to [Semantic Versioning 2.0.0](https://semver.org/).
    - `cargo test -p owlmic-proto` verifies wire encoders against `shared/protocol/vectors/*.json`.
    - Android `./gradlew :core:test` validates Kotlin proto vectors against the same files.
 3. **Verify Product Name Invariant**:
-   - Run the CI name verification check (`python scripts/verify-repo-invariants.py` and `.github/workflows/ci.yml`) to ensure no incorrect casings exist across the codebase.
+   - Run the CI name verification check (`python scripts/core/verify-repo-invariants.py` and `.github/workflows/ci.yml`) to ensure no incorrect casings exist across the codebase.
 4. **Update Documentation & Changelog**:
    - Record user-facing highlights, fixes, and contributor credits in [`docs/CHANGELOG.md`](../CHANGELOG.md).
    - Ensure `README.md` download links and version badges match the target milestone.

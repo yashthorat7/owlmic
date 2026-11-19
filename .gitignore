@@ -1,5 +1,5 @@
 # =============================================================================
-# 1. STRICT BINARY & ARCHIVE BAN (Enforced by scripts/verify-repo-invariants.py)
+# 1. STRICT BINARY & ARCHIVE BAN (Enforced by scripts/core/verify-repo-invariants.py)
 # =============================================================================
 *.exe
 *.dll
@@ -79,15 +79,21 @@ pnpm-debug.log*
 !.env.example
 
 # =============================================================================
-# 5. IDE, EDITOR & OS ARTIFACTS (Windows, Linux, macOS)
+# 5. IDE, EDITOR, PYTHON & OS ARTIFACTS (Windows, Linux, macOS)
 # =============================================================================
+__pycache__/
+*.py[cod]
+*$py.class
 .idea/
 .vscode/*
 !.vscode/settings.json
 !.vscode/extensions.json
 *.swp
 *.swo
-*~
+*.raw
+*.bmp
+/ui/
+trash/
 Thumbs.db
 ehthumbs.db
 Desktop.ini
