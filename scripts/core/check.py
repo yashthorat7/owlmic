@@ -21,6 +21,8 @@ ROOT = Path(__file__).resolve().parent.parent.parent
 if sys.platform == "win32":
     try:
         os.system("")
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
     except Exception:
         pass
 
@@ -235,6 +237,7 @@ def main():
     parser.add_argument("--fix", action="store_true", help="Automatically format code where possible")
     parser.add_argument("--pre-push", action="store_true", help="Called from git pre-push hook")
     parser.add_argument("-v", "--verbose", action="store_true", help="Display verbose tool output")
+    parser.add_argument("git_args", nargs="*", help="Git hook arguments (e.g. remote name and url)")
     args = parser.parse_args()
 
     is_pre_push = args.pre_push or os.environ.get("OWLMIC_PRE_PUSH") == "1"

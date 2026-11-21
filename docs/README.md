@@ -55,6 +55,7 @@ The desktop companion server is partitioned into 13 decoupled crates under Rust 
 
 ### 1.5 Shared Design & Assets
 - **[`shared/design/`](../shared/design/)**: Canonical cross-platform schemas — `tokens.json` (OLED palette, typography, geometry), `copy.json` (UI strings and product name invariant), `settings.json` (versioned settings schema).
+- **[`shared/design/prototypes/`](../shared/design/prototypes/)**: Interactive HTML UI blueprints for Android + PC layout exploration.
 - **[`shared/assets/`](../shared/assets/)**: Single source of truth for shared visual assets — `brand/` (master owl SVG marks), `icons/` (tray and status glyphs), `fonts/` (shared UI fonts).
 - **[`shared/vendor/`](../shared/vendor/)**: Centralized third-party submodules (`opus/`).
 

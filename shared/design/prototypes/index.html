@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="icon" type="image/svg+xml" href="../../assets/brand/icon.svg" />
+  <title>Owlmic - Interactive Prototype Sandbox</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body class="desktop-bg w-screen h-screen overflow-hidden relative">
+
+  <!-- ===================== NEGATIVE SPACE: FLOATING MOBILE PHONE ===================== -->
+  <main id="phoneZone" class="fixed top-0 left-0 right-[344px] bottom-[48px] flex items-center justify-center pointer-events-none z-[40]">
+    <div id="phoneScaler" class="transition-transform duration-200 will-change-transform flex items-center justify-center">
+      <div id="deviceMobile" class="device-mobile is-portrait pointer-events-auto relative w-[391px] h-[828px] bg-black border-[1.5px] border-white/20 rounded-[44px] p-[8px] shadow-[0_28px_75px_rgba(0,0,0,0.85)]">
+        <div class="hw-key top-[148px] h-[46px]"></div>
+        <div class="hw-key top-[204px] h-[46px]"></div>
+        <div class="hw-key top-[278px] h-[62px]"></div>
+
+        <div class="w-[375px] h-[812px] bg-black rounded-[38px] overflow-hidden relative">
+          <div class="absolute top-[12px] left-1/2 -translate-x-1/2 w-[11px] h-[11px] rounded-full bg-black border border-white/15 z-[130] pointer-events-none"></div>
+
+          <!-- Screen Off Curtain -->
+          <div id="m-screenOff" class="screen-off-curtain absolute inset-0 bg-black/95 z-[200] flex items-center justify-center">
+            <div class="screen-off-content flex flex-col items-center gap-2">
+              <div id="m-lockClock" class="tabular-nums text-[46px] text-white/25 tracking-tight">11:27</div>
+              <div class="text-[11px] text-white/20">Tap to wake</div>
+            </div>
+          </div>
+
+          <div class="phone-notch-compartment hidden absolute top-0 left-0 right-0 h-[28px] bg-black z-[95] pointer-events-none"></div>
+
+          <!-- Status Bar -->
+          <div id="m-statusBar" class="phone-status-bar absolute top-0 left-0 right-0 h-[38px] px-[22px] flex items-center justify-between bg-black z-[105] cursor-pointer">
+            <div class="flex items-center gap-1.5">
+              <span id="m-statusTime" class="tabular-nums text-[13px] text-white">11:27</span>
+              <span class="inline-flex items-center justify-center w-[15px] h-[15px] rounded-[4px] bg-white/15 p-[2px]">
+                <img src="../../assets/brand/icon.svg" alt="Owlmic" class="owl-img w-full h-full" data-brand="owl" />
+              </span>
+            </div>
+            <div class="flex items-center gap-1.5">
+              <div class="flex items-end gap-[2px] h-[10px]">
+                <span class="w-[2px] h-[3px] bg-white rounded-[1px]"></span><span class="w-[2px] h-[5.5px] bg-white rounded-[1px]"></span>
+                <span class="w-[2px] h-[8px] bg-white rounded-[1px]"></span><span class="w-[2px] h-[10px] bg-white rounded-[1px]"></span>
+              </div>
+              <img id="m-sbWifi" src="../../assets/icons/wifi.svg" class="w-3.5 h-3.5 owl-img transition-opacity" alt="Wi-Fi" data-icon="wifi" />
+              <div class="flex items-center gap-[1.5px]">
+                <div class="w-[20px] h-[10.5px] border border-white/85 rounded-[3px] p-[1.2px] flex items-center"><div class="w-[86%] h-full bg-white rounded-[1px]"></div></div>
+                <div class="w-[1.5px] h-[4px] bg-white/85 rounded-r-[1px]"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Notification Card -->
+          <div id="m-notifShade" class="slide-panel phone-notif-shade absolute top-0 left-0 right-0 z-[120] px-3 pt-2">
+            <div class="bg-black border border-white/20 rounded-[12px] px-3.5 py-3 shadow-[0_14px_34px_rgba(0,0,0,0.92)] flex items-center gap-3">
+              <div class="w-8 h-8 rounded-[8px] bg-white/10 border border-white/15 flex items-center justify-center shrink-0 p-1.5">
+                <img src="../../assets/brand/icon.svg" alt="Owlmic" class="owl-img w-full h-full" data-brand="owl" />
+              </div>
+              <div class="flex-1 min-w-0">
+                <div class="text-[12.5px] font-medium text-white truncate">Owlmic · YASH-PC</div>
+                <div id="m-notifDesc" class="text-[11px] text-white/55 truncate">Standby</div>
+              </div>
+              <div class="flex items-center gap-1.5 shrink-0">
+                <button id="m-btnNotifMic" class="px-2.5 py-1 rounded-[7px] bg-white/15 text-[11px] text-white active:bg-white/25 cursor-pointer">Mic</button>
+                <button id="m-btnNotifStop" class="px-2.5 py-1 rounded-[7px] border border-white/15 text-[11px] text-white/60 active:bg-white/15 cursor-pointer">Stop</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Mobile Bento Layout -->
+          <div id="m-appLayout" class="phone-app-layout is-disconnected absolute inset-0 w-[375px] h-[812px] flex flex-col bg-[#727272] p-[1px] pt-[39px] pb-[29px] gap-[1px]">
+
+            <!-- Header -->
+            <header class="h-[72px] w-full flex items-stretch gap-[1px] shrink-0">
+              <div class="flex-1 min-w-0 h-full bg-black rounded-[12px] flex items-center px-5 overflow-hidden pointer-events-none select-none">
+                <span class="phone-wordmark" aria-label="owlmic">
+                  <svg class="char" viewBox="0 0 610 700"><path d="M450 603V97H208Q188 97 173.5 111.0Q159 125 159 145V603ZM189 0H389Q454 0 500.5 46.5Q547 93 547 158V542Q547 607 500.5 653.5Q454 700 389 700H220Q155 700 109.0 653.5Q63 607 63 542V152Q63 132 77.0 117.5Q91 103 111 103H124Q144 103 158.5 89.0Q173 75 173 55V16Q173 0 189 0Z"/></svg>
+                  <svg class="char" viewBox="0 0 610 700"><path d="M450 555V16Q450 0 466 0H531Q547 0 547 16V587Q547 603 531 603H498Q478 603 464.0 617.0Q450 631 450 651V684Q450 700 433 700H376Q360 700 360 684V638Q360 618 345.5 604.0Q331 590 311 590H298Q278 590 263.5 604.0Q249 618 249 638V684Q249 700 233 700H176Q160 700 160 684V651Q160 631 145.5 617.0Q131 603 111 603H79Q63 603 63 587V16Q63 0 79 0H143Q159 0 159 16V555Q159 575 173.5 589.0Q188 603 208.0 603.0Q228 603 242.0 588.5Q256 574 256 555V318Q256 301 272 301H337Q353 301 353 318V555Q353 575 368.0 589.5Q383 604 403 604Q416 604 433.0 591.5Q450 579 450 555Z"/></svg>
+                  <svg class="char" viewBox="0 0 610 700"><path d="M63 684V16Q63 0 79 0H143Q159 0 159 16V603H531Q547 603 547 619V684Q547 700 531 700H79Q63 700 63 684Z"/></svg>
+                  <svg class="char" viewBox="0 0 610 700"><path d="M63 684V16Q63 0 79 0H143Q159 0 159 16V55Q159 75 173.5 89.0Q188 103 208 103H233Q250 103 250 120V165Q250 185 264.0 199.5Q278 214 298 214H311Q331 214 345.5 199.5Q360 185 360 165V120Q360 103 376 103H401Q421 103 435.5 89.0Q450 75 450 55V16Q450 0 466 0H531Q547 0 547 16V684Q547 700 531 700H466Q450 700 450 684V200H402Q382 200 367.5 214.5Q353 229 353 249V382Q353 398 337 398H272Q256 398 256 382V249Q256 229 242.0 214.5Q228 200 208 200H159V684Q159 700 143 700H79Q63 700 63 684Z"/></svg>
+                  <svg class="char" viewBox="0 0 610 700"><path d="M547 619V684Q547 700 531 700H376Q360 700 360 684V638Q360 618 345.5 604.0Q331 590 311 590H298Q278 590 264.0 604.0Q250 618 250 638V684Q250 700 233 700H79Q63 700 63 684V619Q63 603 79 603H208Q228 603 242.0 589.0Q256 575 256 555V145Q256 125 242.0 111.0Q228 97 208 97H79Q63 97 63 80V16Q63 0 79 0H233Q250 0 250 16V62Q250 82 264.0 96.0Q278 110 298 110H311Q331 110 345.5 96.0Q360 82 360 62V16Q360 0 376 0H531Q547 0 547 16V80Q547 97 531 97H402Q382 97 367.5 111.0Q353 125 353 145V555Q353 575 367.5 589.0Q382 603 402 603H531Q547 603 547 619Z"/></svg>
+                  <svg class="char" viewBox="0 0 610 700"><path d="M547 158V207Q547 223 531 223H466Q450 223 450 207V97H159V603H450V493Q450 477 466 477H531Q547 477 547 493V542Q547 607 500.5 653.5Q454 700 389 700H220Q155 700 109.0 653.5Q63 607 63 542V158Q63 93 109.0 46.5Q155 0 220 0H389Q454 0 500.5 46.5Q547 93 547 158Z"/></svg>
+                </span>
+              </div>
+              <button id="m-btnHelp" aria-label="Help" class="top-btn w-[72px] h-[72px] shrink-0 bg-black rounded-[12px] text-white flex items-center justify-center cursor-pointer"><span class="orient-icon flex items-center justify-center"><img src="../../assets/icons/help.svg" class="w-[26px] h-[26px] owl-icon" alt="Help" data-icon="help" /></span></button>
+              <button id="m-btnWifi" aria-label="Connection" class="top-btn w-[72px] h-[72px] shrink-0 bg-black rounded-[12px] text-white flex items-center justify-center cursor-pointer">
+                <span id="m-headerTransport" class="orient-icon flex items-center justify-center"><img src="../../assets/icons/globe.svg" class="w-[26px] h-[26px] owl-icon" alt="Connection" data-icon="globe" /></span>
+              </button>
+            </header>
+
+            <!-- Center Playground -->
+            <section id="m-playground" class="flex-1 w-full bg-black rounded-[12px] relative overflow-hidden min-h-0">
+              <div id="m-pgUpright" class="playground-upright overflow-hidden flex flex-col">
+                <div class="playground-dots absolute inset-0 pointer-events-none z-[1]"></div>
+                <div id="m-watermark" class="m-watermark absolute inset-0 flex items-center justify-center pointer-events-none z-[2]" aria-hidden="true">
+                  <img src="../../assets/brand/icon.svg" alt="" class="owl-img w-[205px] h-[205px] opacity-[0.07]" data-brand="owl" />
+                </div>
+
+                <!-- Instantaneous Camera Layer -->
+                <div id="m-camLayer" class="absolute inset-0 z-[4] flex items-center justify-center bg-black overflow-hidden opacity-0 pointer-events-none">
+                  <div id="m-camAmbWrap" class="cam-amb-wrap"><canvas id="m-camAmbCanvas" class="cam-amb-canvas"></canvas></div>
+                  <div id="m-camBox" data-crop="none" class="cam-frame flex items-center justify-center"><canvas id="m-camCanvas" class="w-full h-full block"></canvas></div>
+
+                  <div id="m-camHud" class="cam-hud is-quiet absolute top-3 left-3 right-3 z-[8] flex items-start justify-between pointer-events-none">
+                    <!-- Compact Single Button Expandable Dropdown: Res | FPS | Ratio -->
+                    <div id="m-camMenuBox" class="cam-expand pointer-events-auto">
+                      <button id="m-btnCamMenu" class="cam-closed-btn h-[29px] tabular-nums text-[11px] font-medium text-white cursor-pointer" aria-label="Camera format settings">
+                        <span id="m-camRes" class="whitespace-nowrap font-medium">FHD</span>
+                      </button>
+                      <div class="cam-options-grid overflow-hidden">
+                        <div id="m-camResRow" class="grid grid-cols-3 divide-x divide-white/10 border-b border-white/10"></div>
+                        <div id="m-camFpsRow" class="grid grid-cols-3 divide-x divide-white/10 border-b border-white/10"></div>
+                        <div id="m-camRatioRow" class="grid grid-cols-3 divide-x divide-white/10 cam-ratio-grid"></div>
+                      </div>
+                    </div>
+
+                    <div class="flex items-center gap-1.5 pointer-events-auto">
+                      <button id="m-btnMirror" aria-label="Mirror" class="cam-btn is-on w-[29px] h-[29px] rounded-[8px] border border-white/20 bg-black/80 backdrop-blur-md flex items-center justify-center cursor-pointer">
+                        <img src="../../assets/icons/mirror.svg" class="w-[15px] h-[15px] owl-icon" alt="Mirror" data-icon="mirror" />
+                      </button>
+                      <button id="m-btnFlip" aria-label="Flip" class="cam-btn w-[29px] h-[29px] rounded-[8px] border border-white/20 bg-black/80 backdrop-blur-md flex items-center justify-center cursor-pointer">
+                        <img src="../../assets/icons/flip.svg" class="w-[15px] h-[15px] owl-icon" alt="Flip" data-icon="flip" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Mic-Only Settings (Slides up from bottom) -->
+                <div id="m-micQuick" class="slide-panel mic-quick-panel absolute bottom-0 left-0 right-0 z-[15] bg-black border-t border-white/15 px-4 py-4 flex flex-col gap-3.5 js-audio-slot" data-size="lg"></div>
+
+                <!-- Waveform Dock -->
+                <div id="m-waveDock" class="waveform-dock" aria-label="Microphone Waveform">
+                  <div class="dock-settings-wrap">
+                    <div class="overflow-hidden">
+                      <div class="px-4 py-4 border-b border-white/15 bg-black flex flex-col gap-3.5 js-audio-slot" data-size="lg"></div>
+                    </div>
+                  </div>
+                  <div id="m-waveHeader" class="w-full px-4 py-3 flex items-center justify-center cursor-pointer">
+                    <div id="m-waveBars" class="waveform-bars"></div>
+                  </div>
+                </div>
+
+                <!-- Playground Drawers -->
+                <div id="m-drawer" class="slide-panel playground-drawer absolute inset-0 bg-black z-[25] flex flex-col overflow-hidden">
+                  <!-- Mobile Connections -->
+                  <div id="m-drawerWifi" class="hidden w-full h-full flex-col overflow-hidden bg-black">
+                    <div id="m-pcList" class="thin-scroll flex-1 overflow-y-auto flex flex-col">
+                      <div id="m-primaryRow" class="sync-row border-b border-white/10 px-4 py-3.5 flex items-center gap-3.5">
+                        <span id="m-pcLinkIc" class="conn-row-ic w-5 h-5 flex items-center justify-center shrink-0"><img src="../../assets/icons/globe.svg" class="w-[19px] h-[19px] owl-img" alt="Link" data-icon="globe" /></span>
+                        <div class="min-w-0 flex-1">
+                          <div id="m-pcName" class="text-[15px] font-medium text-white leading-snug truncate">YASH-PC</div>
+                          <div id="m-pcMeta" class="tabular-nums text-[13px] text-white/35 leading-snug mt-0.5 truncate">192.168.1.15:7653</div>
+                        </div>
+                        <div id="m-pcActions" class="flex items-center gap-3 shrink-0"></div>
+                        <div class="sync-beam"></div>
+                      </div>
+                      <div id="m-addHostForm" class="hidden h-[49px] px-4 border-b border-white/10 items-center gap-2 shrink-0 bg-black">
+                        <input id="m-addPcInput" type="text" placeholder="IP address or PC name" class="flex-1 bg-transparent outline-none tabular-nums text-[13.5px] text-white placeholder-white/30" />
+                        <button id="m-btnCancelAdd" aria-label="Cancel" class="w-8 h-8 flex items-center justify-center text-white/40 active:text-white shrink-0 cursor-pointer">
+                          <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="butt" stroke-linejoin="round"><path d="M 6.5 6.5 L 17.5 17.5 M 17.5 6.5 L 6.5 17.5"/></svg>
+                        </button>
+                        <button id="m-btnAddPc" aria-label="Add PC" class="w-8 h-8 flex items-center justify-center text-white/70 active:text-white shrink-0 cursor-pointer">
+                          <img src="../../assets/icons/arrow.svg" class="w-4 h-4 owl-icon" alt="Add" data-icon="arrow" />
+                        </button>
+                      </div>
+                      <button id="m-btnShowAdd" aria-label="Add PC" class="border-b border-white/10 py-3.5 flex items-center justify-center text-white/40 active:text-white cursor-pointer transition-colors shrink-0 w-full">
+                        <svg class="w-[18px] h-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.15" stroke-linecap="butt" stroke-linejoin="round"><path d="M 12 4.5 V 19.5 M 4.5 12 H 19.5"/></svg>
+                      </button>
+                    </div>
+                    <div id="m-transportFooter" class="transport-footer shrink-0"></div>
+                  </div>
+
+                  <!-- Mobile Help -->
+                  <div id="m-drawerHelp" class="hidden w-full h-full flex-col overflow-hidden bg-black">
+                    <div id="m-helpBento" class="w-full h-full flex flex-col">
+                      <div class="flex-1 flex flex-col justify-center p-4"><div id="m-helpGrid" class="help-grid"></div></div>
+                      <div class="text-center tabular-nums text-[11px] text-white/35 pb-3.5">v0.1.0</div>
+                    </div>
+                    <div id="m-helpHowto" class="hidden w-full h-full flex-col">
+                      <div class="h-12 px-3.5 flex items-center gap-2.5 border-b border-white/15 shrink-0">
+                        <button data-m-help-back class="w-8 h-8 rounded-[8px] flex items-center justify-center active:bg-white/10 cursor-pointer"><img src="../../assets/icons/arrow.svg" class="w-[18px] h-[18px] owl-img rotate-180" alt="Back" data-icon="arrow" /></button>
+                        <span class="text-[13.5px] font-medium">How-to</span>
+                      </div>
+                      <div class="p-5 overflow-y-auto thin-scroll">
+                        <div class="relative flex flex-col gap-6">
+                          <div class="absolute left-[11.5px] top-3 bottom-3 w-px bg-white/20"></div>
+                          <div class="relative z-[1] flex items-start gap-3.5"><div class="w-6 h-6 rounded-full bg-black border border-white/40 flex items-center justify-center text-[11.5px] shrink-0">1</div><div><a href="https://github.com/diveshpatil9104/owlmic/releases" target="_blank" rel="noopener noreferrer" class="text-[13.5px] font-medium inline-flex items-center gap-1.5">Download Owlmic <img src="../../assets/icons/external.svg" class="w-3.5 h-3.5 owl-img opacity-70" alt="↗" data-icon="external" /></a><p class="text-[12px] text-white/55 mt-0.5">Get Windows (owlmic.exe) &amp; APK on GitHub</p></div></div>
+                          <div class="relative z-[1] flex items-start gap-3.5"><div class="w-6 h-6 rounded-full bg-black border border-white/40 flex items-center justify-center text-[11.5px] shrink-0">2</div><div><div class="text-[13.5px] font-medium">Connect Devices</div><p class="text-[12px] text-white/55 mt-0.5">Plug USB cable or join same Wi-Fi</p></div></div>
+                          <div class="relative z-[1] flex items-start gap-3.5"><div class="w-6 h-6 rounded-full bg-black border border-white/40 flex items-center justify-center text-[11.5px] shrink-0">3</div><div><div class="text-[13.5px] font-medium">Start Streaming</div><p class="text-[12px] text-white/55 mt-0.5">Tap camera, mic or speaker tile</p></div></div>
+                        </div>
+                      </div>
+                    </div>
+                    <div id="m-helpCredits" class="hidden w-full h-full flex-col">
+                      <div class="h-12 px-3.5 flex items-center gap-2.5 border-b border-white/15 shrink-0">
+                        <button data-m-help-back class="w-8 h-8 rounded-[8px] flex items-center justify-center active:bg-white/10 cursor-pointer"><img src="../../assets/icons/arrow.svg" class="w-[18px] h-[18px] owl-img rotate-180" alt="Back" data-icon="arrow" /></button>
+                        <span class="text-[13.5px] font-medium">Credits</span>
+                      </div>
+                      <div id="m-creditsList" class="flex flex-col overflow-y-auto thin-scroll text-[13px]"></div>
+                    </div>
+                    <div id="m-helpPrivacy" class="hidden w-full h-full flex-col">
+                      <div class="h-12 px-3.5 flex items-center gap-2.5 border-b border-white/15 shrink-0">
+                        <button data-m-help-back class="w-8 h-8 rounded-[8px] flex items-center justify-center active:bg-white/10 cursor-pointer"><img src="../../assets/icons/arrow.svg" class="w-[18px] h-[18px] owl-img rotate-180" alt="Back" data-icon="arrow" /></button>
+                        <span class="text-[13.5px] font-medium">Privacy</span>
+                      </div>
+                      <p class="p-4 text-[12.5px] text-white/60 leading-relaxed">Owlmic streams camera, microphone, and speaker audio strictly over your local USB or Wi-Fi network. Zero media or telemetry leaves your local network.</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <!-- Bottom Dock: 3 Pure Black Squares -->
+            <footer class="h-[124px] w-full flex gap-[1px] shrink-0">
+              <button id="m-btnCam" aria-label="Camera" class="dock-btn flex-1 h-full rounded-[12px] flex items-center justify-center cursor-pointer">
+                <span class="orient-icon icon-off"><img src="../../assets/icons/camera-off.svg" class="w-[35px] h-[35px] owl-icon" alt="Camera Off" data-icon="camera-off" /></span>
+                <span class="orient-icon icon-on"><img src="../../assets/icons/camera.svg" class="w-[35px] h-[35px] owl-icon" alt="Camera On" data-icon="camera" /></span>
+              </button>
+              <button id="m-btnMic" aria-label="Microphone" class="dock-btn flex-1 h-full rounded-[12px] flex items-center justify-center cursor-pointer">
+                <span class="orient-icon icon-off"><img src="../../assets/icons/mic-off.svg" class="w-[35px] h-[35px] owl-icon" alt="Mic Off" data-icon="mic-off" /></span>
+                <span class="orient-icon icon-on"><img src="../../assets/icons/mic.svg" class="w-[35px] h-[35px] owl-icon" alt="Mic On" data-icon="mic" /></span>
+              </button>
+              <button id="m-btnSpk" aria-label="Speaker" class="dock-btn flex-1 h-full rounded-[12px] flex items-center justify-center cursor-pointer">
+                <span class="orient-icon icon-off"><img src="../../assets/icons/speaker-off.svg" class="w-[35px] h-[35px] owl-icon" alt="Speaker Off" data-icon="speaker-off" /></span>
+                <span class="orient-icon icon-on"><img src="../../assets/icons/speaker.svg" class="w-[35px] h-[35px] owl-icon" alt="Speaker On" data-icon="speaker" /></span>
+              </button>
+            </footer>
+          </div>
+
+          <div class="absolute bottom-0 left-0 right-0 h-[28px] bg-black z-[90] pointer-events-none"></div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- ===================== TOP-RIGHT: MERGED 2-COLUMN SANDBOX PANEL ===================== -->
+  <aside id="sandboxPanel" class="fixed top-4 right-4 w-[312px] rounded-[13px] bg-[#727272] p-[1px] flex flex-col gap-[1px] shadow-[0_20px_54px_rgba(0,0,0,0.8)] ring-1 ring-white/15 z-[90]">
+    <div class="grid grid-cols-2 gap-[1px]">
+      <!-- Column 1: Phone Simulation -->
+      <div class="bg-black rounded-[12px] p-3 flex flex-col gap-2">
+        <div class="flex items-center justify-between px-0.5">
+          <span class="text-[12px] font-medium text-white">Phone</span>
+          <span id="s-phoneStat" class="tabular-nums text-[11px] text-white/45">Portrait</span>
+        </div>
+        <div class="grid grid-cols-2 gap-1.5">
+          <button id="s-phonePower" class="sim-btn is-on h-[36px] rounded-[8px] flex items-center justify-center gap-1.5 text-[11.5px] font-medium cursor-pointer">
+            <i data-lucide="power" class="w-4 h-4 shrink-0"></i><span>Power</span>
+          </button>
+          <button id="s-phoneRotate" class="sim-btn h-[36px] rounded-[8px] flex items-center justify-center gap-1.5 text-[11.5px] font-medium cursor-pointer">
+            <i data-lucide="rotate-ccw" class="w-4 h-4 shrink-0"></i><span>Turn</span>
+          </button>
+        </div>
+        <div id="s-phoneLinks" class="grid grid-cols-2 gap-1.5"></div>
+        <button id="s-phoneReset" class="sim-btn h-[34px] rounded-[8px] flex items-center justify-center gap-1.5 text-[11.5px] font-medium cursor-pointer">
+          <i data-lucide="refresh-cw" class="w-3.5 h-3.5 shrink-0"></i><span>Reset</span>
+        </button>
+      </div>
+
+      <!-- Column 2: PC Simulation -->
+      <div class="bg-black rounded-[12px] p-3 flex flex-col gap-2">
+        <div class="flex items-center justify-between px-0.5">
+          <span class="text-[12px] font-medium text-white">PC</span>
+          <span id="s-pcStat" class="tabular-nums text-[11px] text-white/45">Open</span>
+        </div>
+        <button id="s-pcFlyout" class="sim-btn is-on h-[36px] rounded-[8px] flex items-center justify-center gap-1.5 text-[11.5px] font-medium cursor-pointer">
+          <i data-lucide="panel-bottom" class="w-4 h-4 shrink-0"></i><span>Tray</span>
+        </button>
+        <div id="s-pcLinks" class="grid grid-cols-2 gap-1.5"></div>
+        <button id="s-pcReset" class="sim-btn h-[34px] rounded-[8px] flex items-center justify-center gap-1.5 text-[11.5px] font-medium cursor-pointer">
+          <i data-lucide="refresh-cw" class="w-3.5 h-3.5 shrink-0"></i><span>Reset</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Bottom Sync Bar -->
+    <div class="bg-black rounded-[12px] px-3 h-[44px] flex items-center justify-between gap-2">
+      <div class="flex items-center gap-2 min-w-0">
+        <span id="s-syncDot" class="w-2 h-2 rounded-full bg-white/30 shrink-0 transition-colors"></span>
+        <span id="s-syncLabel" class="tabular-nums text-[12px] font-medium text-white/80 truncate">Syncing</span>
+      </div>
+      <button id="s-hud" aria-label="Camera HUD" class="sim-btn h-[30px] px-2.5 rounded-[7px] flex items-center justify-center gap-1.5 text-[11.5px] font-medium shrink-0 cursor-pointer">
+        <i data-lucide="eye" class="w-4 h-4 shrink-0"></i><span>HUD</span>
+      </button>
+    </div>
+  </aside>
+
+  <!-- ===================== BOTTOM-RIGHT: PC FLYOUT (312 x 374) ===================== -->
+  <div id="pcFlyoutAnchor" class="pc-flyout-anchor">
+    <div id="pcWindow" class="pc-window w-[312px] h-[374px] rounded-[13px] overflow-hidden shadow-[0_24px_64px_rgba(0,0,0,0.85)] ring-1 ring-white/15">
+      <div id="p-bento" class="pc-bento is-disconnected w-full h-full flex flex-col bg-[#727272] p-[1px] gap-[1px]">
+
+        <!-- Top Square Playground (310 x 310) -->
+        <section id="p-playground" class="w-full aspect-square bg-black rounded-[12px] relative overflow-hidden shrink-0">
+          <div class="playground-dots absolute inset-0 pointer-events-none z-[1]"></div>
+          <div id="p-watermark" class="p-watermark absolute inset-0 flex items-center justify-center pointer-events-none z-[2]" aria-hidden="true">
+            <img src="../../assets/brand/icon.svg" alt="" class="owl-img w-[152px] h-[152px] opacity-[0.07]" data-brand="owl" />
+          </div>
+
+          <!-- Instantaneous PC Camera Layer -->
+          <div id="p-camLayer" class="absolute inset-0 z-[4] flex items-center justify-center bg-black overflow-hidden opacity-0 pointer-events-none">
+            <div id="p-camAmbWrap" class="cam-amb-wrap"><canvas id="p-camAmbCanvas" class="cam-amb-canvas"></canvas></div>
+            <div id="p-camBox" data-crop="none" class="cam-frame flex items-center justify-center"><canvas id="p-camCanvas" class="w-full h-full block"></canvas></div>
+
+            <div id="p-camHud" class="cam-hud is-quiet absolute top-2.5 left-2.5 right-2.5 z-[8] flex items-start justify-between pointer-events-none">
+              <!-- Compact Single Button Expandable Dropdown: Res | FPS | Ratio -->
+              <div id="p-camMenuBox" class="cam-expand pointer-events-auto">
+                <button id="p-btnCamMenu" class="cam-closed-btn h-[25px] tabular-nums text-[10px] font-medium text-white cursor-pointer" aria-label="Camera format settings">
+                  <span id="p-camRes" class="whitespace-nowrap font-medium">FHD</span>
+                </button>
+                <div class="cam-options-grid overflow-hidden">
+                  <div id="p-camResRow" class="grid grid-cols-3 divide-x divide-white/10 border-b border-white/10"></div>
+                  <div id="p-camFpsRow" class="grid grid-cols-3 divide-x divide-white/10 border-b border-white/10"></div>
+                  <div id="p-camRatioRow" class="grid grid-cols-3 divide-x divide-white/10 cam-ratio-grid"></div>
+                </div>
+              </div>
+
+              <div class="flex items-center gap-1.5 pointer-events-auto">
+                <button id="p-btnMirror" aria-label="Mirror" class="cam-btn is-on w-[25px] h-[25px] rounded-[7px] border border-white/20 bg-black/80 backdrop-blur-md flex items-center justify-center cursor-pointer">
+                  <img src="../../assets/icons/mirror.svg" class="w-[13px] h-[13px] owl-icon" alt="Mirror" data-icon="mirror" />
+                </button>
+                <button id="p-btnFlip" aria-label="Flip Lens" class="cam-btn w-[25px] h-[25px] rounded-[7px] border border-white/20 bg-black/80 backdrop-blur-md flex items-center justify-center cursor-pointer">
+                  <img src="../../assets/icons/flip.svg" class="w-[13px] h-[13px] owl-icon" alt="Flip" data-icon="flip" />
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- PC Mic-Only Settings (Slides up from bottom) -->
+          <div id="p-micQuick" class="slide-panel mic-quick-panel absolute bottom-0 left-0 right-0 z-[15] bg-black border-t border-white/15 px-3.5 py-3 flex flex-col gap-2.5 js-audio-slot" data-size="sm"></div>
+
+          <!-- PC Waveform Dock -->
+          <div id="p-waveDock" class="waveform-dock" aria-label="Microphone Waveform">
+            <div class="dock-settings-wrap">
+              <div class="overflow-hidden">
+                <div class="px-3.5 py-3 border-b border-white/15 bg-black flex flex-col gap-2.5 js-audio-slot" data-size="sm"></div>
+              </div>
+            </div>
+            <div id="p-waveHeader" class="w-full px-3.5 py-2.5 flex items-center justify-center cursor-pointer">
+              <div id="p-waveBars" class="waveform-bars"></div>
+            </div>
+          </div>
+
+          <!-- PC Playground Drawers -->
+          <div id="p-drawer" class="slide-panel playground-drawer absolute inset-0 bg-black z-[25] flex flex-col overflow-hidden">
+            <!-- PC Connections -->
+            <div id="p-drawerWifi" class="hidden w-full h-full flex-col overflow-hidden bg-black">
+              <div class="px-3.5 py-2.5 border-b border-white/10 flex items-center justify-between gap-2 shrink-0">
+                <div class="min-w-0 flex-1">
+                  <div class="text-[13.5px] font-medium text-white/90 leading-snug truncate">YASH-PC</div>
+                  <div id="p-hostIp" class="tabular-nums text-[12px] text-white/35 leading-snug truncate">192.168.1.15:7653</div>
+                </div>
+                <button id="p-btnCopyIp" aria-label="Copy IP" title="Copy IP" class="w-7 h-7 rounded-[6px] flex items-center justify-center text-white/40 hover:text-white hover:bg-white/10 shrink-0 cursor-pointer transition-colors">
+                  <img src="../../assets/icons/copy.svg" class="w-3.5 h-3.5 owl-icon" alt="Copy" data-icon="copy" />
+                </button>
+              </div>
+
+              <div class="thin-scroll flex-1 overflow-y-auto flex flex-col">
+                <div id="p-primaryRow" class="sync-row border-b border-white/10 px-3.5 py-3 flex items-center gap-3">
+                  <span id="p-phoneLinkIc" class="conn-row-ic w-[18px] h-[18px] flex items-center justify-center shrink-0"><img src="../../assets/icons/globe.svg" class="w-[17px] h-[17px] owl-img" alt="Link" data-icon="globe" /></span>
+                  <div class="min-w-0 flex-1">
+                    <div id="p-phoneName" class="text-[14px] font-medium text-white leading-snug truncate">Pixel 8</div>
+                    <div id="p-phoneMeta" class="tabular-nums text-[12px] text-white/35 leading-snug mt-0.5 truncate">192.168.1.42:7653</div>
+                  </div>
+                  <div id="p-phoneActions" class="flex items-center gap-2.5 shrink-0"></div>
+                  <div class="sync-beam"></div>
+                </div>
+
+                <div id="p-pairedRow" class="border-b border-white/10 px-3.5 py-3 flex items-center gap-3">
+                  <span class="w-[18px] h-[18px] flex items-center justify-center shrink-0 opacity-25"><img src="../../assets/icons/wifi.svg" class="w-[17px] h-[17px] owl-img" alt="Wi-Fi" data-icon="wifi" /></span>
+                  <div class="min-w-0 flex-1">
+                    <div class="text-[13.5px] font-medium text-white/50 leading-snug truncate">Galaxy S24</div>
+                    <div class="text-[12px] text-white/35 leading-snug mt-0.5 truncate">Yesterday</div>
+                  </div>
+                  <button id="p-btnRemovePaired" class="py-1 pl-2 text-[12px] text-white/35 hover:text-white/70 shrink-0 cursor-pointer transition-colors">Remove</button>
+                </div>
+              </div>
+              <div id="p-transportFooter" class="transport-footer shrink-0"></div>
+            </div>
+
+            <!-- PC Help -->
+            <div id="p-drawerHelp" class="hidden w-full h-full flex-col overflow-hidden bg-black">
+              <div id="p-helpBento" class="w-full h-full flex flex-col">
+                <div class="flex-1 flex flex-col justify-center p-3.5">
+                  <div id="p-helpGrid" class="grid grid-cols-3 gap-2 w-full max-w-[264px] mx-auto"></div>
+                </div>
+                <div class="text-center tabular-nums text-[10.5px] text-white/35 pb-2.5">v0.1.0</div>
+              </div>
+              <div id="p-helpHowto" class="hidden w-full h-full flex-col">
+                <div class="h-10 px-3 flex items-center gap-2 border-b border-white/15 shrink-0">
+                  <button data-p-help-back class="w-7 h-7 rounded-[7px] flex items-center justify-center hover:bg-white/10 cursor-pointer"><img src="../../assets/icons/arrow.svg" class="w-[16px] h-[16px] owl-img rotate-180" alt="Back" data-icon="arrow" /></button>
+                  <span class="text-[12.5px] font-medium">How-to</span>
+                </div>
+                <div class="p-4 overflow-y-auto thin-scroll">
+                  <div class="relative flex flex-col gap-4">
+                    <div class="absolute left-[10.5px] top-3 bottom-3 w-px bg-white/20"></div>
+                    <div class="relative z-[1] flex items-start gap-3"><div class="w-[22px] h-[22px] rounded-full bg-black border border-white/40 flex items-center justify-center text-[11px] shrink-0">1</div><div><a href="https://github.com/diveshpatil9104/owlmic/releases" target="_blank" rel="noopener noreferrer" class="text-[12.5px] font-medium inline-flex items-center gap-1.5 hover:underline">Get the Android App <img src="../../assets/icons/external.svg" class="w-3 h-3 owl-img opacity-70" alt="↗" data-icon="external" /></a><p class="text-[11px] text-white/55 mt-0.5">Install and open Owlmic on your phone</p></div></div>
+                    <div class="relative z-[1] flex items-start gap-3"><div class="w-[22px] h-[22px] rounded-full bg-black border border-white/40 flex items-center justify-center text-[11px] shrink-0">2</div><div><div class="text-[12.5px] font-medium">Pair with this PC</div><p class="text-[11px] text-white/55 mt-0.5">Plug in USB or join the same Wi-Fi, or copy this PC's IP from Connections</p></div></div>
+                    <div class="relative z-[1] flex items-start gap-3"><div class="w-[22px] h-[22px] rounded-full bg-black border border-white/40 flex items-center justify-center text-[11px] shrink-0">3</div><div><div class="text-[12.5px] font-medium">Pick Owlmic in Windows apps</div><p class="text-[11px] text-white/55 mt-0.5">Select Owlmic Camera or Mic in Discord, OBS, Meet, or Zoom</p></div></div>
+                  </div>
+                </div>
+              </div>
+              <div id="p-helpCredits" class="hidden w-full h-full flex-col">
+                <div class="h-10 px-3 flex items-center gap-2 border-b border-white/15 shrink-0">
+                  <button data-p-help-back class="w-7 h-7 rounded-[7px] flex items-center justify-center hover:bg-white/10 cursor-pointer"><img src="../../assets/icons/arrow.svg" class="w-[16px] h-[16px] owl-img rotate-180" alt="Back" data-icon="arrow" /></button>
+                  <span class="text-[12.5px] font-medium">Credits</span>
+                </div>
+                <div id="p-creditsList" class="flex flex-col overflow-y-auto thin-scroll text-[12px]"></div>
+              </div>
+              <div id="p-helpPrivacy" class="hidden w-full h-full flex-col">
+                <div class="h-10 px-3 flex items-center gap-2 border-b border-white/15 shrink-0">
+                  <button data-p-help-back class="w-7 h-7 rounded-[7px] flex items-center justify-center hover:bg-white/10 cursor-pointer"><img src="../../assets/icons/arrow.svg" class="w-[16px] h-[16px] owl-img rotate-180" alt="Back" data-icon="arrow" /></button>
+                  <span class="text-[12.5px] font-medium">Privacy</span>
+                </div>
+                <p class="p-4 text-[12px] text-white/60 leading-relaxed">Owlmic receives camera, microphone, and speaker streams strictly over your local USB or Wi-Fi network. Zero media or telemetry leaves your local network.</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Bottom Row: 5 Exact Squares -->
+        <footer class="h-[61px] w-full grid grid-cols-5 gap-[1px] shrink-0">
+          <button id="p-btnWifi" aria-label="Connection" class="pc-btn h-full rounded-[12px] flex items-center justify-center cursor-pointer">
+            <span id="p-trayTransport" class="btn-glyph flex items-center justify-center"><img src="../../assets/icons/globe.svg" class="w-[21px] h-[21px] owl-icon" alt="Connection" data-icon="globe" /></span>
+          </button>
+          <button id="p-btnCam" aria-label="Camera" class="pc-btn media-btn h-full rounded-[12px] flex items-center justify-center cursor-pointer">
+            <span class="icon-off"><img src="../../assets/icons/camera-off.svg" class="w-[21px] h-[21px] owl-icon" alt="Camera Off" data-icon="camera-off" /></span>
+            <span class="icon-on"><img src="../../assets/icons/camera.svg" class="w-[21px] h-[21px] owl-icon" alt="Camera On" data-icon="camera" /></span>
+          </button>
+          <button id="p-btnMic" aria-label="Microphone" class="pc-btn media-btn h-full rounded-[12px] flex items-center justify-center cursor-pointer">
+            <span class="icon-off"><img src="../../assets/icons/mic-off.svg" class="w-[21px] h-[21px] owl-icon" alt="Mic Off" data-icon="mic-off" /></span>
+            <span class="icon-on"><img src="../../assets/icons/mic.svg" class="w-[21px] h-[21px] owl-icon" alt="Mic On" data-icon="mic" /></span>
+          </button>
+          <button id="p-btnSpk" aria-label="Speaker" class="pc-btn media-btn h-full rounded-[12px] flex items-center justify-center cursor-pointer">
+            <span class="icon-off"><img src="../../assets/icons/speaker-off.svg" class="w-[21px] h-[21px] owl-icon" alt="Speaker Off" data-icon="speaker-off" /></span>
+            <span class="icon-on"><img src="../../assets/icons/speaker.svg" class="w-[21px] h-[21px] owl-icon" alt="Speaker On" data-icon="speaker" /></span>
+          </button>
+          <button id="p-btnHelp" aria-label="Help" class="pc-btn h-full rounded-[12px] flex items-center justify-center cursor-pointer">
+            <span class="btn-glyph flex items-center justify-center"><img src="../../assets/icons/help.svg" class="w-[21px] h-[21px] owl-icon" alt="Help" data-icon="help" /></span>
+          </button>
+        </footer>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================== FULL-WIDTH WINDOWS TASKBAR ===================== -->
+  <nav id="winTaskbar" class="fixed bottom-0 left-0 right-0 h-[48px] bg-black/95 border-t border-white/15 backdrop-blur-md px-3 flex items-center justify-between z-[80]">
+    <div class="w-[140px]"></div>
+
+    <div class="flex items-center gap-1.5">
+      <div class="w-9 h-9 rounded-[6px] flex items-center justify-center text-white/75 hover:bg-white/10 transition-colors cursor-default">
+        <svg class="w-[17px] h-[17px]" viewBox="0 0 24 24" fill="currentColor">
+          <rect x="3" y="3" width="8" height="8" rx="1"/><rect x="13" y="3" width="8" height="8" rx="1"/>
+          <rect x="3" y="13" width="8" height="8" rx="1"/><rect x="13" y="13" width="8" height="8" rx="1"/>
+        </svg>
+      </div>
+      <div class="w-9 h-9 rounded-[6px] flex items-center justify-center text-white/45 hover:bg-white/10 transition-colors cursor-default"><i data-lucide="search" class="w-[16px] h-[16px]"></i></div>
+      <div class="w-9 h-9 rounded-[6px] flex items-center justify-center text-white/45 hover:bg-white/10 transition-colors cursor-default"><i data-lucide="folder" class="w-[16px] h-[16px]"></i></div>
+      <div class="w-9 h-9 rounded-[6px] flex items-center justify-center text-white/45 hover:bg-white/10 transition-colors cursor-default"><i data-lucide="terminal" class="w-[16px] h-[16px]"></i></div>
+    </div>
+
+    <div class="flex items-center gap-1">
+      <!-- Chevron Button with Floating Hidden Icons Overflow -->
+      <div class="relative flex items-center">
+        <button id="btnTrayChevron" aria-label="Show hidden icons" class="tray-chevron w-8 h-8 rounded-[6px] flex items-center justify-center text-white/70 hover:bg-white/10 transition-colors cursor-pointer">
+          <i id="trayChevronIcon" data-lucide="chevron-up" class="w-4 h-4 transition-transform duration-200"></i>
+        </button>
+
+        <!-- Floating Windows 11 Hidden Icons Menu -->
+        <div id="trayOverflowFlyout" class="tray-overflow-flyout absolute bottom-[46px] left-1/2 -translate-x-1/2 bg-[#1E1E1E]/95 border border-white/10 rounded-[10px] p-1.5 flex items-center gap-1 shadow-[0_12px_36px_rgba(0,0,0,0.75)] backdrop-blur-xl z-[70]">
+          <!-- 1. Owlmic -->
+          <button id="btnTrayOwl" aria-label="Owlmic" title="Owlmic" class="tray-app-btn relative w-8 h-8 rounded-[6px] flex items-center justify-center hover:bg-white/10 transition-colors cursor-pointer text-white/80 hover:text-white">
+            <img src="../../assets/brand/icon.svg" alt="Owlmic" class="owl-img w-[18px] h-[18px]" data-brand="owl" />
+          </button>
+          <!-- 2. NVIDIA Settings -->
+          <button class="tray-app-btn w-8 h-8 rounded-[6px] flex items-center justify-center hover:bg-white/10 transition-colors cursor-pointer text-white/70 hover:text-white" title="NVIDIA Settings" aria-label="NVIDIA Settings">
+            <i data-lucide="cpu" class="w-4 h-4"></i>
+          </button>
+          <!-- 3. Copilot -->
+          <button class="tray-app-btn w-8 h-8 rounded-[6px] flex items-center justify-center hover:bg-white/10 transition-colors cursor-pointer text-white/70 hover:text-white" title="Copilot" aria-label="Copilot">
+            <i data-lucide="sparkles" class="w-4 h-4"></i>
+          </button>
+          <!-- 4. Antigravity -->
+          <button class="tray-app-btn w-8 h-8 rounded-[6px] flex items-center justify-center hover:bg-white/10 transition-colors cursor-pointer text-white/70 hover:text-white" title="Antigravity" aria-label="Antigravity">
+            <i data-lucide="orbit" class="w-4 h-4"></i>
+          </button>
+          <!-- 5. Windows Security -->
+          <button class="tray-app-btn w-8 h-8 rounded-[6px] flex items-center justify-center hover:bg-white/10 transition-colors cursor-pointer text-white/70 hover:text-white" title="Windows Security - Actions recommended" aria-label="Windows Security">
+            <i data-lucide="shield-check" class="w-4 h-4"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- Language: ENG / US -->
+      <div class="h-8 px-1.5 rounded-[6px] flex flex-col justify-center items-center text-[10px] font-semibold leading-[1.05] text-white/75 hover:bg-white/10 transition-colors cursor-default select-none">
+        <span>ENG</span>
+        <span>US</span>
+      </div>
+
+      <!-- Network & Sound Capsule -->
+      <div class="h-8 px-2 rounded-[6px] flex items-center gap-2 text-white/70 hover:bg-white/10 transition-colors cursor-default">
+        <i id="tbNetIc" data-lucide="wifi" class="w-3.5 h-3.5 transition-opacity"></i>
+        <i id="tbVolIc" data-lucide="volume-2" class="w-3.5 h-3.5 transition-opacity"></i>
+      </div>
+
+      <!-- Clock & Date -->
+      <div class="h-8 px-2 rounded-[6px] flex flex-col justify-center items-end tabular-nums text-right hover:bg-white/10 transition-colors cursor-default">
+        <span id="trayTime" class="text-white/90 text-[11px] leading-tight">6:11 PM</span>
+        <span id="trayDate" class="text-white/60 text-[10.5px] leading-tight">11/21/2026</span>
+      </div>
+    </div>
+  </nav>
+
+  <script src="scripts.js"></script>
+</body>
+</html>
