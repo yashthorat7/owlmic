@@ -1,5 +1,5 @@
 # =============================================================================
-# 1. STRICT BINARY & ARCHIVE BAN (Enforced by scripts/verify-repo-invariants.py)
+# 1. STRICT BINARY & ARCHIVE BAN (Enforced by scripts/core/verify-repo-invariants.py)
 # =============================================================================
 *.exe
 *.dll
@@ -90,7 +90,10 @@ __pycache__/
 !.vscode/extensions.json
 *.swp
 *.swo
-*~
+*.raw
+*.bmp
+/ui/
+trash/
 Thumbs.db
 ehthumbs.db
 Desktop.ini

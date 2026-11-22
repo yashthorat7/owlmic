@@ -12,8 +12,9 @@ import subprocess
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent
+ROOT = Path(__file__).resolve().parent.parent
 SCRIPTS = ROOT / "scripts"
+CORE = SCRIPTS / "core"
 
 GREEN = "\033[92m"
 CYAN = "\033[96m"
@@ -32,7 +33,9 @@ def get_version() -> str:
 
 
 def run_script(script_name: str, args: list[str] | None = None) -> int:
-    target = SCRIPTS / script_name
+    target = CORE / script_name
+    if not target.exists():
+        target = SCRIPTS / script_name
     if not target.exists():
         print(f"{RED}❌ Script not found: {target}{RESET}")
         return 1
@@ -144,7 +147,7 @@ def print_help():
     print("""Owlmic Unified Developer CLI
 
 Usage:
-  python menu.py [command] [options]
+  python scripts/menu.py [command] [options]
 
 Commands:
   build [release|all|desktop|android|windows|linux]  Build target suite
@@ -156,7 +159,7 @@ Commands:
   help, -h, --help                              Show this help message
 
 Run without arguments to launch the interactive menu:
-  python menu.py
+  python scripts/menu.py
 """)
 
 

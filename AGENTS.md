@@ -29,7 +29,7 @@ Load only the specific domain rulebook matching the modified path:
 ### Priority 3: On-Demand & Specialized Operations (Explicit Call Only)
 Least priority; load only when explicitly requested:
 - **Committing / Git Actions (On-Demand Only):** Read [`docs/skills/git-workflow.md`](docs/skills/git-workflow.md)
-- **Building, Packaging & Developer Menu (`menu.py`, `scripts/build.py`, `dist/`):** Read [`docs/skills/build-and-bundle.md`](docs/skills/build-and-bundle.md)
+- **Building, Packaging & Developer Menu (`scripts/menu.py`, `scripts/core/build.py`, `dist/`):** Read [`docs/skills/build-and-bundle.md`](docs/skills/build-and-bundle.md)
 - **Touching Website (`website/`):** Read [`docs/skills/website.md`](docs/skills/website.md)
 
 ---
@@ -40,9 +40,9 @@ Least priority; load only when explicitly requested:
 2. **Role Invariant**: Phone is ALWAYS the client (`OwlmicService`); PC is ALWAYS the server (`TCP :7653`, `UDP :7654/:7655`).
 3. **Anti-AI Slop & Lean Code**: Build strictly what is requested. Zero speculative abstractions, zero chatty comments, zero code churn. Adhere strictly to [`docs/skills/anti-slop-and-lean-code.md`](docs/skills/anti-slop-and-lean-code.md).
 4. **Single Source of Truth**: Never hardcode colors, UI copy, or settings defaults. Read from `shared/design/tokens.json`, `shared/design/copy.json`, and `shared/design/settings.json`.
-5. **Clean Root Discipline**: Root directory is fixed and minimal (`.github/`, `android/`, `desktop/`, `docs/`, `scripts/`, `shared/`, `website/`, `AGENTS.md`, `CLAUDE.md`, `LICENSE`, `README.md`, `menu.py`, `.editorconfig`, `.gitignore`, `.gitmodules`).
+5. **Clean Root Discipline**: Root directory is fixed and minimal (`.github/`, `android/`, `desktop/`, `docs/`, `scripts/`, `shared/`, `website/`, `AGENTS.md`, `CLAUDE.md`, `LICENSE`, `README.md`, `.editorconfig`, `.gitignore`, `.gitmodules`).
 6. **Strict Binary Ban & On-Demand Packaging**: Never commit or stage compiled binaries (`.apk`, `.exe`, `.aab`, `.dll`, `.so`, `.zip`). Never build Android APKs during development or verification; build APKs only when explicitly requested by the user.
-7. **Pre-Completion Verification**: Follow [`docs/skills/procedures-and-verification.md`](docs/skills/procedures-and-verification.md). Always run `python scripts/verify-repo-invariants.py` and master checker `python scripts/check.py` before finishing.
+7. **Pre-Completion Verification**: Follow [`docs/skills/procedures-and-verification.md`](docs/skills/procedures-and-verification.md). Always run `python scripts/core/verify-repo-invariants.py` and master checker `python scripts/core/check.py` before finishing.
 
 ---
 
@@ -50,11 +50,13 @@ Least priority; load only when explicitly requested:
 
 All Git practices, PR standards, and agent rules are fully detailed in [`docs/skills/git-workflow.md`](docs/skills/git-workflow.md). Key mandates:
 
-1. **Strict Read-Only Agent Rule**: Agents NEVER execute state-changing Git commands (`git add`, `git add .`, `git commit`, `git push`, `git checkout`, `git branch`, `git merge`, etc.) by themselves. ONLY `git status`, `git diff`, and `git log` are permitted.
-2. **On-Demand Commit Generation**: Never output unsolicited commit suggestions. Only formulate Git commands when explicitly requested by the user.
-3. **Convenient Staging in User Messages (`git add .`)**: When generating commit instructions, formulate `git add .` in the response message for the user to conveniently stage all workspace changes. Agents must NEVER execute `git add .` by themselves.
-4. **Context-Aware Commits**: When asked to formulate or make a commit, inspect changes since the last commit (`git status`, `git diff`), provide `git add .` in instructions for the user, and craft concise Conventional Commit messages (max 72 chars).
-5. **PR Creation & Smart Branch Migration**: When asked to raise/pull a PR, verify the branch. Never submit a PR from `main`. If on `main` (even with commits already made on `main`), formulate instructions to safely shift all commits/changes to a dedicated semantic branch (`git checkout -b <type>/<short-name>`), reset local `main` to `origin/main` (`git branch -f main origin/main`), push the feature branch, and only then generate the PR title and markdown description. See [`docs/skills/git-workflow.md`](docs/skills/git-workflow.md).
+1. **Strict Read-Only Agent Rule**: Agents NEVER execute state-changing Git commands (`git add`, `git add .`, `git commit`, `git push`, `git pull`, `git fetch`, `git checkout`, `git branch`, `git merge`, `git rebase`, etc.) by themselves. ONLY `git status`, `git diff`, and `git log` are permitted.
+2. **On-Demand Only**: Never output unsolicited Git commands. Formulate Git commands only when explicitly requested by the user.
+3. **Single Copy-Paste Command Block (Separate Lines, No `&&`)**: Never separate commands across multiple markdown snippets or steps. Output the entire sequence on **separate lines** inside a **single copy-paste code block** (do NOT use `&&`) so the user can copy once and run it cleanly in their terminal.
+4. **Strict Branch Naming Standard**: Follow `.github/CONTRIBUTING.md` and `scripts/hooks/pre-commit`: `<type>/<short-kebab-description>` where `<type>` is strictly in `{feat, fix, docs, refactor, perf, test, chore, build, ci}` and the description is lowercase alphanumeric kebab-case (`[a-z0-9-]+`).
+5. **Strict Conventional Commits & <= 72 Chars**: Follow `.github/CONTRIBUTING.md` and `scripts/hooks/commit-msg`: `<type>(<scope>): <lowercase imperative summary>`. Valid scopes: `{android, desktop, pc, win, linux, proto, design, installer, scripts, ci, site, repo}`. The first line MUST be strictly <= 72 characters total (hard hook limit), start lowercase, and have no trailing period.
+6. **PR Creation & Smart Branch Migration**: When asked to raise/pull a PR, verify the branch. Never submit a PR from `main`. If on `main`, formulate instructions to shift all commits/changes to a dedicated semantic branch (`git checkout -b <type>/<short-kebab-name>`), reset local `main` to `origin/main` (`git branch -f main origin/main`), push the feature branch, and provide the PR title and markdown description. See [`docs/skills/git-workflow.md`](docs/skills/git-workflow.md).
+7. **Upstream Sync & Main Maintenance**: When asked to sync upstream (`git pull upstream main`), publish to fork (`git push origin main`), or merge branches, formulate the exact single-block command sequence for the user. Agents never run mutating Git commands.
 
 ---
 

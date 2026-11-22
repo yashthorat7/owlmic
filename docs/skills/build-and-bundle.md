@@ -2,39 +2,39 @@
 
 > **Scope**: Developer menu, release artifacts, packaging, driver caching, and centralized `dist/` distribution.
 
-## 1. Developer Menu (`menu.py`) & Release Builder (`scripts/build.py`)
+## 1. Developer Menu (`scripts/menu.py`) & Release Builder (`scripts/core/build.py`)
 
-All development tasks, pre-flight checks, and platform release packaging are unified under `menu.py` in the repository root, powered by modular scripts in `scripts/`:
+All development tasks, pre-flight checks, and platform release packaging are unified under `scripts/menu.py`, powered by modular scripts in `scripts/core/`:
 
-### Root Developer Menu (`menu.py`)
-- **Interactive Menu**: `python menu.py`
+### Developer Menu (`scripts/menu.py`)
+- **Interactive Menu**: `python scripts/menu.py`
 - **CLI Subcommands**:
   ```bash
-  python menu.py build [release|all|pc|android|windows|linux]
-  python menu.py check [--fix]
-  python menu.py verify
-  python menu.py clean
-  python menu.py deps [--check|--fetch]
-  python menu.py hooks
+  python scripts/menu.py build [release|all|pc|android|windows|linux]
+  python scripts/menu.py check [--fix]
+  python scripts/menu.py verify
+  python scripts/menu.py clean
+  python scripts/menu.py deps [--check|--fetch]
+  python scripts/menu.py hooks
   ```
 
-### Release Builder Backend (`scripts/build.py`)
+### Release Builder Backend (`scripts/core/build.py`)
 Direct builder access with zero third-party Python dependencies:
-- **Interactive Builder**: `python scripts/build.py`
+- **Interactive Builder**: `python scripts/core/build.py`
 - **Non-Interactive Target Packaging**:
   ```bash
-  python scripts/build.py --target release
-  python scripts/build.py --target android
-  python scripts/build.py --target windows
-  python scripts/build.py --target linux
-  python scripts/build.py --target all
-  python scripts/build.py --clean
+  python scripts/core/build.py --target release
+  python scripts/core/build.py --target android
+  python scripts/core/build.py --target windows
+  python scripts/core/build.py --target linux
+  python scripts/core/build.py --target all
+  python scripts/core/build.py --clean
   ```
 - **Packaging Dependency Management**:
   ```bash
-  python scripts/build.py --check-deps
-  python scripts/build.py --fetch-deps
-  python scripts/build.py --update-dep <vbcable|softcam> --url <NEW_URL> [--sha256 <HASH>] [--dep-version <VER>]
+  python scripts/core/build.py --check-deps
+  python scripts/core/build.py --fetch-deps
+  python scripts/core/build.py --update-dep <vbcable|softcam> --url <NEW_URL> [--sha256 <HASH>] [--dep-version <VER>]
   ```
 
 ---
@@ -67,12 +67,12 @@ All Windows packaging dependencies are tracked in `scripts/packaging/windows/dep
 - **DirectShow Camera Fallback (`softcam`)**: DirectShow filter for Windows 10 cached at `scripts/packaging/cache/softcam.dll` and verified against SHA-256 (`9D635E0AF682A883C3C7D407513D47E59B0883771701B101216820DFCF997F0B`).
 - **Native Windows 11 Virtual Camera (`owlmic_vcam`)**: Compiled directly from internal crate `desktop/crates/owlmic-vcam/` into `desktop/target/release/owlmic_vcam.dll`.
 - **Inno Setup 6 (`ISCC.exe`)**: Discovered automatically across PATH, `LOCALAPPDATA`, `ProgramFiles`, and local cache; if missing on Windows, can be auto-installed non-interactively via `winget`.
-- **Updating Dependencies**: When upstream releases a new driver pack or camera binary, developers update it with `python scripts/build.py --update-dep <name> --url <url>`, which downloads, validates, and syncs both local folders and `dependencies.json`.
+- **Updating Dependencies**: When upstream releases a new driver pack or camera binary, developers update it with `python scripts/core/build.py --update-dep <name> --url <url>`, which downloads, validates, and syncs both local folders and `dependencies.json`.
 
 ### Android Packaging
 - Requires Android SDK (API 35) and Java 21 / JBR.
 - Invokes Gradle wrapper (`gradlew assembleRelease` or `gradlew assembleDebug`).
-- **On-Demand Only**: APK builds are strictly executed only when explicitly requested by the user or when invoking packaging commands (`menu.py build android` / `python scripts/build.py --target android`). Never compile APKs during routine development or code verification.
+- **On-Demand Only**: APK builds are strictly executed only when explicitly requested by the user or when invoking packaging commands (`scripts/menu.py build android` / `python scripts/core/build.py --target android`). Never compile APKs during routine development or code verification.
 
 ### Linux Packaging
 - Requires Cargo, PipeWire development libraries, and systemd.

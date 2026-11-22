@@ -42,33 +42,19 @@ const GAP: f32 = 1.0;
 pub const WIDTH: f32 = p::WIDTH_PX;
 pub const HEIGHT: f32 = p::HEIGHT_PX;
 
-pub const CAMERA: Rect = Rect::new(0.0, 0.0, p::CAMERA_WIDTH_PX, p::CAMERA_HEIGHT_PX);
-pub const MIC: Rect = Rect::new(
-    p::CAMERA_WIDTH_PX + GAP,
-    0.0,
-    p::FEATURE_TILE_PX,
-    p::FEATURE_ROW_PX,
-);
-pub const SPEAKER: Rect = Rect::new(
-    MIC.x + p::FEATURE_TILE_PX + GAP,
-    0.0,
-    p::FEATURE_TILE_PX,
-    p::FEATURE_ROW_PX,
-);
-pub const PHONE: Rect = Rect::new(
-    MIC.x,
-    p::FEATURE_ROW_PX + GAP,
-    WIDTH - MIC.x,
-    p::PHONE_TILE_HEIGHT_PX,
-);
+pub const CAMERA: Rect = Rect::new(0.0, 0.0, WIDTH, HEIGHT - p::BOTTOM_ROW_PX - GAP);
 const BOTTOM_Y: f32 = HEIGHT - p::BOTTOM_ROW_PX;
+const WIDTHS: [f32; 5] = [61.0, 61.0, 61.0, 61.0, 64.0];
+const XS: [f32; 5] = [0.0, 62.0, 124.0, 186.0, 248.0];
 
-/// Fill or Fit, Mirror, Lens, Settings, the connection indicator.
-pub fn bottom(i: usize) -> Rect {
-    const WIDTHS: [f32; 5] = [111.0, 111.0, 111.0, 111.0, 112.0];
-    let x: f32 = WIDTHS[..i].iter().map(|w| w + GAP).sum();
-    Rect::new(x, BOTTOM_Y, WIDTHS[i], p::BOTTOM_ROW_PX)
+/// 5 Square Bento Buttons in a single line below (Help, Cam, Mic, Speaker, Wi-Fi).
+pub const fn bottom(i: usize) -> Rect {
+    Rect::new(XS[i], BOTTOM_Y, WIDTHS[i], p::BOTTOM_ROW_PX)
 }
+
+pub const MIC: Rect = bottom(2);
+pub const SPEAKER: Rect = bottom(3);
+pub const PHONE: Rect = CAMERA;
 
 /// The Repair tile over the top of the camera area.
 pub const REPAIR: Rect = Rect::new(0.0, 0.0, CAMERA.w, 64.0);
@@ -157,15 +143,12 @@ pub fn hit(screen: Screen, x: f32, y: f32, scroll: f32, rows: usize) -> Option<T
                 return Some(Target::Repair);
             }
             let tiles = [
-                (CAMERA, Target::Camera),
+                (bottom(0), Target::Settings),
+                (bottom(1), Target::Framing),
                 (MIC, Target::Mic),
                 (SPEAKER, Target::Speaker),
-                (PHONE, Target::Phone),
-                (bottom(0), Target::Framing),
-                (bottom(1), Target::Mirror),
-                (bottom(2), Target::Lens),
-                (bottom(3), Target::Settings),
                 (bottom(4), Target::Indicator),
+                (CAMERA, Target::Camera),
             ];
             tiles
                 .into_iter()
@@ -210,21 +193,19 @@ mod tests {
     fn the_panel_opens_above_the_tray_inside_the_screen() {
         let work = (0, 0, 1920, 1040);
         assert_eq!(
-            place((1800, 1050, 1824, 1074), work, (560, 255), 12),
-            (1348, 773)
+            place((1800, 1050, 1824, 1074), work, (312, 374), 12),
+            (1596, 654)
         );
         assert_eq!(
-            place((100, 1050, 124, 1074), work, (560, 255), 12),
-            (12, 773)
+            place((100, 1050, 124, 1074), work, (312, 374), 12),
+            (12, 654)
         );
         let top = (0, 40, 1920, 1080);
-        assert_eq!(place((1800, 8, 1824, 32), top, (560, 255), 12).1, 52);
+        assert_eq!(place((1800, 8, 1824, 32), top, (312, 374), 12).1, 52);
     }
 
     #[test]
-    fn the_grid_fills_560_by_255_with_1_px_gaps() {
-        assert_eq!(SPEAKER.right(), WIDTH);
-        assert_eq!(PHONE.bottom(), CAMERA.bottom());
+    fn the_grid_fills_312_by_374_with_1_px_gaps() {
         assert_eq!(bottom(4).right(), WIDTH);
         assert_eq!(bottom(0).y, CAMERA.bottom() + 1.0);
         assert_eq!(bottom(0).bottom(), HEIGHT);
@@ -239,16 +220,16 @@ mod tests {
     fn clicks_find_their_tile() {
         let main = Screen::Main { repair: false };
         assert_eq!(hit(main, 10.0, 10.0, 0.0, 0), Some(Target::Camera));
-        assert_eq!(hit(main, 400.0, 50.0, 0.0, 0), Some(Target::Mic));
-        assert_eq!(hit(main, 500.0, 50.0, 0.0, 0), Some(Target::Speaker));
-        assert_eq!(hit(main, 352.5, 50.0, 0.0, 0), None, "the hairline");
-        assert_eq!(hit(main, 555.0, 250.0, 0.0, 0), Some(Target::Indicator));
+        assert_eq!(hit(main, 150.0, 340.0, 0.0, 0), Some(Target::Mic));
+        assert_eq!(hit(main, 200.0, 340.0, 0.0, 0), Some(Target::Speaker));
+        assert_eq!(hit(main, 150.0, 312.5, 0.0, 0), None, "the hairline");
+        assert_eq!(hit(main, 280.0, 340.0, 0.0, 0), Some(Target::Indicator));
         let r = repair_button();
         assert_eq!(
             hit(Screen::Main { repair: true }, r.x + 1.0, r.y + 1.0, 0.0, 0),
             Some(Target::Repair)
         );
-        assert_eq!(hit(Screen::Gate, 100.0, 220.0, 0.0, 0), Some(Target::Allow));
+        assert_eq!(hit(Screen::Gate, 100.0, 340.0, 0.0, 0), Some(Target::Allow));
         assert_eq!(hit(Screen::Gate, 100.0, 100.0, 0.0, 0), None);
     }
 

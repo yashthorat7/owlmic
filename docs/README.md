@@ -60,11 +60,11 @@ The desktop companion server is partitioned into 13 decoupled crates under Rust 
 - **[`shared/vendor/`](../shared/vendor/)**: Centralized third-party submodules (`opus/`).
 
 ### 1.6 Automation & Scripts
-- **[`menu.py`](../menu.py)**: Unified root interactive developer & release menu (build, check, verify, deps, clean, hooks).
-- **[`scripts/build.py`](../scripts/build.py)**: Interactive and CLI release packaging tool routing artifacts to `dist/`.
-- **[`scripts/verify-repo-invariants.py`](../scripts/verify-repo-invariants.py)**: Zero-dependency Python 3 checker for product name casing, binary ban, Tokio restrictions, JSON validity, and version lockstep.
-- **[`scripts/check.py`](../scripts/check.py)**: Master pre-flight validator (invariants + Rust fmt/clippy/test + Android lint).
-- **[`scripts/setup-hooks.py`](../scripts/setup-hooks.py)**: Cross-platform Git hooks setup (`core.hooksPath` configuration).
+- **[`scripts/menu.py`](../scripts/menu.py)**: Unified interactive developer & release menu (build, check, verify, deps, clean, hooks).
+- **[`scripts/core/build.py`](../scripts/core/build.py)**: Interactive and CLI release packaging tool routing artifacts to `dist/`.
+- **[`scripts/core/verify-repo-invariants.py`](../scripts/core/verify-repo-invariants.py)**: Zero-dependency Python 3 checker for product name casing, binary ban, Tokio restrictions, JSON validity, and version lockstep.
+- **[`scripts/core/check.py`](../scripts/core/check.py)**: Master pre-flight validator (invariants + Rust fmt/clippy/test + Android lint).
+- **[`scripts/core/setup-hooks.py`](../scripts/core/setup-hooks.py)**: Cross-platform Git hooks setup (`core.hooksPath` configuration).
 - **[`scripts/hooks/`](../scripts/hooks/)**: Git `pre-commit` (invariants + cargo fmt) and `commit-msg` (Conventional Commits enforcement).
 
 ### 1.7 Project History

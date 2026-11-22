@@ -37,7 +37,7 @@
    - Keep the dependency footprint minimal and lightweight.
 5. **On-Demand APK Generation (Never Build APKs During Development)**:
    - **Never run `assembleDebug`, `assembleRelease`, or package APKs (`.apk` / `.aab`) during normal development, refactoring, or verification.**
-   - **Do NOT build APKs unless explicitly requested by the user** (or when running deliberate release packaging via `python menu.py build android` / `python scripts/build.py --target android`).
+   - **Do NOT build APKs unless explicitly requested by the user** (or when running deliberate release packaging via `python scripts/menu.py build android` / `python scripts/core/build.py --target android`).
    - Routine development verification is strictly unit tests and lint:
      `./gradlew testDebugUnitTest lintDebug`
    - Building APKs produces heavy binaries, consumes unnecessary CPU/time/tokens, and violates binary staging guardrails.

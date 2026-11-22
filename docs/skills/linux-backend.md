@@ -11,7 +11,7 @@ The Linux desktop implementation abstracts OS-specific media, camera, and tray f
 | **Virtual Microphone** | Native userspace **PipeWire / PulseAudio virtual source** | `media.class = "Audio/Source/Virtual"`, node name `"Owlmic Mic"`. Zero kernel module install required. |
 | **Virtual Camera** | Direct frame feed to **`v4l2loopback`** device node | Formats NV12 / YUYV to `/dev/videoX` (card label `"Owlmic Cam"`) via standard Linux `ioctl` (`VIDIOC_S_FMT` + `write()`). |
 | **Speaker Loopback** | Default audio sink monitor via **PipeWire stream capture** | `STREAM_CAPTURE_SINK` with optional sink muting via `wpctl` / `pactl`. |
-| **Tray & Flyout** | **StatusNotifierItem (`ksni`)** + X11/Wayland window | Minimal borderless window matching `shared/design/tokens.json` OLED black layout ($560 \times 255\text{ px}$). |
+| **Tray & Flyout** | **StatusNotifierItem (`ksni`)** + X11/Wayland window | Minimal borderless window matching `shared/design/tokens.json` OLED black layout ($312 \times 374\text{ px}$). |
 | **Configuration Path** | XDG Base Directory specification | `$XDG_CONFIG_HOME/owlmic/owlmic.json` (defaults to `~/.config/owlmic/owlmic.json`). |
 
 ---
