@@ -358,7 +358,7 @@ private fun Footer(state: AppState) {
         Box(
             Modifier
                 .weight(1f)
-                .height(42.dp)
+                .height(44.dp)
                 .clip(RoundedCornerShape(8.dp))
                 .background(Color.Black)
                 .border(1.dp, Color(0x33FFFFFF), RoundedCornerShape(8.dp))
@@ -371,7 +371,7 @@ private fun Footer(state: AppState) {
                 }),
             contentAlignment = Alignment.Center,
         ) {
-            Icon(Glyph.REFRESH, Color.White.copy(alpha = 0.80f), stringResource(Copy.string.ui_refresh), Modifier.graphicsLayer { rotationZ = spin.value }, size = 17.dp, stroke = 2f)
+            Icon(Glyph.REFRESH, Color.White.copy(alpha = 0.80f), stringResource(Copy.string.ui_refresh), Modifier.graphicsLayer { rotationZ = spin.value }, size = Tokens.Phone.LINK_GLYPH_DP.dp, stroke = 2f)
         }
         Box(Modifier.width(1.dp).height(32.dp).background(Color(0x26FFFFFF)))
         LINK_SETTINGS.forEach { (link, id) ->
@@ -384,7 +384,7 @@ private fun Footer(state: AppState) {
             Box(
                 Modifier
                     .weight(1f)
-                    .height(42.dp)
+                    .height(44.dp)
                     .clip(RoundedCornerShape(8.dp))
                     .background(bg)
                     .border(1.dp, border, RoundedCornerShape(8.dp))
@@ -392,7 +392,7 @@ private fun Footer(state: AppState) {
                     .clickable(role = Role.Switch, onClick = { Owlmic.post(AppMsg.Setting(id, if (on) "off" else "on")) }),
                 contentAlignment = Alignment.Center,
             ) {
-                Icon(glyphOf(link), fg, null, size = 17.dp, stroke = 2f)
+                Icon(glyphOf(link), fg, null, size = Tokens.Phone.LINK_GLYPH_DP.dp, stroke = 2f)
             }
         }
     }

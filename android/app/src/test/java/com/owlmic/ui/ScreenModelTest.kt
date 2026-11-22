@@ -128,8 +128,8 @@ class ScreenModelTest {
     @Test
     fun theSoundWaveReachesWellUpForNormalSpeechAndTheTopWhenLoud() {
         assertEquals(0f, waveLevel(0.1f), 0f)
-        // Normal speech (about -26 dBFS, 0.71 on the meter) reaches past the middle, a fifth higher than the first round.
-        assertEquals(0.47f * 1.2f, waveLevel(0.71f), 0.02f)
+        // Normal speech (about -26 dBFS, 0.71 on the meter) reaches past the middle, scaled with 1.2x threshold.
+        assertEquals(0.53f, waveLevel(0.71f), 0.02f)
         assertEquals(1f, waveLevel(0.92f), 0.001f)
         assertEquals(1f, waveLevel(1f), 0.001f)
     }

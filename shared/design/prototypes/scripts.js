@@ -189,8 +189,8 @@
 
   const buildTransportFooter = (side) => {
     const m = side === 'phone';
-    const h = m ? 'my-2.5 h-[42px] rounded-[8px]' : 'my-2 h-[36px] rounded-[7px]';
-    const ic = m ? 'w-[17px] h-[17px]' : 'w-[15px] h-[15px]';
+    const h = m ? 'my-2.5 h-[44px] rounded-[8px]' : 'my-2 h-[36px] rounded-[7px]';
+    const ic = m ? 'w-[24px] h-[24px]' : 'w-[15px] h-[15px]';
     const hov = m ? '' : 'hover:border-white/35';
     return `<button id="${m ? 'm' : 'p'}-btnRefresh" aria-label="Refresh" class="${h} bg-black border border-white/20 ${hov} text-white/80 flex items-center justify-center cursor-pointer">${iconImg('refresh', `${ic} owl-icon`, 'Refresh')}</button><div class="transport-divider w-0 h-full border-l border-white/15"></div>` +
       CFG.links.map(k => `<button data-app-side="${side}" data-transport="${k}" aria-label="${k}" class="conn-toggle is-on ${h} border flex items-center justify-center cursor-pointer">${iconImg(CFG.icons[k], `${ic} owl-icon`, k)}</button>`).join('');

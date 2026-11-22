@@ -141,10 +141,12 @@ val LINK_SETTINGS = listOf(
 
 /**
  * The mic's level as the sound wave shows it: under -50 dBFS it is flat, normal speech reaches well up, loud speech the
- * top. Only the picture: the mic's sound is untouched.
+ * top. Only the picture: the mic's sound is untouched. Threshold is 0.24f (1.2x the base 0.20f).
  */
+const val WAVE_THRESHOLD = 0.24f
+
 fun waveLevel(level: Float): Float {
-    val v = ((level - 0.2f) / 0.8f).coerceIn(0f, 1f)
+    val v = ((level - WAVE_THRESHOLD) / (1f - WAVE_THRESHOLD)).coerceIn(0f, 1f)
     return (v * v * (1.4f - 0.4f * v) * WAVE_GAIN).coerceAtMost(1f)
 }
 
