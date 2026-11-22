@@ -32,10 +32,25 @@
 3. **Real-Time Audio & Video Constraints**:
    - Audio loops in C++ (Oboe) must use pre-allocated buffers with zero heap allocations on the audio callback thread.
    - Video backpressure is strictly `KEEP_ONLY_LATEST` (queue depth = 1). Drop intermediate camera frames immediately if encoding or network transmission falls behind.
-4. **Strict Library Blacklist**:
+4. **Dynamic Asset & Icon Sourcing (Zero Hardcoded Glyphs)**:
+   - All vector icons and glyphs are dynamically parsed and generated from `shared/assets/icons/*.svg` by the Gradle task `:core:generateDesign`.
+   - Compose views strictly reference `com.owlmic.core.design.GeneratedGlyphs` via `Glyphs.kt`. Never embed SVG path strings directly in Kotlin code.
+   - App launcher icon uses the official centered Owlmic owl SVG on a pure solid black (`#000000`) background (`ic_launcher.xml` / `ic_launcher_round.xml`).
+5. **Prototype-Accurate Bento UI Architecture**:
+   - The UI matches `shared/design/prototypes/` pixel-by-pixel with clean geometry, single source of truth tokens, and zero extraneous dialogs or legacy buttons.
+   - **Header**: Wordmark, Help tile, and Connection tile with pulse breathing indicator.
+   - **Center Playground**:
+     - Dot grid and watermark owl when idle.
+     - Aspect ratio crop box with optical crop border lines (pillarbox / letterbox).
+     - Compact expandable format HUD (50dp closed, 180dp open) for Resolution (FHD/HD/480p), FPS (60/30/24), and Aspect Ratio (Auto/16:9/4:3/1:1/3:4/9:16) with 4s idle auto-dim.
+     - Centered waveform (288dp width, 84dp bars) when camera off; docked waveform capsule (236dp width, 24dp bars) when camera on, expandable to `calc(100% - 24dp)` with hardware faders (`.owl-switch` and `.fader`).
+   - **Drawers**:
+     - Connection Drawer: Inline handshake sweep (`sync-beam` animated gradient line on the connection row), inline Add Host row (`+`), and 6-column transport footer (refresh + 4 link toggles).
+     - Help Drawer: 2x3 bento grid (How-to, Privacy, Rate, GitHub, Donate, Credits) with subpages.
+6. **Strict Library Blacklist**:
    - Never add: Retrofit, Hilt/Dagger, Room, Firebase, or external analytics/telemetry SDKs.
    - Keep the dependency footprint minimal and lightweight.
-5. **On-Demand APK Generation (Never Build APKs During Development)**:
+7. **On-Demand APK Generation (Never Build APKs During Development)**:
    - **Never run `assembleDebug`, `assembleRelease`, or package APKs (`.apk` / `.aab`) during normal development, refactoring, or verification.**
    - **Do NOT build APKs unless explicitly requested by the user** (or when running deliberate release packaging via `python scripts/menu.py build android` / `python scripts/core/build.py --target android`).
    - Routine development verification is strictly unit tests and lint:

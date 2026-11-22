@@ -65,7 +65,6 @@ class MainActivity : ComponentActivity() {
                 // The status bar goes or comes back with the screen's content, while it is faded out.
                 onLayoutTurn = { showStatusBar(it == TURN_NONE) },
                 onFeature = ::tap,
-                onTryBluetooth = ::tryBluetooth,
                 onTethering = ::openTethering,
             )
         }

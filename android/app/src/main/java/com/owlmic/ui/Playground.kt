@@ -4,12 +4,16 @@ import android.view.SurfaceHolder
 import android.view.SurfaceView
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -20,17 +24,15 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
@@ -47,25 +49,26 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.RoundRect
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathFillType
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.lerp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.owlmic.Owlmic
@@ -82,25 +85,23 @@ import com.owlmic.core.R as Copy
 /**
  * The middle tile: the owl on a dot grid while nothing is on, the mic's sound wave, what the camera sends, and the
  * status strip when there is something to read or do. Everything drawn on it is laid out for the reader
- * ([TurnSequence]'s layout) and fades with a change of hold; the camera's picture underneath is turned by its own GL
- * pass. The drawers open over it.
- *
- * The round buttons (the camera's eye, mirror and flip; the mic's settings) rest at 20%: a touch anywhere on the
- * preview brings them up, and 3 s without one lets them down again. They work at either.
+ * ([TurnSequence]'s layout) and fades with a change of hold.
  */
 @Composable
 fun Playground(seq: TurnSequence, state: AppState, drawer: Drawer?, modifier: Modifier, onStrip: (StripAction) -> Unit) {
     val camera = state.camera
-    // Paused for Bluetooth, the camera is off: its tile says why instead of the preview showing nothing.
     val live = (camera.isOn || camera.phase == FeaturePhase.PAUSED) && camera.problem == null
     val mic = state.mic.isOn
 
-    // The mic's settings drawer: closed by default, and whenever the layout under it changes.
-    var open by remember { mutableStateOf(false) }
-    LaunchedEffect(live, mic) { open = false }
-    BackHandler(open) { open = false }
-    // The eye: the preview off (black), for someone who doesn't want to watch themselves. The PC still gets the picture.
-    var watching by rememberSaveable { mutableStateOf(true) }
+    var micOpen by remember { mutableStateOf(false) }
+    var camMenuOpen by remember { mutableStateOf(false) }
+    LaunchedEffect(live, mic) {
+        micOpen = false
+        camMenuOpen = false
+    }
+    BackHandler(micOpen || camMenuOpen) {
+        if (camMenuOpen) camMenuOpen = false else micOpen = false
+    }
 
     var awake by remember { mutableStateOf(false) }
     var touches by remember { mutableIntStateOf(0) }
@@ -110,24 +111,26 @@ fun Playground(seq: TurnSequence, state: AppState, drawer: Drawer?, modifier: Mo
         delay(Tokens.Phone.CONTROLS_IDLE_MS.toLong())
         awake = false
     }
-    val controls by animateFloatAsState(
-        if (awake) 1f else Tokens.Phone.CONTROLS_DIM_ALPHA,
+
+    val hudQuiet = !awake && !camMenuOpen && !(live && mic && micOpen)
+    val hudAlpha by animateFloatAsState(
+        if (hudQuiet) 0.15f else 1f,
         tween(Tokens.Phone.CONTROLS_FADE_MS.toInt()),
-        label = "controls",
+        label = "hudAlpha",
     )
 
     Box(modifier.clip(RoundedCornerShape(Theme.radius)).background(Theme.bg)) {
         if (!live) DotGrid(Modifier.fillMaxSize())
-        if (live && watching) Preview()
+        if (live) PreviewFrame(state)
         if (live) Frame(Modifier.fillMaxSize())
         Content(
             seq.layout,
             seq.fade,
             state,
-            Mode(live, mic, open, watching),
-            controls,
-            onOpen = { open = it },
-            onWatch = { watching = it },
+            Mode(live, mic, micOpen, camMenuOpen),
+            hudAlpha,
+            onMicOpen = { micOpen = it },
+            onCamMenuToggle = { camMenuOpen = !camMenuOpen },
             onTouch = { touches++ },
             onStrip = onStrip,
         )
@@ -135,11 +138,7 @@ fun Playground(seq: TurnSequence, state: AppState, drawer: Drawer?, modifier: Mo
     }
 }
 
-/** What the preview shows: the camera's picture ([live]), the mic, the mic's drawer [open], the picture [watching]. */
-private data class Mode(val live: Boolean, val mic: Boolean, val open: Boolean, val watching: Boolean)
-
-/** The wave's move between the whole preview and the capsule, and the drawer's opening. */
-private const val MOVE_MS = 420
+private data class Mode(val live: Boolean, val mic: Boolean, val micOpen: Boolean, val camMenuOpen: Boolean)
 
 @Composable
 private fun Content(
@@ -147,135 +146,404 @@ private fun Content(
     fade: State<Float>,
     state: AppState,
     mode: Mode,
-    controls: Float,
-    onOpen: (Boolean) -> Unit,
-    onWatch: (Boolean) -> Unit,
+    hudAlpha: Float,
+    onMicOpen: (Boolean) -> Unit,
+    onCamMenuToggle: () -> Unit,
     onTouch: () -> Unit,
     onStrip: (StripAction) -> Unit,
 ) {
-    BoxWithConstraints(Modifier.fillMaxSize().upright(up, swap = true).graphicsLayer { alpha = fade.value }.onAnyTouch(onTouch)) {
+    BoxWithConstraints(
+        Modifier
+            .fillMaxSize()
+            .upright(up, swap = true)
+            .graphicsLayer { alpha = fade.value }
+            .onAnyTouch(onTouch),
+    ) {
         val inset = if (up.sideways) Tokens.Phone.STRIP_SIDE_INSET_DP.dp else Tokens.Phone.STRIP_INSET_DP.dp
-        // 80% of the phone's width upright, and the same width sideways: the window's short side either way.
         val window = LocalWindowInfo.current.containerSize
         val short = with(LocalDensity.current) { minOf(window.width, window.height).toDp() }
         val capsule = minOf(short * Tokens.Phone.CAPSULE_WIDTH_FRACTION, maxWidth - 32.dp)
 
-        AnimatedVisibility(!mode.live && !mode.mic, Modifier.align(Alignment.Center), enter = fadeIn(tween(Theme.STATE_MS)), exit = fadeOut(tween(Theme.STATE_MS))) {
-            Image(
-                painterResource(R.drawable.owl),
-                null,
-                Modifier.size(Tokens.Phone.OWL_DP.dp).graphicsLayer { alpha = Tokens.Phone.OWL_ALPHA },
-            )
-        }
-
-        // The strip sits at the reader's bottom; the capsule stays above it.
-        val strip = stripOf(state)
-        var stripHeight by remember { mutableIntStateOf(0) }
-        val above = with(LocalDensity.current) { if (strip != null) stripHeight.toDp() + 12.dp else 0.dp }
+        // Watermark: owl on dot grid when idle
         AnimatedVisibility(
-            strip != null,
-            Modifier.align(Alignment.BottomCenter).padding(bottom = inset).onSizeChanged { stripHeight = it.height },
+            !mode.live && !mode.mic,
+            Modifier.align(Alignment.Center),
             enter = fadeIn(tween(Theme.STATE_MS)),
             exit = fadeOut(tween(Theme.STATE_MS)),
         ) {
-            // The last strip stays while it fades out.
-            var last by remember { mutableStateOf(Strip.CODE) }
+            Image(
+                painterResource(R.drawable.owl),
+                null,
+                Modifier.size(205.dp).graphicsLayer { alpha = 0.07f },
+            )
+        }
+
+        // Status strip
+        val strip = stripOf(state)
+        AnimatedVisibility(
+            strip != null,
+            Modifier.align(Alignment.BottomCenter).padding(bottom = inset),
+            enter = fadeIn(tween(Theme.STATE_MS)),
+            exit = fadeOut(tween(Theme.STATE_MS)),
+        ) {
+            var last by remember { mutableStateOf(Strip.CHOOSE) }
             if (strip != null) last = strip
             StatusStrip(state, last, Modifier.width(capsule), onStrip)
         }
 
+        // Waveform Dock
         if (mode.mic) {
-            // 0: the wave fills the preview (only the mic on); 1: it sits in the capsule at the bottom (with the camera).
-            val dock by animateFloatAsState(if (mode.live) 1f else 0f, tween(MOVE_MS), label = "dock")
-            WaveHost(state, dock, mode.open, Bounds(maxWidth, maxHeight, capsule, inset + above), onOpen)
+            if (mode.live) {
+                // Docked capsule at bottom when camera is on
+                DockedWave(state, mode.micOpen, maxWidth, onMicOpen)
+            } else {
+                // Centered wave when only mic is on
+                CenteredWave(state, mode.micOpen, onMicOpen)
+            }
         }
 
+        // Camera HUD (Format Menu on left, Mirror & Flip on right)
         if (mode.live) {
             val mirrored = (state.settings["camera.mirrorPreview"] ?: SettingsModel.find("camera.mirrorPreview")?.default) == "on"
             Row(
-                Modifier.align(Alignment.TopEnd).padding(12.dp).graphicsLayer { alpha = controls },
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                Modifier
+                    .fillMaxWidth()
+                    .align(Alignment.TopCenter)
+                    .padding(12.dp)
+                    .graphicsLayer { alpha = hudAlpha },
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.Top,
             ) {
-                RoundButton(if (mode.watching) Glyph.EYE else Glyph.EYE_OFF, stringResource(Copy.string.phone_preview), on = !mode.watching) {
-                    onWatch(!mode.watching)
+                CameraFormatMenu(state, mode.camMenuOpen, onCamMenuToggle)
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                    CamHudButton(Glyph.MIRROR, on = mirrored, label = stringResource(Copy.string.setting_camera_mirror_preview)) {
+                        Owlmic.post(AppMsg.Setting("camera.mirrorPreview", if (mirrored) "off" else "on"))
+                    }
+                    CamHudButton(Glyph.FLIP, on = false, label = stringResource(Copy.string.phone_flip_camera)) {
+                        Owlmic.post(AppMsg.FlipLens)
+                    }
                 }
-                RoundButton(Glyph.MIRROR, stringResource(Copy.string.setting_camera_mirror_preview), on = mirrored) {
-                    Owlmic.post(AppMsg.Setting("camera.mirrorPreview", if (mirrored) "off" else "on"))
-                }
-                RoundButton(Glyph.FLIP, stringResource(Copy.string.phone_flip_camera)) { Owlmic.post(AppMsg.FlipLens) }
             }
-        } else if (mode.mic) {
-            RoundButton(
-                Glyph.SLIDERS,
-                stringResource(Copy.string.ui_settings),
-                Modifier.align(Alignment.BottomEnd).padding(12.dp).graphicsLayer { alpha = if (mode.open) 1f else controls },
-                on = mode.open,
-            ) { onOpen(!mode.open) }
         }
     }
 }
 
-/** The preview's size for the reader, and the capsule's width and distance from the bottom. */
-private class Bounds(val width: Dp, val height: Dp, val capsule: Dp, val bottom: Dp)
-
-/**
- * The sound wave and the mic's settings. With only the mic on ([dock] 0) it fills the preview, and the settings button
- * opens the drawer from the top. With the camera ([dock] 1) it is the capsule at the bottom: tapping it grows it upward
- * into the drawer. Either way the drawer ends in a line, with the wave under it.
- */
+/** The camera preview surface with optical crop border lines matching target aspect ratio. */
 @Composable
-private fun WaveHost(state: AppState, dock: Float, open: Boolean, b: Bounds, onOpen: (Boolean) -> Unit) {
-    val docked = dock >= 1f
-    val capsuleHeight = Tokens.Phone.CAPSULE_HEIGHT_DP.dp
-    val shape = RoundedCornerShape(Theme.radius)
-    Box(Modifier.fillMaxSize().padding(bottom = lerp(0.dp, b.bottom, dock)), contentAlignment = Alignment.BottomCenter) {
+private fun PreviewFrame(state: AppState) {
+    val ratio = state.settings["camera.ratio"] ?: "full"
+    val targetAr = when (ratio) {
+        "16:9" -> 16f / 9f
+        "4:3" -> 4f / 3f
+        "1:1" -> 1f
+        "3:4" -> 3f / 4f
+        "9:16" -> 9f / 16f
+        else -> null
+    }
+
+    BoxWithConstraints(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        val cw = maxWidth.value
+        val ch = maxHeight.value
+        val containerAr = if (ch > 0f) cw / ch else 1f
+
+        val (cropMode, frameW, frameH) = if (targetAr != null && kotlin.math.abs(containerAr - targetAr) >= 0.01f) {
+            if (containerAr > targetAr) {
+                Triple("pillar", (ch * targetAr).dp, maxHeight)
+            } else {
+                Triple("letter", maxWidth, (cw / targetAr).dp)
+            }
+        } else {
+            Triple("none", maxWidth, maxHeight)
+        }
+
+        Box(
+            Modifier
+                .size(frameW, frameH)
+                .drawBehind {
+                    val lineColor = Color(0x38FFFFFF)
+                    if (cropMode == "pillar") {
+                        drawLine(lineColor, Offset(0f, 0f), Offset(0f, size.height), 1.dp.toPx())
+                        drawLine(lineColor, Offset(size.width, 0f), Offset(size.width, size.height), 1.dp.toPx())
+                    } else if (cropMode == "letter") {
+                        drawLine(lineColor, Offset(0f, 0f), Offset(size.width, 0f), 1.dp.toPx())
+                        drawLine(lineColor, Offset(0f, size.height), Offset(size.width, size.height), 1.dp.toPx())
+                    }
+                },
+        ) {
+            Preview()
+        }
+    }
+}
+
+/** Compact expandable format HUD: Resolution, Frame Rate, Aspect Ratio. */
+@Composable
+private fun CameraFormatMenu(state: AppState, isOpen: Boolean, onToggle: () -> Unit) {
+    val quality = state.settings["camera.quality"] ?: "1080p"
+    val fps = state.settings["camera.frameRate"] ?: "30"
+    val ratio = state.settings["camera.ratio"] ?: "full"
+
+    val resLabel = when (quality) {
+        "720p", "HD" -> "HD"
+        "480p" -> "480p"
+        else -> "FHD"
+    }
+
+    val width by animateDpAsState(if (isOpen) 180.dp else 50.dp, tween(Theme.STATE_MS), label = "camMenuW")
+    val shape = RoundedCornerShape(8.dp)
+    val border = if (isOpen) Color(0x5CFFFFFF) else Color(0x38FFFFFF)
+    val bg = if (isOpen) Color(0xFA000000) else Color(0xE0000000)
+
+    Box(
+        Modifier
+            .width(width)
+            .clip(shape)
+            .background(bg)
+            .border(1.dp, border, shape),
+    ) {
+        if (!isOpen) {
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .height(29.dp)
+                    .clickable(role = Role.Button, onClick = onToggle),
+                contentAlignment = Alignment.Center,
+            ) {
+                BasicText(
+                    resLabel,
+                    style = Theme.pageDetail.copy(color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Medium),
+                )
+            }
+        } else {
+            Column(Modifier.fillMaxWidth()) {
+                // Row 1: Resolution (FHD, HD, 480p)
+                Row(Modifier.fillMaxWidth().height(29.dp)) {
+                    val resOptions = listOf("1080p" to "FHD", "720p" to "HD", "480p" to "480p")
+                    resOptions.forEachIndexed { idx, (valKey, label) ->
+                        if (idx > 0) Box(Modifier.width(1.dp).fillMaxHeight().background(Color(0x1AFFFFFF)))
+                        val active = quality == valKey || (valKey == "1080p" && quality == "auto")
+                        Box(
+                            Modifier
+                                .weight(1f)
+                                .fillMaxHeight()
+                                .background(if (active) Color.White else Color.Transparent)
+                                .clickable(role = Role.Button) {
+                                    if (active) onToggle() else Owlmic.post(AppMsg.Setting("camera.quality", valKey))
+                                },
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            BasicText(
+                                label,
+                                style = Theme.pageDetail.copy(
+                                    color = if (active) Color.Black else Color(0xA6FFFFFF),
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Medium,
+                                ),
+                            )
+                        }
+                    }
+                }
+                Box(Modifier.fillMaxWidth().height(1.dp).background(Color(0x1AFFFFFF)))
+                // Row 2: FPS (60fps, 30fps, 24fps)
+                Row(Modifier.fillMaxWidth().height(29.dp)) {
+                    val fpsOptions = listOf("60" to "60fps", "30" to "30fps", "24" to "24fps")
+                    fpsOptions.forEachIndexed { idx, (valKey, label) ->
+                        if (idx > 0) Box(Modifier.width(1.dp).fillMaxHeight().background(Color(0x1AFFFFFF)))
+                        val active = fps == valKey
+                        Box(
+                            Modifier
+                                .weight(1f)
+                                .fillMaxHeight()
+                                .background(if (active) Color.White else Color.Transparent)
+                                .clickable(role = Role.Button) {
+                                    Owlmic.post(AppMsg.Setting("camera.frameRate", valKey))
+                                },
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            BasicText(
+                                label,
+                                style = Theme.pageDetail.copy(
+                                    color = if (active) Color.Black else Color(0xA6FFFFFF),
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Medium,
+                                ),
+                            )
+                        }
+                    }
+                }
+                Box(Modifier.fillMaxWidth().height(1.dp).background(Color(0x1AFFFFFF)))
+                // Row 3: Ratio (Auto, 16:9, 4:3)
+                Row(Modifier.fillMaxWidth().height(29.dp)) {
+                    val ratioOptions1 = listOf("full" to "Auto", "16:9" to "16:9", "4:3" to "4:3")
+                    ratioOptions1.forEachIndexed { idx, (valKey, label) ->
+                        if (idx > 0) Box(Modifier.width(1.dp).fillMaxHeight().background(Color(0x1AFFFFFF)))
+                        val active = ratio == valKey || (valKey == "full" && ratio == "auto")
+                        Box(
+                            Modifier
+                                .weight(1f)
+                                .fillMaxHeight()
+                                .background(if (active) Color.White else Color.Transparent)
+                                .clickable(role = Role.Button) {
+                                    Owlmic.post(AppMsg.Setting("camera.ratio", valKey))
+                                },
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            BasicText(
+                                label,
+                                style = Theme.pageDetail.copy(
+                                    color = if (active) Color.Black else Color(0xA6FFFFFF),
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Medium,
+                                ),
+                            )
+                        }
+                    }
+                }
+                Box(Modifier.fillMaxWidth().height(1.dp).background(Color(0x1AFFFFFF)))
+                // Row 4: Ratio (1:1, 3:4, 9:16)
+                Row(Modifier.fillMaxWidth().height(29.dp)) {
+                    val ratioOptions2 = listOf("1:1" to "1:1", "3:4" to "3:4", "9:16" to "9:16")
+                    ratioOptions2.forEachIndexed { idx, (valKey, label) ->
+                        if (idx > 0) Box(Modifier.width(1.dp).fillMaxHeight().background(Color(0x1AFFFFFF)))
+                        val active = ratio == valKey
+                        Box(
+                            Modifier
+                                .weight(1f)
+                                .fillMaxHeight()
+                                .background(if (active) Color.White else Color.Transparent)
+                                .clickable(role = Role.Button) {
+                                    Owlmic.post(AppMsg.Setting("camera.ratio", valKey))
+                                },
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            BasicText(
+                                label,
+                                style = Theme.pageDetail.copy(
+                                    color = if (active) Color.Black else Color(0xA6FFFFFF),
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Medium,
+                                ),
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** Mirror and Flip buttons in Camera HUD. */
+@Composable
+private fun CamHudButton(glyph: Glyph, on: Boolean = false, label: String, onClick: () -> Unit) {
+    val shape = RoundedCornerShape(8.dp)
+    val bg by animateColorAsState(if (on) Color.White else Color(0xCC000000), tween(Theme.STATE_MS), label = "camBtnBg")
+    val border by animateColorAsState(if (on) Color.White else Color(0x33FFFFFF), tween(Theme.STATE_MS), label = "camBtnBorder")
+    val fg by animateColorAsState(if (on) Color.Black else Color.White, tween(Theme.STATE_MS), label = "camBtnFg")
+    Box(
+        Modifier
+            .size(29.dp)
+            .clip(shape)
+            .background(bg)
+            .border(1.dp, border, shape)
+            .clickable(role = Role.Button, onClickLabel = label, onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(glyph, fg, label, size = 15.dp, stroke = 2f)
+    }
+}
+
+/** Docked waveform capsule at the bottom when camera is on. */
+@Composable
+private fun DockedWave(state: AppState, open: Boolean, maxWidth: androidx.compose.ui.unit.Dp, onOpen: (Boolean) -> Unit) {
+    val width by animateDpAsState(if (open) maxWidth - 24.dp else 236.dp, tween(Theme.STATE_MS), label = "dockWidth")
+    val shape = RoundedCornerShape(12.dp)
+    val borderColor = if (open) Color(0x52FFFFFF) else Color(0x38FFFFFF)
+
+    Box(
+        Modifier
+            .fillMaxSize()
+            .padding(bottom = 12.dp),
+        contentAlignment = Alignment.BottomCenter,
+    ) {
         Column(
             Modifier
-                .width(lerp(b.width, b.capsule, dock))
-                .then(if (docked) Modifier.wrapContentHeight() else Modifier.height(lerp(b.height, capsuleHeight, dock)))
+                .width(width)
                 .clip(shape)
-                .background(Theme.bg.copy(alpha = dock))
-                .border(1.dp, Theme.stripEdge.copy(alpha = Theme.stripEdge.alpha * dock), shape),
+                .background(Color.Black)
+                .border(1.dp, borderColor, shape),
         ) {
             AnimatedVisibility(
                 open,
-                enter = expandVertically(tween(MOVE_MS), expandFrom = Alignment.Top) + fadeIn(tween(MOVE_MS)),
-                exit = shrinkVertically(tween(MOVE_MS), shrinkTowards = Alignment.Top) + fadeOut(tween(Theme.STATE_MS)),
+                enter = expandVertically(tween(Theme.STATE_MS)) + fadeIn(),
+                exit = shrinkVertically(tween(Theme.STATE_MS)) + fadeOut(),
             ) {
-                // In the capsule, the drawer stops short of the round camera buttons at the top.
-                val room = if (docked) b.height - b.bottom - capsuleHeight - Tokens.Phone.ROUND_BUTTON_DP.dp - 40.dp else b.height * 0.6f
-                Column {
-                    Panel(Modifier.heightIn(max = room)) { MicControls(state) }
-                    Box(Modifier.fillMaxWidth().padding(horizontal = 16.dp).height(1.dp).background(Theme.stripEdge))
+                Column(Modifier.fillMaxWidth()) {
+                    Column(
+                        Modifier
+                            .fillMaxWidth()
+                            .verticalScroll(rememberScrollState())
+                            .padding(horizontal = 16.dp, vertical = 14.dp),
+                        verticalArrangement = Arrangement.spacedBy(14.dp),
+                    ) {
+                        MicControls(state)
+                    }
+                    Box(Modifier.fillMaxWidth().height(1.dp).background(Color(0x26FFFFFF)))
                 }
-            }
-            // The wave; in the capsule, tapping it opens or closes the drawer.
-            val tap = if (docked) {
-                Modifier.clickable(remember { MutableInteractionSource() }, null, role = Role.Button, onClickLabel = stringResource(Copy.string.ui_settings)) {
-                    onOpen(!open)
-                }
-            } else {
-                Modifier
             }
             Box(
-                (if (docked) Modifier.fillMaxWidth().height(capsuleHeight) else Modifier.fillMaxWidth().weight(1f)).then(tap),
+                Modifier
+                    .fillMaxWidth()
+                    .height(44.dp)
+                    .clickable(role = Role.Button, onClick = { onOpen(!open) }),
                 contentAlignment = Alignment.Center,
             ) {
-                // Only the mic: a wave no wider than the capsule would be, not edge to edge.
-                val alone = minOf(b.width * 0.6f, b.capsule * 0.86f)
-                Waveform(Modifier.width(lerp(alone, b.capsule * 0.86f, dock)).fillMaxHeight(0.45f + 0.05f * dock))
+                Waveform(Modifier.fillMaxWidth(0.86f).height(24.dp), isDocked = true)
             }
         }
     }
 }
 
+/** Centered waveform when camera is off, with bottom quick panel on tap. */
 @Composable
-private fun Panel(modifier: Modifier, content: @Composable ColumnScope.() -> Unit) {
-    Column(
-        modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(start = 20.dp, end = 20.dp, top = 18.dp, bottom = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
-        content = content,
-    )
+private fun CenteredWave(state: AppState, open: Boolean, onOpen: (Boolean) -> Unit) {
+    val offsetY by animateDpAsState(if (open) (-90).dp else 0.dp, tween(Theme.STATE_MS), label = "waveLift")
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Box(
+            Modifier
+                .offset { IntOffset(0, offsetY.roundToPx()) }
+                .width(288.dp)
+                .height(84.dp)
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    role = Role.Button,
+                    onClick = { onOpen(!open) },
+                ),
+            contentAlignment = Alignment.Center,
+        ) {
+            Waveform(Modifier.fillMaxSize(), isDocked = false)
+        }
+
+        // Mic-only bottom quick panel
+        AnimatedVisibility(
+            open,
+            Modifier.align(Alignment.BottomCenter),
+            enter = slideInVertically(tween(Theme.STATE_MS)) { it } + fadeIn(),
+            exit = slideOutVertically(tween(Theme.STATE_MS)) { it } + fadeOut(),
+        ) {
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp))
+                    .background(Color.Black)
+                    .border(1.dp, Color(0x26FFFFFF), RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp))
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 16.dp, vertical = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp),
+            ) {
+                MicControls(state)
+            }
+        }
+    }
 }
 
 @Composable
@@ -284,17 +552,15 @@ private fun StatusStrip(state: AppState, strip: Strip, modifier: Modifier, onStr
     val tap = if (action != null) Modifier.clickable(role = Role.Button) { onStrip(action) } else Modifier
     val shape = RoundedCornerShape(Theme.radius)
     Column(
-        modifier.clip(shape).background(Theme.bg).border(1.dp, Theme.stripEdge, shape).then(tap).padding(horizontal = 18.dp, vertical = 12.dp),
+        modifier
+            .clip(shape)
+            .background(Theme.bg)
+            .border(1.dp, Theme.stripEdge, shape)
+            .then(tap)
+            .padding(horizontal = 18.dp, vertical = 12.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        val c = state.connection
-        if (strip == Strip.CODE && c is Connection.Approving) {
-            // The PC asks the user to check this code against its own.
-            if (c.pc.isNotEmpty()) BasicText(c.pc, style = stripStyle().copy(color = Theme.text, fontWeight = Theme.title.fontWeight), maxLines = 1)
-            BasicText(c.code, style = stripStyle().copy(fontFamily = Theme.mono, fontSize = Theme.display.fontSize, lineHeight = Theme.display.lineHeight, color = Theme.text))
-        } else {
-            BasicText(stripText(state, strip), style = stripStyle(), maxLines = 3)
-        }
+        BasicText(stripText(state, strip), style = stripStyle(), maxLines = 3)
     }
 }
 
@@ -310,7 +576,6 @@ private fun stripText(state: AppState, strip: Strip): String = when (val c = sta
     else -> when (strip) {
         Strip.CHOOSE -> stringResource(Copy.string.phone_choose_pc)
         Strip.TETHERING -> stringResource(Copy.string.ui_open_tethering)
-        Strip.BLUETOOTH -> stringResource(Copy.string.bt_try)
         else -> ""
     }
 }

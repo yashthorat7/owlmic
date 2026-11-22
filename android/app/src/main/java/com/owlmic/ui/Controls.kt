@@ -35,6 +35,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.res.stringResource
@@ -77,10 +79,11 @@ fun Modifier.onAnyTouch(onTouch: () -> Unit): Modifier = pointerInput(Unit) {
 /** The mic's settings: what the capsule's drawer and the mic-only drawer show. */
 @Composable
 fun ColumnScope.MicControls(state: AppState) {
+    SettingToggle(state, "mic.isolation", Copy.string.setting_mic_isolation)
+    val isolationOn = (state.settings["mic.isolation"] ?: SettingsModel.find("mic.isolation")?.default) == "on"
+    SettingToggle(state, "mic.autoLevel", Copy.string.setting_mic_auto_level, enabled = isolationOn)
     SettingSlider(state, "mic.noiseReduction", Copy.string.setting_mic_noise_reduction)
     SettingSlider(state, "mic.volume", Copy.string.setting_mic_volume, fromMiddle = true)
-    SettingToggle(state, "mic.isolation", Copy.string.setting_mic_isolation)
-    SettingToggle(state, "mic.autoLevel", Copy.string.setting_mic_auto_level)
 }
 
 /** How a slider's step reads: noise reduction's 0 is Off; the volume is in dB with its sign. */
@@ -92,7 +95,7 @@ fun stepText(id: String, value: String): String = when {
 }
 
 /**
- * A setting's steps on a line: tap or drag. The first step of noise reduction is off; [fromMiddle] fills from the
+ * A hardware fader on a line: tap or drag. The first step of noise reduction is off; [fromMiddle] fills from the
  * centre (the volume's 0 dB) instead of from the start. A drag sends only where it ends, so the PC isn't flooded.
  */
 @Composable
@@ -101,20 +104,24 @@ fun SettingSlider(state: AppState, id: String, label: Int, fromMiddle: Boolean =
     val current = state.settings[id] ?: def.default
     val steps = def.values.size
     var dragged by remember { mutableStateOf<Int?>(null) }
+    val isDragging = dragged != null
     val at = dragged ?: def.values.indexOf(current).coerceAtLeast(0)
     val commit = { i: Int -> if (def.values[i] != current) Owlmic.post(AppMsg.Setting(id, def.values[i])) }
     val name = stringResource(label)
     val value = stepText(id, def.values[at])
-    Column(Modifier.fillMaxWidth()) {
+
+    val trackHeight by animateDpAsState(if (isDragging) 10.dp else 8.dp, tween(Theme.STATE_MS), label = "trackHeight")
+    val capHeight by animateDpAsState(if (isDragging) 16.dp else 14.dp, tween(Theme.STATE_MS), label = "capHeight")
+
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             BasicText(name, Modifier.weight(1f), style = Theme.pageText)
             BasicText(value, style = Theme.pageText.copy(color = Theme.ink, fontFeatureSettings = "tnum"))
         }
-        val thumb = 11.dp
         Canvas(
             Modifier
                 .fillMaxWidth()
-                .height(36.dp)
+                .height(24.dp)
                 .semantics {
                     contentDescription = name
                     stateDescription = value
@@ -125,13 +132,11 @@ fun SettingSlider(state: AppState, id: String, label: Int, fromMiddle: Boolean =
                     }
                 }
                 .pointerInput(steps, current) {
-                    val r = thumb.toPx()
-                    val step = { x: Float -> (((x - r) / (size.width - 2 * r)) * (steps - 1)).roundToInt().coerceIn(0, steps - 1) }
+                    val step = { x: Float -> ((x / size.width) * (steps - 1)).roundToInt().coerceIn(0, steps - 1) }
                     detectTapGestures { commit(step(it.x)) }
                 }
                 .pointerInput(steps, current) {
-                    val r = thumb.toPx()
-                    val step = { x: Float -> (((x - r) / (size.width - 2 * r)) * (steps - 1)).roundToInt().coerceIn(0, steps - 1) }
+                    val step = { x: Float -> ((x / size.width) * (steps - 1)).roundToInt().coerceIn(0, steps - 1) }
                     detectHorizontalDragGestures(
                         onDragStart = { dragged = step(it.x) },
                         onDragEnd = {
@@ -145,33 +150,78 @@ fun SettingSlider(state: AppState, id: String, label: Int, fromMiddle: Boolean =
                     }
                 },
         ) {
-            val r = thumb.toPx()
-            val y = size.height / 2
-            val left = r
-            val width = size.width - 2 * r
-            val x = { i: Int -> left + width * i / (steps - 1) }
-            val line = 3.dp.toPx()
-            drawRoundRect(Theme.chipOnEdge, Offset(left, y - line / 2), Size(width, line), CornerRadius(line / 2))
-            val from = if (fromMiddle) x((steps - 1) / 2) else left
+            val w = size.width
+            val cy = size.height / 2f
+            val th = trackHeight.toPx()
+            val tr = th / 2f
+
+            // Track background: rgba(255, 255, 255, 0.14)
+            val trackColor = Color(0x24FFFFFF)
+            drawRoundRect(
+                color = trackColor,
+                topLeft = Offset(0f, cy - tr),
+                size = Size(w, th),
+                cornerRadius = CornerRadius(tr, tr),
+            )
+
+            // Fill
+            val x = { i: Int -> (w * i / (steps - 1).coerceAtLeast(1)) }
+            val from = if (fromMiddle) x((steps - 1) / 2) else 0f
             val to = x(at)
-            drawRoundRect(Theme.ink, Offset(minOf(from, to), y - line / 2), Size(kotlin.math.abs(to - from), line), CornerRadius(line / 2))
-            for (i in 0 until steps) drawCircle(Theme.text2, 1.5.dp.toPx(), Offset(x(i), y + 9.dp.toPx()))
-            drawCircle(Theme.ink, r, Offset(to, y))
+            val fillLeft = minOf(from, to)
+            val fillWidth = kotlin.math.abs(to - from)
+            if (fillWidth > 0f) {
+                drawRoundRect(
+                    color = Color.White,
+                    topLeft = Offset(fillLeft, cy - tr),
+                    size = Size(fillWidth, th),
+                    cornerRadius = CornerRadius(tr, tr),
+                )
+            }
+
+            // Cap (hardware fader): width 2.5dp, height capHeight, rounded 2dp, white with black shadow/outline
+            val cw = 2.5.dp.toPx()
+            val ch = capHeight.toPx()
+            val capX = to.coerceIn(cw / 2f, w - cw / 2f)
+            val capLeft = capX - cw / 2f
+            val capTop = cy - ch / 2f
+
+            // Black outline / shadow around cap (1.5px)
+            drawRoundRect(
+                color = Color.Black,
+                topLeft = Offset(capLeft - 1.5.dp.toPx(), capTop - 1.5.dp.toPx()),
+                size = Size(cw + 3.dp.toPx(), ch + 3.dp.toPx()),
+                cornerRadius = CornerRadius(3.5.dp.toPx(), 3.5.dp.toPx()),
+            )
+            // White cap
+            drawRoundRect(
+                color = Color.White,
+                topLeft = Offset(capLeft, capTop),
+                size = Size(cw, ch),
+                cornerRadius = CornerRadius(2.dp.toPx(), 2.dp.toPx()),
+            )
         }
     }
 }
 
 /** An on/off setting as a row with a switch. */
 @Composable
-fun SettingToggle(state: AppState, id: String, label: Int) {
+fun SettingToggle(state: AppState, id: String, label: Int, enabled: Boolean = true) {
     val def = SettingsModel.find(id) ?: return
     val on = (state.settings[id] ?: def.default) == "on"
+    val clickableModifier = if (enabled) {
+        Modifier
+            .semantics { toggleableState = ToggleableState(on) }
+            .clickable(role = Role.Switch) { Owlmic.post(AppMsg.Setting(id, if (on) "off" else "on")) }
+    } else {
+        Modifier
+    }
     Row(
         Modifier
             .fillMaxWidth()
             .heightIn(min = Theme.touch)
-            .semantics { toggleableState = ToggleableState(on) }
-            .clickable(role = Role.Switch) { Owlmic.post(AppMsg.Setting(id, if (on) "off" else "on")) },
+            .graphicsLayer { alpha = if (enabled) 1f else 0.36f }
+            .then(clickableModifier),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         BasicText(stringResource(label), Modifier.weight(1f), style = Theme.pageText)
@@ -179,18 +229,27 @@ fun SettingToggle(state: AppState, id: String, label: Int) {
     }
 }
 
-/** On: the track in ink and the thumb at the end with a tick. Off: a dark track, the thumb grey at the start. */
+/** On: white pill and black thumb at the end. Off: black pill and dim white thumb at start. */
 @Composable
 fun Switch(on: Boolean) {
-    val at by animateDpAsState(if (on) 20.dp else 0.dp, tween(Theme.STATE_MS), label = "switch")
-    val track by animateColorAsState(if (on) Theme.ink else Theme.chip, tween(Theme.STATE_MS), label = "track")
-    Box(Modifier.size(46.dp, 26.dp).clip(CircleShape).background(track).border(1.dp, Theme.chipOnEdge, CircleShape)) {
+    val at by animateDpAsState(if (on) 18.dp else 0.dp, tween(Theme.STATE_MS), label = "switch")
+    val trackBg by animateColorAsState(if (on) Color.White else Theme.bg, tween(Theme.STATE_MS), label = "switchTrackBg")
+    val trackBorder by animateColorAsState(if (on) Color.White else Theme.chipOnEdge, tween(Theme.STATE_MS), label = "switchTrackBorder")
+    val thumbBg by animateColorAsState(if (on) Theme.onContent else Theme.text2, tween(Theme.STATE_MS), label = "switchThumbBg")
+    Box(
+        Modifier
+            .size(38.dp, 20.dp)
+            .clip(CircleShape)
+            .background(trackBg)
+            .border(1.dp, trackBorder, CircleShape),
+    ) {
         Box(
-            Modifier.offset { IntOffset((3.dp + at).roundToPx(), 3.dp.roundToPx()) }.size(20.dp).clip(CircleShape).background(if (on) Theme.bg else Theme.text2),
-            contentAlignment = Alignment.Center,
-        ) {
-            if (on) Icon(Glyph.CHECK, Theme.ink, null, size = 12.dp, stroke = 3f)
-        }
+            Modifier
+                .offset { IntOffset((2.dp + at).roundToPx(), 2.dp.roundToPx()) }
+                .size(14.dp)
+                .clip(CircleShape)
+                .background(thumbBg),
+        )
     }
 }
 
