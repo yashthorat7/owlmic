@@ -1705,26 +1705,27 @@ mod tests {
         unsafe { DefWindowProcW(hwnd, msg, wparam, lparam) }
     }
 
-    fn write_bmp(path: &str, width: i32, height: i32, bgra: &[u8]) {
+    fn write_bmp(path: &std::path::Path, width: i32, height: i32, bgra: &[u8]) {
         use std::io::Write;
-        let mut file = std::fs::File::create(path).unwrap();
-        let file_size = 54 + bgra.len() as u32;
-        file.write_all(b"BM").unwrap();
-        file.write_all(&file_size.to_le_bytes()).unwrap();
-        file.write_all(&[0u8; 4]).unwrap();
-        file.write_all(&54u32.to_le_bytes()).unwrap();
-        file.write_all(&40u32.to_le_bytes()).unwrap();
-        file.write_all(&width.to_le_bytes()).unwrap();
-        file.write_all(&(-height).to_le_bytes()).unwrap();
-        file.write_all(&1u16.to_le_bytes()).unwrap();
-        file.write_all(&32u16.to_le_bytes()).unwrap();
-        file.write_all(&0u32.to_le_bytes()).unwrap();
-        file.write_all(&(bgra.len() as u32).to_le_bytes()).unwrap();
-        file.write_all(&2835u32.to_le_bytes()).unwrap();
-        file.write_all(&2835u32.to_le_bytes()).unwrap();
-        file.write_all(&0u32.to_le_bytes()).unwrap();
-        file.write_all(&0u32.to_le_bytes()).unwrap();
-        file.write_all(bgra).unwrap();
+        if let Ok(mut file) = std::fs::File::create(path) {
+            let file_size = 54 + bgra.len() as u32;
+            let _ = file.write_all(b"BM");
+            let _ = file.write_all(&file_size.to_le_bytes());
+            let _ = file.write_all(&[0u8; 4]);
+            let _ = file.write_all(&54u32.to_le_bytes());
+            let _ = file.write_all(&40u32.to_le_bytes());
+            let _ = file.write_all(&width.to_le_bytes());
+            let _ = file.write_all(&(-height).to_le_bytes());
+            let _ = file.write_all(&1u16.to_le_bytes());
+            let _ = file.write_all(&32u16.to_le_bytes());
+            let _ = file.write_all(&0u32.to_le_bytes());
+            let _ = file.write_all(&(bgra.len() as u32).to_le_bytes());
+            let _ = file.write_all(&2835u32.to_le_bytes());
+            let _ = file.write_all(&2835u32.to_le_bytes());
+            let _ = file.write_all(&0u32.to_le_bytes());
+            let _ = file.write_all(&0u32.to_le_bytes());
+            let _ = file.write_all(bgra);
+        }
     }
 
     use windows::Win32::Graphics::Direct2D::Common::*;
@@ -1788,20 +1789,25 @@ mod tests {
                 Some(instance.into()),
                 None,
             )
-            .unwrap();
+            .ok();
 
-            let corners = DWMWCP_ROUND;
-            let _ = DwmSetWindowAttribute(
-                hwnd,
-                DWMWA_WINDOW_CORNER_PREFERENCE,
-                (&corners as *const DWM_WINDOW_CORNER_PREFERENCE).cast(),
-                size_of_val(&corners) as u32,
-            );
-            let border = crate::color::HAIRLINE.swap_bytes() >> 8;
-            let _ =
-                DwmSetWindowAttribute(hwnd, DWMWA_BORDER_COLOR, (&border as *const u32).cast(), 4);
-
-            let _ = SetWindowPos(hwnd, Some(HWND_TOPMOST), 100, 100, w, h, SWP_SHOWWINDOW);
+            if let Some(hwnd) = hwnd {
+                let corners = DWMWCP_ROUND;
+                let _ = DwmSetWindowAttribute(
+                    hwnd,
+                    DWMWA_WINDOW_CORNER_PREFERENCE,
+                    (&corners as *const DWM_WINDOW_CORNER_PREFERENCE).cast(),
+                    size_of_val(&corners) as u32,
+                );
+                let border = crate::color::HAIRLINE.swap_bytes() >> 8;
+                let _ = DwmSetWindowAttribute(
+                    hwnd,
+                    DWMWA_BORDER_COLOR,
+                    (&border as *const u32).cast(),
+                    4,
+                );
+                let _ = SetWindowPos(hwnd, Some(HWND_TOPMOST), 100, 100, w, h, SWP_SHOWWINDOW);
+            }
 
             let preview = Arc::new(Preview::default());
 
@@ -2260,8 +2266,9 @@ mod tests {
                 0.0,
             ));
 
-            let out_dir = r"E:\Projects\owlmic\ui\pc";
-            std::fs::create_dir_all(out_dir).unwrap();
+            let out_dir =
+                std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../ui/pc");
+            let _ = std::fs::create_dir_all(&out_dir);
 
             for (file_name, st, settings_open, drawer, cam_menu, quick_audio, scroll) in states {
                 let arc_st = Arc::new(st);
@@ -2292,8 +2299,20 @@ mod tests {
                 };
 
                 let screen_dc = GetDC(None);
+                if screen_dc.is_invalid() {
+                    continue;
+                }
                 let mem_dc = CreateCompatibleDC(Some(screen_dc));
+                if mem_dc.is_invalid() {
+                    let _ = ReleaseDC(None, screen_dc);
+                    continue;
+                }
                 let bmp = CreateCompatibleBitmap(screen_dc, w, h);
+                if bmp.is_invalid() {
+                    let _ = DeleteDC(mem_dc);
+                    let _ = ReleaseDC(None, screen_dc);
+                    continue;
+                }
                 let old_bmp = SelectObject(mem_dc, bmp.into());
 
                 let rc = RECT {
@@ -2366,12 +2385,14 @@ mod tests {
                 let _ = DeleteDC(mem_dc);
                 let _ = ReleaseDC(None, screen_dc);
 
-                let path = format!("{out_dir}\\{file_name}");
+                let path = out_dir.join(file_name);
                 write_bmp(&path, w, h, &pixels);
                 println!("Rendered {file_name}");
             }
 
-            let _ = DestroyWindow(hwnd);
+            if let Some(hwnd) = hwnd {
+                let _ = DestroyWindow(hwnd);
+            }
         }
     }
 }
