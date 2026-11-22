@@ -26,6 +26,7 @@ pub enum Font {
     Body,
     Caption,
     /// The approval code, in the monospaced face.
+    #[allow(dead_code)]
     Code,
 }
 
@@ -427,52 +428,68 @@ impl Painter {
     }
 
     pub fn watermark(&self, cx: f32, cy: f32, size: f32, opacity: f32) {
-        let px_size = 128usize;
-        let d2d_size = D2D_SIZE_U {
-            width: px_size as u32,
-            height: px_size as u32,
+        self.fill_brand_owl(cx, cy, size, opacity);
+    }
+
+    pub fn fill_brand_owl(&self, cx: f32, cy: f32, size: f32, opacity: f32) {
+        let s = self.scale;
+        let k = size * s / BOX;
+        let (ox, oy) = (cx * s - size * s / 2.0, cy * s - size * s / 2.0);
+        let p = move |x: f32, y: f32| Vector2 {
+            X: ox + x * k,
+            Y: oy + y * k,
         };
-        let dest = D2D_RECT_F {
-            left: (cx - size / 2.0) * self.scale,
-            top: (cy - size / 2.0) * self.scale,
-            right: (cx + size / 2.0) * self.scale,
-            bottom: (cy + size / 2.0) * self.scale,
-        };
-        let props = D2D1_BITMAP_PROPERTIES {
-            pixelFormat: D2D1_PIXEL_FORMAT {
-                format: DXGI_FORMAT_B8G8R8A8_UNORM,
-                alphaMode: D2D1_ALPHA_MODE_PREMULTIPLIED,
-            },
-            dpiX: 96.0,
-            dpiY: 96.0,
-        };
-        let mut pixels = crate::owl::bgra(px_size, true);
-        for px in pixels.as_chunks_mut::<4>().0 {
-            let a = px[3];
-            px[0] = a;
-            px[1] = a;
-            px[2] = a;
-        }
-        if let Ok(bmp) = unsafe {
-            self.t().CreateBitmap(
-                d2d_size,
-                Some(pixels.as_ptr().cast()),
-                (px_size * 4) as u32,
-                &props,
-            )
-        } {
-            unsafe {
-                self.t().DrawBitmap(
-                    &bmp,
-                    Some(&dest),
-                    opacity,
-                    D2D1_BITMAP_INTERPOLATION_MODE_LINEAR,
-                    None,
-                );
+        let brush = self.brush(0xFFFFFF);
+        unsafe {
+            brush.SetOpacity(opacity);
+            if let Ok(geometry) = self.d2d.CreatePathGeometry()
+                && let Ok(sink) = geometry.Open()
+            {
+                sink.SetFillMode(D2D1_FILL_MODE_ALTERNATE);
+                let mut open = false;
+                for seg in crate::brand::OWL_BODY {
+                    match *seg {
+                        Seg::Move(x, y) => {
+                            if open {
+                                sink.EndFigure(D2D1_FIGURE_END_CLOSED);
+                            }
+                            sink.BeginFigure(p(x, y), D2D1_FIGURE_BEGIN_FILLED);
+                            open = true;
+                        }
+                        Seg::Line(x, y) => sink.AddLine(p(x, y)),
+                        Seg::Cubic(c) => sink.AddBezier(&D2D1_BEZIER_SEGMENT {
+                            point1: p(c[0], c[1]),
+                            point2: p(c[2], c[3]),
+                            point3: p(c[4], c[5]),
+                        }),
+                        Seg::Close if open => {
+                            sink.EndFigure(D2D1_FIGURE_END_CLOSED);
+                            open = false;
+                        }
+                        _ => {}
+                    }
+                }
+                if open {
+                    sink.EndFigure(D2D1_FIGURE_END_CLOSED);
+                }
+                let _ = sink.Close();
+                self.t().FillGeometry(&geometry, brush, None);
             }
+            for shape in crate::brand::OWL_PUPILS {
+                if let Shape::Circle { c, r } = *shape {
+                    let ellipse = D2D1_ELLIPSE {
+                        point: p(c.0, c.1),
+                        radiusX: r * k,
+                        radiusY: r * k,
+                    };
+                    self.t().FillEllipse(&ellipse, brush);
+                }
+            }
+            brush.SetOpacity(1.0);
         }
     }
 
+    #[allow(dead_code)]
     pub fn clip(&self, r: Rect) {
         unsafe {
             self.t()
@@ -480,6 +497,7 @@ impl Painter {
         };
     }
 
+    #[allow(dead_code)]
     pub fn unclip(&self) {
         unsafe { self.t().PopAxisAlignedClip() };
     }

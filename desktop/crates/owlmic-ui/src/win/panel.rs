@@ -6,8 +6,8 @@ use super::draw::{Align, Font, Painter};
 use super::tray::{self, Tray};
 use crate::layout::{self as l, Drawer, HelpScreen, Rect, Screen, Target};
 use crate::preview::{self, Preview};
-use crate::view::{Action, Connection, Feature, Link, PanelState, Row, indicator};
-use crate::{color, fill, icons, messages as m};
+use crate::view::{Action, Connection, Feature, Link, PanelState, indicator};
+use crate::{color, icons};
 use owlmic_hub::Publisher;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicIsize, Ordering};
@@ -109,12 +109,9 @@ struct Panel {
     painter: Painter,
     tray: Option<Tray>,
     state: Arc<PanelState>,
-    rows: Vec<Row>,
-    settings_open: bool,
     drawer: Drawer,
     cam_menu_open: bool,
     quick_audio_open: bool,
-    scroll: f32,
     scale: f32,
     visible: bool,
     hidden_at: Option<Instant>,
@@ -144,12 +141,9 @@ pub fn run(waker: &Waker, ui: Ui, open: bool) -> Result<()> {
             ui,
             painter: Painter::new()?,
             tray: None,
-            rows: Vec::new(),
-            settings_open: false,
             drawer: Drawer::None,
             cam_menu_open: false,
             quick_audio_open: false,
-            scroll: 0.0,
             scale: 1.0,
             visible: false,
             hidden_at: None,
@@ -291,12 +285,6 @@ impl Panel {
                 lo(lparam.0) as f32 / self.scale,
                 hi(lparam.0) as f32 / self.scale,
             ),
-            WM_MOUSEWHEEL if self.settings_open => {
-                let notches = hi(wparam.0 as isize) as f32 / WHEEL_DELTA as f32;
-                let max = (l::list_height(self.rows.len()) - l::LIST.h).max(0.0);
-                self.scroll = (self.scroll - notches * 3.0 * (l::ROW + 1.0)).clamp(0.0, max);
-                self.invalidate();
-            }
             WM_DPICHANGED => {
                 if self.visible {
                     self.show(false);
@@ -329,15 +317,17 @@ impl Panel {
         self.applied_at = Instant::now();
         let new = self.ui.state.read();
         let asks = |s: &PanelState| matches!(s.connection, Connection::Approval { .. });
-        let open_gate = asks(&new) && !asks(&self.state);
+        let open_pairing = asks(&new) && !asks(&self.state);
         self.state = new;
-        self.rows = self.state.rows();
         let tip = self.state.tooltip();
         if let Some(t) = self.tray.as_mut() {
             t.set_tip(&tip);
         }
-        if open_gate && !self.visible {
-            self.show(false);
+        if open_pairing {
+            self.drawer = Drawer::Wifi;
+            if !self.visible {
+                self.show(false);
+            }
         }
         self.invalidate();
     }
@@ -415,7 +405,6 @@ impl Panel {
             let _ = KillTimer(Some(self.hwnd), TIMER_PREVIEW);
         }
         self.visible = false;
-        self.settings_open = false;
         self.drawer = Drawer::None;
         self.cam_menu_open = false;
         self.quick_audio_open = false;
@@ -424,13 +413,10 @@ impl Panel {
     }
 
     fn click(&mut self, x: f32, y: f32) {
-        let screen = if self.settings_open {
-            Screen::Settings
-        } else {
+        let screen =
             self.state
-                .active_screen(self.drawer, self.cam_menu_open, self.quick_audio_open)
-        };
-        let Some(target) = l::hit(screen, x, y, self.scroll, self.rows.len()) else {
+                .active_screen(self.drawer, self.cam_menu_open, self.quick_audio_open);
+        let Some(target) = l::hit(screen, x, y) else {
             return;
         };
         match target {
@@ -450,6 +436,12 @@ impl Panel {
                     self.drawer = Drawer::Help(HelpScreen::Bento);
                     self.cam_menu_open = false;
                     self.quick_audio_open = false;
+                }
+            }
+            Target::Camera | Target::Mic | Target::Speaker => {
+                self.drawer = Drawer::None;
+                if let Some(action) = self.state.click(target) {
+                    (self.ui.on_action)(action);
                 }
             }
             Target::HelpBack => {
@@ -480,19 +472,10 @@ impl Panel {
                 copy_to_clipboard(self.hwnd, &ip_str);
                 self.copied_at = Some(Instant::now());
             }
-            Target::Settings => {
-                self.settings_open = true;
-                self.drawer = Drawer::None;
-                self.scroll = 0.0;
-            }
-            Target::Back => {
-                self.settings_open = false;
-                self.drawer = Drawer::None;
-            }
             _ => {
-                if let Some(link) = self.state.link_at(target, &self.rows) {
+                if let Some(link) = self.state.link_at(target) {
                     open(link);
-                } else if let Some(action) = self.state.click(target, &self.rows) {
+                } else if let Some(action) = self.state.click(target) {
                     (self.ui.on_action)(action);
                 }
             }
@@ -505,17 +488,12 @@ impl Panel {
         unsafe { BeginPaint(self.hwnd, &mut ps) };
         if self.painter.begin(self.hwnd, self.scale) {
             self.painter.clear(color::HAIRLINE);
-            let screen = if self.settings_open {
-                Screen::Settings
-            } else {
+            let screen =
                 self.state
-                    .active_screen(self.drawer, self.cam_menu_open, self.quick_audio_open)
-            };
+                    .active_screen(self.drawer, self.cam_menu_open, self.quick_audio_open);
             match screen {
-                Screen::Gate => self.draw_gate(),
-                Screen::Settings => self.draw_settings(),
-                Screen::DrawerWifi => {
-                    self.draw_drawer_wifi();
+                Screen::DrawerWifi(mode) => {
+                    self.draw_drawer_wifi(mode);
                     self.draw_bottom_dock();
                 }
                 Screen::DrawerHelp(h) => {
@@ -523,13 +501,12 @@ impl Panel {
                     self.draw_bottom_dock();
                 }
                 Screen::Main {
-                    repair,
                     cam_on,
                     mic_on,
                     cam_menu,
                     quick_audio,
                 } => {
-                    self.draw_main(repair, cam_on, mic_on, cam_menu, quick_audio);
+                    self.draw_main(cam_on, mic_on, cam_menu, quick_audio);
                     self.draw_bottom_dock();
                 }
             }
@@ -540,18 +517,10 @@ impl Panel {
         }
     }
 
-    fn draw_main(
-        &mut self,
-        repair: bool,
-        cam_on: bool,
-        mic_on: bool,
-        cam_menu: bool,
-        quick_audio: bool,
-    ) {
+    fn draw_main(&mut self, cam_on: bool, mic_on: bool, cam_menu: bool, quick_audio: bool) {
         let s = self.state.clone();
         let p = &mut self.painter;
         let c = l::PLAYGROUND;
-        let connected = s.connected();
         p.fill(c, color::BG);
         let (mid_x, mid_y) = (c.x + c.w / 2.0, c.y + c.h / 2.0);
 
@@ -581,18 +550,6 @@ impl Panel {
                     color::HAIRLINE,
                 );
             }
-
-            let live_pill = Rect::new(c.right() - 66.0, c.y + 12.0, 54.0, 20.0);
-            p.fill_rounded(live_pill, 10.0, 0x1A1C24);
-            p.circle(live_pill.x + 10.0, live_pill.y + 10.0, 3.5, color::GREEN);
-            p.text(
-                "LIVE",
-                Rect::new(live_pill.x + 16.0, live_pill.y + 2.0, 34.0, 16.0),
-                Font::Caption,
-                color::GREEN,
-                Align::Left,
-                false,
-            );
 
             // Camera format / HUD menu
             if cam_menu {
@@ -726,7 +683,7 @@ impl Panel {
                 Align::Center,
                 false,
             );
-        } else if s.speaker == Feature::On && connected {
+        } else if s.speaker == Feature::On && s.connected() {
             p.watermark(mid_x, mid_y - 20.0, 140.0, 0.08);
 
             let ripple = (self.anim_frame % 60) as f32 / 60.0;
@@ -751,90 +708,7 @@ impl Panel {
             );
         } else {
             p.dots_grid(c, 18.0, 1.0, 0x181818);
-            p.watermark(mid_x, mid_y - 24.0, 160.0, 0.12);
-
-            let is_connecting = matches!(
-                s.connection,
-                Connection::Connecting { .. } | Connection::Reconnecting { .. }
-            );
-            if connected {
-                let name = s.phone_name().unwrap_or("Phone");
-                let pill_w = 190.0;
-                let pill = Rect::new(mid_x - pill_w / 2.0, mid_y + 36.0, pill_w, 26.0);
-                p.fill_rounded(pill, 13.0, 0x14151B);
-                p.stroke_rounded(pill, 13.0, color::HAIRLINE, 1.0);
-                p.circle(pill.x + 14.0, pill.y + 13.0, 3.5, color::GREEN);
-                let label = format!("{name} · Active");
-                p.text(
-                    &label,
-                    Rect::new(pill.x + 24.0, pill.y, pill.w - 32.0, 26.0),
-                    Font::Body,
-                    color::TEXT,
-                    Align::Left,
-                    false,
-                );
-
-                p.text(
-                    "Tap Mic or Camera below to stream",
-                    Rect::new(c.x + PAD, mid_y + 68.0, c.w - 2.0 * PAD, 16.0),
-                    Font::Caption,
-                    color::TEXT2,
-                    Align::Center,
-                    false,
-                );
-            } else if is_connecting {
-                let name = s.phone_name().unwrap_or("Phone");
-                let pill_w = 180.0;
-                let pill = Rect::new(mid_x - pill_w / 2.0, mid_y + 36.0, pill_w, 26.0);
-                p.fill_rounded(pill, 13.0, 0x14151B);
-                p.stroke_rounded(pill, 13.0, color::HAIRLINE, 1.0);
-                p.circle(pill.x + 14.0, pill.y + 13.0, 3.5, color::YELLOW);
-                let label = if s.phone_name().is_some() {
-                    format!("{name} · Connecting")
-                } else {
-                    "Connecting...".to_string()
-                };
-                p.text(
-                    &label,
-                    Rect::new(pill.x + 24.0, pill.y, pill.w - 32.0, 26.0),
-                    Font::Body,
-                    color::TEXT,
-                    Align::Left,
-                    false,
-                );
-
-                p.text(
-                    "Establishing handshake",
-                    Rect::new(c.x + PAD, mid_y + 68.0, c.w - 2.0 * PAD, 16.0),
-                    Font::Caption,
-                    color::TEXT2,
-                    Align::Center,
-                    false,
-                );
-            } else {
-                let pill_w = 170.0;
-                let pill = Rect::new(mid_x - pill_w / 2.0, mid_y + 36.0, pill_w, 26.0);
-                p.fill_rounded(pill, 13.0, 0x14151B);
-                p.stroke_rounded(pill, 13.0, color::HAIRLINE, 1.0);
-                p.circle(pill.x + 14.0, pill.y + 13.0, 3.5, color::DISABLED);
-                p.text(
-                    m::PC_NO_PHONE,
-                    Rect::new(pill.x + 24.0, pill.y, pill.w - 32.0, 26.0),
-                    Font::Body,
-                    color::TEXT2,
-                    Align::Left,
-                    false,
-                );
-
-                p.text(
-                    m::PC_OPEN_PHONE,
-                    Rect::new(c.x + PAD, mid_y + 68.0, c.w - 2.0 * PAD, 16.0),
-                    Font::Caption,
-                    color::DISABLED,
-                    Align::Center,
-                    false,
-                );
-            }
+            p.watermark(mid_x, mid_y, 152.0, 0.07);
         }
 
         // Quick Audio panel (overlaying bottom of playground when open)
@@ -906,35 +780,6 @@ impl Panel {
                 false,
             );
             p.fader(l::AUDIO_SLIDER_VOL, vol_val / 100.0, 0xFFFFFF, 0x222222);
-        }
-
-        if repair {
-            let r = l::REPAIR;
-            p.fill(r, color::TILE);
-            p.icon(
-                icons::ALERT,
-                r.x + PAD + ICON / 2.0,
-                r.y + r.h / 2.0,
-                ICON,
-                color::YELLOW,
-            );
-            let button = l::repair_button();
-            let text_x = r.x + 2.0 * PAD + ICON;
-            p.text(
-                s.repair_text(),
-                Rect::new(text_x, r.y, button.x - PAD - text_x, r.h),
-                Font::Body,
-                color::TEXT,
-                Align::Left,
-                true,
-            );
-            let (bg, fg) = if s.repairing {
-                (color::DISABLED, color::TEXT2)
-            } else {
-                (color::ON, color::ON_CONTENT)
-            };
-            p.fill(button, bg);
-            p.text(m::PC_REPAIR, button, Font::Title, fg, Align::Center, false);
         }
     }
 
@@ -1023,7 +868,8 @@ impl Panel {
         );
     }
 
-    fn draw_drawer_wifi(&mut self) {
+    fn draw_drawer_wifi(&mut self, mode: crate::layout::WifiMode) {
+        use crate::layout::WifiMode;
         let s = self.state.clone();
         let p = &mut self.painter;
         p.fill(l::PLAYGROUND, color::BG);
@@ -1062,7 +908,7 @@ impl Panel {
                 copy_btn.x + copy_btn.w / 2.0,
                 copy_btn.y + copy_btn.h / 2.0,
                 14.0,
-                color::GREEN,
+                color::TEXT,
             );
         } else {
             p.icon(
@@ -1078,70 +924,127 @@ impl Panel {
         // Primary connection row
         let prim = l::CONN_PRIMARY_ROW;
         let ind = indicator(&s.connection);
-        p.icon(
-            ind.icon,
-            prim.x + 22.0,
-            prim.y + prim.h / 2.0,
-            18.0,
-            color::TEXT,
-        );
+        let (row_ic, row_fg) = match mode {
+            WifiMode::Connected | WifiMode::Pairing => (ind.icon, color::TEXT),
+            _ => (ind.icon, color::DISABLED),
+        };
+        p.icon(row_ic, prim.x + 22.0, prim.y + prim.h / 2.0, 18.0, row_fg);
         let name = s.phone_name().unwrap_or("Pixel 8");
         p.text(
             name,
-            Rect::new(42.0, prim.y + 8.0, 150.0, 18.0),
+            Rect::new(42.0, prim.y + 8.0, 140.0, 18.0),
             Font::Title,
             color::TEXT,
             Align::Left,
             false,
         );
+        let subtitle = match mode {
+            WifiMode::Pairing => "Wants to pair",
+            WifiMode::Connected => "Connected",
+            WifiMode::Blocked => "Blocked",
+            WifiMode::Forget => "Offline",
+            WifiMode::Offline => "Offline",
+        };
         p.text(
-            s.phone_state(),
-            Rect::new(42.0, prim.y + 26.0, 150.0, 16.0),
+            subtitle,
+            Rect::new(42.0, prim.y + 26.0, 140.0, 16.0),
             Font::Caption,
-            color::TEXT2,
+            if mode == WifiMode::Pairing {
+                color::TEXT
+            } else {
+                color::TEXT2
+            },
             Align::Left,
             false,
         );
 
-        if s.connected() {
-            let disc = l::CONN_DISCONNECT_BTN;
-            p.icon(
-                icons::UNPLUG,
-                disc.x + disc.w / 2.0,
-                disc.y + disc.h / 2.0,
-                16.0,
-                color::TEXT2,
-            );
-            let blk = l::CONN_BLOCK_BTN;
-            p.text(
-                "Block",
-                blk,
-                Font::Caption,
-                color::TEXT2,
-                Align::Center,
-                false,
-            );
-        } else if matches!(s.connection, Connection::Approval { .. }) {
-            let pair = l::CONN_PAIR_BTN;
-            p.fill_rounded(pair, 6.0, color::ON);
-            p.text(
-                "Pair",
-                pair,
-                Font::Caption,
-                color::ON_CONTENT,
-                Align::Center,
-                false,
-            );
-            let dec = l::CONN_DECLINE_BTN;
-            p.fill_rounded(dec, 6.0, color::TILE);
-            p.text(
-                "Deny",
-                dec,
-                Font::Caption,
-                color::TEXT,
-                Align::Center,
-                false,
-            );
+        match mode {
+            WifiMode::Pairing => {
+                let pair = l::CONN_PAIR_BTN;
+                p.fill_rounded(pair, 6.0, color::ON);
+                p.icon(
+                    icons::CHECK,
+                    pair.x + pair.w / 2.0,
+                    pair.y + pair.h / 2.0,
+                    14.0,
+                    color::ON_CONTENT,
+                );
+                let dec = l::CONN_DECLINE_BTN;
+                p.fill_rounded(dec, 6.0, 0x1A1A1A);
+                p.icon(
+                    icons::CLOSE,
+                    dec.x + dec.w / 2.0,
+                    dec.y + dec.h / 2.0,
+                    14.0,
+                    color::TEXT2,
+                );
+
+                // Animated sync beam along bottom of primary row
+                let beam_w = 90.0;
+                let progress = ((self.anim_frame % 120) as f32) / 120.0;
+                let beam_x = prim.x + progress * (prim.w + beam_w) - beam_w;
+                let beam_r = Rect::new(
+                    beam_x.max(prim.x),
+                    prim.bottom() - 1.5,
+                    beam_w.min(prim.right() - beam_x.max(prim.x)),
+                    1.5,
+                );
+                if beam_r.w > 0.0 {
+                    p.fill(beam_r, color::TEXT);
+                }
+            }
+            WifiMode::Connected => {
+                let disc = l::CONN_DISCONNECT_BTN;
+                p.icon(
+                    icons::UNPLUG,
+                    disc.x + disc.w / 2.0,
+                    disc.y + disc.h / 2.0,
+                    16.0,
+                    color::TEXT2,
+                );
+                let blk = l::CONN_BLOCK_BTN;
+                p.text(
+                    "Block",
+                    blk,
+                    Font::Caption,
+                    color::TEXT2,
+                    Align::Center,
+                    false,
+                );
+            }
+            WifiMode::Blocked => {
+                let unblk = l::CONN_UNBLOCK_BTN;
+                p.text(
+                    "Unblock",
+                    unblk,
+                    Font::Caption,
+                    color::TEXT,
+                    Align::Center,
+                    false,
+                );
+            }
+            WifiMode::Forget => {
+                let fgt = l::CONN_FORGET_BTN;
+                p.text(
+                    "Forget",
+                    fgt,
+                    Font::Caption,
+                    color::TEXT2,
+                    Align::Center,
+                    false,
+                );
+            }
+            WifiMode::Offline => {
+                let blk = l::CONN_BLOCK_BTN;
+                p.text(
+                    "Block",
+                    blk,
+                    Font::Caption,
+                    color::DISABLED,
+                    Align::Center,
+                    false,
+                );
+            }
         }
         p.line(
             0.0,
@@ -1433,206 +1336,6 @@ impl Panel {
             }
         }
     }
-
-    fn draw_gate(&mut self) {
-        let s = self.state.clone();
-        let Connection::Approval { phone, code, .. } = &s.connection else {
-            return;
-        };
-        let p = &self.painter;
-        let g = l::GATE;
-        p.fill(g, color::BG);
-        p.watermark(g.x + g.w / 2.0, 100.0, 100.0, 0.08);
-
-        let title = fill(m::PC_APPROVE_TITLE, &[("phone", phone)]);
-        p.text(
-            &title,
-            Rect::new(PAD, 24.0, g.w - 2.0 * PAD, 20.0),
-            Font::Title,
-            color::TEXT,
-            Align::Center,
-            false,
-        );
-        p.text(
-            m::PC_APPROVE_CODE,
-            Rect::new(PAD, 48.0, g.w - 2.0 * PAD, 16.0),
-            Font::Caption,
-            color::TEXT2,
-            Align::Center,
-            false,
-        );
-
-        let code_box = Rect::new((g.w - 180.0) / 2.0, 110.0, 180.0, 56.0);
-        p.fill_rounded(code_box, 12.0, color::TILE);
-        p.stroke_rounded(code_box, 12.0, color::HAIRLINE, 1.0);
-        p.text(
-            code,
-            code_box,
-            Font::Code,
-            color::TEXT,
-            Align::Center,
-            false,
-        );
-
-        p.text(
-            "Verify code on your phone screen to pair",
-            Rect::new(PAD, 184.0, g.w - 2.0 * PAD, 16.0),
-            Font::Caption,
-            color::TEXT2,
-            Align::Center,
-            false,
-        );
-
-        p.fill_rounded(l::ALLOW.inset(2.0), 8.0, color::ON);
-        p.text(
-            m::PC_ALLOW,
-            l::ALLOW,
-            Font::Title,
-            color::ON_CONTENT,
-            Align::Center,
-            false,
-        );
-        p.fill_rounded(l::DENY.inset(2.0), 8.0, color::TILE);
-        p.text(
-            m::PC_DENY,
-            l::DENY,
-            Font::Title,
-            color::TEXT,
-            Align::Center,
-            false,
-        );
-    }
-
-    fn draw_settings(&mut self) {
-        let p = &self.painter;
-        let b = l::BACK;
-        p.fill(b, color::TILE);
-        p.icon_rotated_180(
-            icons::ARROW,
-            b.x + PAD + ICON / 2.0,
-            b.y + b.h / 2.0,
-            ICON,
-            color::TEXT,
-        );
-        let title_x = 2.0 * PAD + ICON;
-        p.text(
-            m::UI_SETTINGS,
-            Rect::new(title_x, b.y, b.w - title_x - PAD, b.h),
-            Font::Title,
-            color::TEXT,
-            Align::Left,
-            false,
-        );
-        p.clip(l::LIST);
-        for (i, row) in self.rows.iter().enumerate() {
-            let y = l::LIST.y + i as f32 * (l::ROW + 1.0) - self.scroll;
-            if y + l::ROW < l::LIST.y || y > l::HEIGHT {
-                continue;
-            }
-            let r = Rect::new(0.0, y, l::WIDTH, l::ROW);
-            if row.header {
-                p.fill(r, color::BG);
-                p.text(
-                    &row.label,
-                    Rect::new(PAD, y, r.w - 2.0 * PAD, l::ROW),
-                    Font::Caption,
-                    color::TEXT2,
-                    Align::Left,
-                    false,
-                );
-                continue;
-            }
-            p.fill(r, color::TILE);
-            let fg = if row.enabled {
-                color::TEXT
-            } else {
-                color::DISABLED
-            };
-            let buttons = if row.buttons.is_some() {
-                2.0 * l::ROW_BUTTON + 1.0
-            } else {
-                0.0
-            };
-            let half = (r.w - buttons) / 2.0;
-            let is_toggle =
-                row.value.eq_ignore_ascii_case("on") || row.value.eq_ignore_ascii_case("off");
-            let label_max_w = if row.buttons.is_some() {
-                r.w - 2.0 * l::ROW_BUTTON - 1.0 - 2.0 * PAD
-            } else if is_toggle {
-                r.w - 50.0 - PAD
-            } else if !row.value.is_empty() && row.value.len() <= 8 {
-                r.w - 74.0 - PAD
-            } else {
-                half - PAD
-            };
-            p.text(
-                &row.label,
-                Rect::new(PAD, y, label_max_w, l::ROW),
-                Font::Body,
-                fg,
-                Align::Left,
-                false,
-            );
-            if is_toggle {
-                let sw_w = 34.0;
-                let sw_h = 18.0;
-                let sw_r = Rect::new(l::WIDTH - PAD - sw_w, y + (l::ROW - sw_h) / 2.0, sw_w, sw_h);
-                if row.value.eq_ignore_ascii_case("on") {
-                    p.fill_rounded(sw_r, 9.0, color::INK);
-                    p.circle(sw_r.right() - 9.0, sw_r.y + 9.0, 7.0, color::BG);
-                    p.icon(
-                        icons::CHECK,
-                        sw_r.right() - 9.0,
-                        sw_r.y + 9.0,
-                        8.0,
-                        color::INK,
-                    );
-                } else {
-                    p.fill_rounded(sw_r, 9.0, 0x1C1C1E);
-                    p.stroke_rounded(sw_r, 9.0, color::HAIRLINE, 1.0);
-                    p.circle(sw_r.x + 9.0, sw_r.y + 9.0, 7.0, color::DISABLED);
-                }
-            } else if row.buttons.is_none() && !row.value.is_empty() && row.value.len() <= 8 {
-                let chip_h = 22.0;
-                let chip_w = 60.0;
-                let chip_r = Rect::new(
-                    l::WIDTH - PAD - chip_w,
-                    y + (l::ROW - chip_h) / 2.0,
-                    chip_w,
-                    chip_h,
-                );
-                p.fill_rounded(chip_r, 5.0, 0x181920);
-                p.stroke_rounded(chip_r, 5.0, color::HAIRLINE, 0.8);
-                p.text(
-                    &row.value,
-                    chip_r,
-                    Font::Caption,
-                    color::TEXT,
-                    Align::Center,
-                    false,
-                );
-            } else if row.buttons.is_none() {
-                p.text(
-                    &row.value,
-                    Rect::new(half, y, half - PAD, l::ROW),
-                    Font::Body,
-                    color::TEXT2,
-                    Align::Right,
-                    false,
-                );
-            }
-            if let Some(labels) = row.buttons {
-                for (k, label) in labels.into_iter().enumerate() {
-                    let bx = l::WIDTH - (2 - k) as f32 * (l::ROW_BUTTON + 1.0) + 1.0;
-                    let br = Rect::new(bx, y, l::ROW_BUTTON, l::ROW);
-                    p.fill(br, color::BG);
-                    p.fill_rounded(br.inset(2.0), 4.0, 0x1E2028);
-                    p.text(label, br, Font::Caption, color::TEXT, Align::Center, false);
-                }
-            }
-        }
-        p.unclip();
-    }
 }
 
 fn copy_to_clipboard(hwnd: HWND, text: &str) {
@@ -1827,7 +1530,7 @@ mod tests {
             settings.insert("link.bluetooth".into(), "off".into());
             settings.insert("general.startWithWindows".into(), "on".into());
 
-            let mut states: Vec<(&str, PanelState, bool, Drawer, bool, bool, f32)> = Vec::new();
+            let mut states: Vec<(&str, PanelState, Drawer, bool, bool)> = Vec::new();
 
             states.push((
                 "01_standby_no_phone.bmp",
@@ -1837,11 +1540,9 @@ mod tests {
                     version: "v0.1.0".into(),
                     ..Default::default()
                 },
-                false,
                 Drawer::None,
                 false,
                 false,
-                0.0,
             ));
 
             states.push((
@@ -1854,15 +1555,13 @@ mod tests {
                     version: "v0.1.0".into(),
                     ..Default::default()
                 },
-                false,
                 Drawer::None,
                 false,
                 false,
-                0.0,
             ));
 
             states.push((
-                "03_approval_gate.bmp",
+                "03_drawer_wifi_pairing.bmp",
                 PanelState {
                     connection: Connection::Approval {
                         phone: "Pixel 8".into(),
@@ -1873,11 +1572,9 @@ mod tests {
                     version: "v0.1.0".into(),
                     ..Default::default()
                 },
+                Drawer::Wifi,
                 false,
-                Drawer::None,
                 false,
-                false,
-                0.0,
             ));
 
             states.push((
@@ -1893,11 +1590,9 @@ mod tests {
                     version: "v0.1.0".into(),
                     ..Default::default()
                 },
-                false,
                 Drawer::None,
                 false,
                 false,
-                0.0,
             ));
 
             states.push((
@@ -1913,11 +1608,9 @@ mod tests {
                     version: "v0.1.0".into(),
                     ..Default::default()
                 },
-                false,
                 Drawer::None,
                 false,
                 false,
-                0.0,
             ));
 
             states.push((
@@ -1933,11 +1626,9 @@ mod tests {
                     version: "v0.1.0".into(),
                     ..Default::default()
                 },
-                false,
                 Drawer::None,
                 false,
                 false,
-                0.0,
             ));
 
             states.push((
@@ -1954,11 +1645,9 @@ mod tests {
                     version: "v0.1.0".into(),
                     ..Default::default()
                 },
-                false,
                 Drawer::None,
                 false,
                 false,
-                0.0,
             ));
 
             states.push((
@@ -1975,11 +1664,9 @@ mod tests {
                     version: "v0.1.0".into(),
                     ..Default::default()
                 },
-                false,
                 Drawer::None,
                 false,
                 false,
-                0.0,
             ));
 
             states.push((
@@ -1996,11 +1683,9 @@ mod tests {
                     version: "v0.1.0".into(),
                     ..Default::default()
                 },
-                false,
                 Drawer::None,
                 false,
                 false,
-                0.0,
             ));
 
             states.push((
@@ -2019,11 +1704,9 @@ mod tests {
                     version: "v0.1.0".into(),
                     ..Default::default()
                 },
-                false,
                 Drawer::None,
                 false,
                 false,
-                0.0,
             ));
 
             let phones = vec![
@@ -2041,7 +1724,7 @@ mod tests {
             let addresses = vec!["192.168.1.105:7653".into(), "10.0.2.2:7653".into()];
 
             states.push((
-                "11_settings_audio_and_camera.bmp",
+                "11_drawer_wifi_connected.bmp",
                 PanelState {
                     connection: Connection::Connected {
                         phone: "Pixel 8".into(),
@@ -2052,58 +1735,51 @@ mod tests {
                     paired: true,
                     phones: phones.clone(),
                     addresses: addresses.clone(),
+                    hostname: "YASH-PC".into(),
                     version: "v0.1.0".into(),
                     ..Default::default()
                 },
-                true,
-                Drawer::None,
+                Drawer::Wifi,
                 false,
                 false,
-                0.0,
             ));
 
             states.push((
-                "12_settings_devices_and_phones.bmp",
+                "12_drawer_wifi_blocked.bmp",
                 PanelState {
-                    connection: Connection::Connected {
-                        phone: "Pixel 8".into(),
-                        link: LINK_USB_DEBUGGING,
-                        weak: false,
-                    },
+                    connection: Connection::NotConnected,
                     settings: settings.clone(),
                     paired: true,
-                    phones: phones.clone(),
+                    phones: vec![PhoneEntry {
+                        id: "p1".into(),
+                        name: "Pixel 8".into(),
+                        blocked: true,
+                    }],
                     addresses: addresses.clone(),
+                    hostname: "YASH-PC".into(),
                     version: "v0.1.0".into(),
                     ..Default::default()
                 },
-                true,
-                Drawer::None,
+                Drawer::Wifi,
                 false,
                 false,
-                240.0,
             ));
 
             states.push((
-                "13_settings_about_and_links.bmp",
+                "13_drawer_wifi_offline_forget.bmp",
                 PanelState {
-                    connection: Connection::Connected {
-                        phone: "Pixel 8".into(),
-                        link: LINK_USB_DEBUGGING,
-                        weak: false,
-                    },
+                    connection: Connection::NotConnected,
                     settings: settings.clone(),
                     paired: true,
                     phones: phones.clone(),
                     addresses: addresses.clone(),
+                    hostname: "YASH-PC".into(),
                     version: "v0.1.0".into(),
                     ..Default::default()
                 },
-                true,
-                Drawer::None,
+                Drawer::Wifi,
                 false,
                 false,
-                480.0,
             ));
 
             states.push((
@@ -2119,37 +1795,13 @@ mod tests {
                     version: "v0.1.0".into(),
                     ..Default::default()
                 },
-                false,
                 Drawer::None,
                 false,
                 false,
-                0.0,
             ));
 
             states.push((
-                "15_drawer_wifi.bmp",
-                PanelState {
-                    connection: Connection::Connected {
-                        phone: "Pixel 8".into(),
-                        link: LINK_WIFI,
-                        weak: false,
-                    },
-                    settings: settings.clone(),
-                    paired: true,
-                    phones: phones.clone(),
-                    hostname: "YASH-PC".into(),
-                    version: "v0.1.0".into(),
-                    ..Default::default()
-                },
-                false,
-                Drawer::Wifi,
-                false,
-                false,
-                0.0,
-            ));
-
-            states.push((
-                "16_drawer_help_bento.bmp",
+                "15_drawer_help_bento.bmp",
                 PanelState {
                     connection: Connection::Connected {
                         phone: "Pixel 8".into(),
@@ -2160,15 +1812,13 @@ mod tests {
                     version: "v0.1.0".into(),
                     ..Default::default()
                 },
-                false,
                 Drawer::Help(HelpScreen::Bento),
                 false,
                 false,
-                0.0,
             ));
 
             states.push((
-                "17_drawer_help_howto.bmp",
+                "16_drawer_help_howto.bmp",
                 PanelState {
                     connection: Connection::Connected {
                         phone: "Pixel 8".into(),
@@ -2179,15 +1829,13 @@ mod tests {
                     version: "v0.1.0".into(),
                     ..Default::default()
                 },
-                false,
                 Drawer::Help(HelpScreen::HowTo),
                 false,
                 false,
-                0.0,
             ));
 
             states.push((
-                "18_drawer_help_privacy.bmp",
+                "17_drawer_help_privacy.bmp",
                 PanelState {
                     connection: Connection::Connected {
                         phone: "Pixel 8".into(),
@@ -2198,15 +1846,13 @@ mod tests {
                     version: "v0.1.0".into(),
                     ..Default::default()
                 },
-                false,
                 Drawer::Help(HelpScreen::Privacy),
                 false,
                 false,
-                0.0,
             ));
 
             states.push((
-                "19_drawer_help_credits.bmp",
+                "18_drawer_help_credits.bmp",
                 PanelState {
                     connection: Connection::Connected {
                         phone: "Pixel 8".into(),
@@ -2217,15 +1863,13 @@ mod tests {
                     version: "v0.1.0".into(),
                     ..Default::default()
                 },
-                false,
                 Drawer::Help(HelpScreen::Credits),
                 false,
                 false,
-                0.0,
             ));
 
             states.push((
-                "20_cam_with_hud_menu.bmp",
+                "19_cam_with_hud_menu.bmp",
                 PanelState {
                     connection: Connection::Connected {
                         phone: "Pixel 8".into(),
@@ -2238,15 +1882,13 @@ mod tests {
                     version: "v0.1.0".into(),
                     ..Default::default()
                 },
-                false,
                 Drawer::None,
                 true,
                 false,
-                0.0,
             ));
 
             states.push((
-                "21_mic_with_quick_audio.bmp",
+                "20_mic_with_quick_audio.bmp",
                 PanelState {
                     connection: Connection::Connected {
                         phone: "Pixel 8".into(),
@@ -2259,20 +1901,17 @@ mod tests {
                     version: "v0.1.0".into(),
                     ..Default::default()
                 },
-                false,
                 Drawer::None,
                 false,
                 true,
-                0.0,
             ));
 
             let out_dir =
                 std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../ui/pc");
             let _ = std::fs::create_dir_all(&out_dir);
 
-            for (file_name, st, settings_open, drawer, cam_menu, quick_audio, scroll) in states {
+            for (file_name, st, drawer, cam_menu, quick_audio) in states {
                 let arc_st = Arc::new(st);
-                let rows = arc_st.rows();
                 let mut panel = Panel {
                     hwnd: HWND::default(),
                     ui: Ui {
@@ -2283,12 +1922,9 @@ mod tests {
                     painter: Painter::new().unwrap(),
                     tray: None,
                     state: arc_st,
-                    rows,
-                    settings_open,
                     drawer,
                     cam_menu_open: cam_menu,
                     quick_audio_open: quick_audio,
-                    scroll,
                     scale: 1.0,
                     visible: true,
                     hidden_at: None,
@@ -2323,20 +1959,14 @@ mod tests {
                 };
                 if panel.painter.begin_dc(mem_dc, &rc, 1.0) {
                     panel.painter.clear(color::HAIRLINE);
-                    let screen = if panel.settings_open {
-                        Screen::Settings
-                    } else {
-                        panel.state.active_screen(
-                            panel.drawer,
-                            panel.cam_menu_open,
-                            panel.quick_audio_open,
-                        )
-                    };
+                    let screen = panel.state.active_screen(
+                        panel.drawer,
+                        panel.cam_menu_open,
+                        panel.quick_audio_open,
+                    );
                     match screen {
-                        Screen::Gate => panel.draw_gate(),
-                        Screen::Settings => panel.draw_settings(),
-                        Screen::DrawerWifi => {
-                            panel.draw_drawer_wifi();
+                        Screen::DrawerWifi(mode) => {
+                            panel.draw_drawer_wifi(mode);
                             panel.draw_bottom_dock();
                         }
                         Screen::DrawerHelp(h) => {
@@ -2344,13 +1974,12 @@ mod tests {
                             panel.draw_bottom_dock();
                         }
                         Screen::Main {
-                            repair,
                             cam_on,
                             mic_on,
                             cam_menu,
                             quick_audio,
                         } => {
-                            panel.draw_main(repair, cam_on, mic_on, cam_menu, quick_audio);
+                            panel.draw_main(cam_on, mic_on, cam_menu, quick_audio);
                             panel.draw_bottom_dock();
                         }
                     }

@@ -71,16 +71,13 @@ Rather than shipping Chromium/Electron or bloated webview engines, Owlmic PC use
 - **Rendering Architecture**: High-performance Direct2D hardware-accelerated drawing with DirectWrite typography, vector Lucide glyph paths, and double-buffered GDI memory DC fallback for offscreen testing and snapshots.
 - **Instant Response**: Panel opens in < 15 ms with zero cold-start delay.
 - **Top Playground Area (310 × 310 px)**:
-  - **Dot Matrix Grid & Watermark**: 18 px subtle radial dot matrix grid background with centered owl logo watermark during idle and standby states.
-  - **Standby Badge**: Centered pill displaying `{phone_name} · Active` with green status dot, handshake progress during connection, or no-phone prompt when disconnected.
-  - **Instantaneous Camera Layer**: Real-time video preview with live status pill, compact expandable format HUD (Resolution: FHD, HD, 480p; Framerate: 60, 30, 24 fps; Aspect Ratio: 16:9, 4:3, 1:1), top-right Mirror and Flip buttons, and docked waveform capsule (204 × 22 px) when microphone is simultaneously active.
+  - **Dot Matrix Grid & Watermark**: 18 px subtle radial dot matrix grid background with centered 152 px owl logo watermark (`opacity: 0.07`) dynamically generated from `shared/assets/brand/icon.svg` during idle and standby states. In accordance with the prototype, standby mode features pure Bauhaus minimalism with zero text pills or status overlays.
+  - **Instantaneous Camera Layer**: Real-time video preview with compact expandable format HUD (Resolution: FHD, HD, 480p; Framerate: 60, 30, 24 fps; Aspect Ratio: 16:9, 4:3, 1:1), top-right Mirror and Flip buttons, and docked waveform capsule (204 × 22 px) when microphone is simultaneously active.
   - **Centered Waveform Dock**: Centered 248 × 68 px capsule with animated audio waveform bars and stream info when microphone is streaming and camera is off.
   - **Quick Audio Settings Panel**: Slides up from the bottom of the playground on waveform click, providing Voice isolation switch, Normalization switch, Noise reduction fader (0–10), and Mic volume fader (0–100%).
   - **Concentric Speaker Ripples**: Animated concentric circles pulsing outward from the speaker glyph when loopback is active.
-  - **Connection Drawer (`p-drawerWifi`)**: Host PC name & IP with instant clipboard copy button, active connection row with sync beam and Disconnect/Block or Pair/Decline actions, paired devices row with Remove button, and 5-item transport footer (Refresh, USB Debugging, USB Tethering, Wi-Fi, Bluetooth).
+  - **Connection Drawer (`p-drawerWifi`)**: Host PC name & IP with instant clipboard copy button, active connection row with animated `sync-beam` and inline Pair/Decline (for approval/pairing) or Disconnect/Block (when connected), paired devices row with Remove button, and 5-item transport footer (Refresh, USB Debugging, USB Tethering, Wi-Fi, Bluetooth). Pairing is handled 100% inline without extraneous modal dialogs.
   - **Help Drawer (`p-drawerHelp`)**: 2×3 Bento grid (How-to, Privacy, Rate, GitHub, Donate, Credits) with subpages and back navigation for How-to, Privacy, and Credits.
-  - **Pairing Approval Gate**: Centered verification code box with high-contrast Allow and Deny action buttons.
-  - **Repair Overlay**: Top banner with alert icon, diagnostic explanation, and one-click Repair button.
 - **Bottom Bento Dock**: 5 exact square action buttons across 61 px height on a 1 px hairline seam:
   - `b0`: Wi-Fi / Connection Drawer toggle (`icons::WIFI`/`GLOBE`/`USB`/`CABLE`/`BLUETOOTH`)
   - `b1`: Camera stream toggle (`icons::CAMERA` / `CAMERA_OFF`)

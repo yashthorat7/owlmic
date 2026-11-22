@@ -65,27 +65,6 @@ pub const MIC: Rect = BTN_MIC;
 pub const SPEAKER: Rect = BTN_SPK;
 pub const PHONE: Rect = PLAYGROUND;
 
-/// The Repair tile over the top of the playground area.
-pub const REPAIR: Rect = Rect::new(0.0, 0.0, WIDTH, 64.0);
-pub fn repair_button() -> Rect {
-    Rect::new(
-        REPAIR.right() - 12.0 - 80.0,
-        REPAIR.y + (REPAIR.h - 32.0) / 2.0,
-        80.0,
-        32.0,
-    )
-}
-
-/// The approve gate: a message tile over Allow and Deny.
-pub const GATE: Rect = Rect::new(0.0, 0.0, WIDTH, BOTTOM_Y - GAP);
-pub const ALLOW: Rect = Rect::new(0.0, BOTTOM_Y, (WIDTH - GAP) / 2.0 - 0.5, p::BOTTOM_ROW_PX);
-pub const DENY: Rect = Rect::new(
-    ALLOW.w + GAP,
-    BOTTOM_Y,
-    WIDTH - ALLOW.w - GAP,
-    p::BOTTOM_ROW_PX,
-);
-
 // Camera HUD Controls
 pub const CAM_MENU_BTN: Rect = Rect::new(10.0, 10.0, 44.0, 25.0);
 pub const CAM_EXPAND_MENU: Rect = Rect::new(10.0, 10.0, 156.0, 103.0);
@@ -131,6 +110,7 @@ pub const CONN_BLOCK_BTN: Rect = Rect::new(WIDTH - 14.0 - 40.0, 62.0, 40.0, 28.0
 pub const CONN_PAIR_BTN: Rect = Rect::new(WIDTH - 14.0 - 28.0 - 6.0 - 28.0, 62.0, 28.0, 28.0);
 pub const CONN_DECLINE_BTN: Rect = Rect::new(WIDTH - 14.0 - 28.0, 62.0, 28.0, 28.0);
 pub const CONN_UNBLOCK_BTN: Rect = Rect::new(WIDTH - 14.0 - 55.0, 62.0, 55.0, 28.0);
+pub const CONN_FORGET_BTN: Rect = Rect::new(WIDTH - 14.0 - 55.0, 62.0, 55.0, 28.0);
 pub const CONN_PAIRED_ROW: Rect = Rect::new(0.0, 104.0, WIDTH, 50.0);
 pub const CONN_REMOVE_PAIRED_BTN: Rect = Rect::new(WIDTH - 14.0 - 55.0, 115.0, 55.0, 28.0);
 pub const CONN_FOOTER: Rect = Rect::new(0.0, PLAYGROUND.bottom() - 44.0, WIDTH, 44.0);
@@ -160,12 +140,6 @@ pub fn help_bento_tile(i: usize) -> Rect {
 }
 
 pub const HELP_BACK_BTN: Rect = Rect::new(10.0, 8.0, 28.0, 28.0);
-
-// Legacy Settings View support
-pub const BACK: Rect = Rect::new(0.0, 0.0, WIDTH, 40.0);
-pub const LIST: Rect = Rect::new(0.0, BACK.h + GAP, WIDTH, HEIGHT - BACK.h - GAP);
-pub const ROW: f32 = 32.0;
-pub const ROW_BUTTON: f32 = 88.0;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum HelpScreen {
@@ -213,6 +187,7 @@ pub enum Target {
     Disconnect,
     Block,
     Unblock,
+    Forget,
     Pair,
     Decline,
     RemovePaired,
@@ -227,41 +202,33 @@ pub enum Target {
     HelpDonate,
     HelpCredits,
     HelpBack,
+}
 
-    // Gate & Repair
-    Allow,
-    Deny,
-    Repair,
-
-    // Legacy / fallback targets
-    Phone,
-    Framing,
-    Lens,
-    Settings,
-    Indicator,
-    Back,
-    Row(usize, u8),
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum WifiMode {
+    #[default]
+    Offline,
+    Pairing,
+    Connected,
+    Blocked,
+    Forget,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Screen {
     Main {
-        repair: bool,
         cam_on: bool,
         mic_on: bool,
         cam_menu: bool,
         quick_audio: bool,
     },
-    Gate,
-    Settings,
-    DrawerWifi,
+    DrawerWifi(WifiMode),
     DrawerHelp(HelpScreen),
 }
 
 impl Screen {
-    pub const fn main_screen(repair: bool) -> Self {
+    pub const fn main_screen() -> Self {
         Screen::Main {
-            repair,
             cam_on: false,
             mic_on: false,
             cam_menu: false,
@@ -271,210 +238,166 @@ impl Screen {
 }
 
 /// What sits under (x, y) in panel pixels at 100%.
-pub fn hit(screen: Screen, x: f32, y: f32, scroll: f32, rows: usize) -> Option<Target> {
+pub fn hit(screen: Screen, x: f32, y: f32) -> Option<Target> {
+    // 1. Bottom 5 Square Bento Dock Buttons always take precedence
+    if BTN_WIFI.contains(x, y) {
+        return Some(Target::Wifi);
+    }
+    if BTN_CAM.contains(x, y) {
+        return Some(Target::Camera);
+    }
+    if BTN_MIC.contains(x, y) {
+        return Some(Target::Mic);
+    }
+    if BTN_SPK.contains(x, y) {
+        return Some(Target::Speaker);
+    }
+    if BTN_HELP.contains(x, y) {
+        return Some(Target::Help);
+    }
+
     match screen {
-        Screen::Gate => [(ALLOW, Target::Allow), (DENY, Target::Deny)]
-            .into_iter()
-            .find(|(r, _)| r.contains(x, y))
-            .map(|(_, t)| t),
-
-        Screen::Settings => {
-            if BACK.contains(x, y) {
-                return Some(Target::Back);
+        Screen::DrawerWifi(mode) => {
+            if CONN_COPY_IP_BTN.contains(x, y) {
+                return Some(Target::CopyIp);
             }
-            if !LIST.contains(x, y) {
-                return None;
-            }
-            let row = ((y - LIST.y + scroll) / (ROW + GAP)) as usize;
-            if row >= rows {
-                return None;
-            }
-            let from_right = WIDTH - x;
-            let button = if from_right < ROW_BUTTON {
-                2
-            } else if from_right < 2.0 * ROW_BUTTON + GAP {
-                1
-            } else {
-                0
-            };
-            Some(Target::Row(row, button))
-        }
-
-        _ => {
-            // 1. Bottom 5 Square Bento Dock Buttons always take precedence for Main and Drawers
-            if BTN_WIFI.contains(x, y) {
-                return Some(Target::Wifi);
-            }
-            if BTN_CAM.contains(x, y) {
-                return Some(Target::Camera);
-            }
-            if BTN_MIC.contains(x, y) {
-                return Some(Target::Mic);
-            }
-            if BTN_SPK.contains(x, y) {
-                return Some(Target::Speaker);
-            }
-            if BTN_HELP.contains(x, y) {
-                return Some(Target::Help);
-            }
-
-            match screen {
-                Screen::DrawerWifi => {
-                    if CONN_COPY_IP_BTN.contains(x, y) {
-                        return Some(Target::CopyIp);
-                    }
-                    if CONN_DISCONNECT_BTN.contains(x, y) {
-                        return Some(Target::Disconnect);
-                    }
-                    if CONN_BLOCK_BTN.contains(x, y) {
-                        return Some(Target::Block);
-                    }
+            match mode {
+                WifiMode::Pairing => {
                     if CONN_PAIR_BTN.contains(x, y) {
                         return Some(Target::Pair);
                     }
                     if CONN_DECLINE_BTN.contains(x, y) {
                         return Some(Target::Decline);
                     }
+                }
+                WifiMode::Connected => {
+                    if CONN_DISCONNECT_BTN.contains(x, y) {
+                        return Some(Target::Disconnect);
+                    }
+                    if CONN_BLOCK_BTN.contains(x, y) {
+                        return Some(Target::Block);
+                    }
+                }
+                WifiMode::Blocked => {
                     if CONN_UNBLOCK_BTN.contains(x, y) {
                         return Some(Target::Unblock);
                     }
-                    if CONN_REMOVE_PAIRED_BTN.contains(x, y) {
-                        return Some(Target::RemovePaired);
-                    }
-                    if CONN_REFRESH_BTN.contains(x, y) {
-                        return Some(Target::Refresh);
-                    }
-                    for i in 0..4 {
-                        if conn_transport_btn(i).contains(x, y) {
-                            return Some(Target::ToggleTransport(i as u8 + 1));
-                        }
-                    }
-                    if PLAYGROUND.contains(x, y) {
-                        return Some(Target::Wifi);
-                    }
-                    None
                 }
-
-                Screen::DrawerHelp(help_screen) => {
-                    match help_screen {
-                        HelpScreen::Bento => {
-                            if help_bento_tile(0).contains(x, y) {
-                                return Some(Target::HelpHowTo);
-                            }
-                            if help_bento_tile(1).contains(x, y) {
-                                return Some(Target::HelpPrivacy);
-                            }
-                            if help_bento_tile(2).contains(x, y) {
-                                return Some(Target::HelpRate);
-                            }
-                            if help_bento_tile(3).contains(x, y) {
-                                return Some(Target::HelpGitHub);
-                            }
-                            if help_bento_tile(4).contains(x, y) {
-                                return Some(Target::HelpDonate);
-                            }
-                            if help_bento_tile(5).contains(x, y) {
-                                return Some(Target::HelpCredits);
-                            }
-                        }
-                        _ => {
-                            if HELP_BACK_BTN.contains(x, y) {
-                                return Some(Target::HelpBack);
-                            }
-                        }
+                WifiMode::Forget => {
+                    if CONN_FORGET_BTN.contains(x, y) {
+                        return Some(Target::Forget);
                     }
-                    if PLAYGROUND.contains(x, y) {
-                        return Some(Target::Help);
-                    }
-                    None
                 }
-
-                Screen::Main {
-                    repair,
-                    cam_on,
-                    mic_on,
-                    cam_menu,
-                    quick_audio,
-                } => {
-                    if repair && repair_button().contains(x, y) {
-                        return Some(Target::Repair);
+                WifiMode::Offline => {
+                    if CONN_BLOCK_BTN.contains(x, y) {
+                        return Some(Target::Block);
                     }
-
-                    if cam_on {
-                        if cam_menu {
-                            // Expanded Format Menu options:
-                            let res_opts = ["1080p", "720p", "480p"];
-                            let fps_opts = ["60", "30", "24"];
-                            let ratio_opts = ["16:9", "4:3", "1:1"];
-
-                            for (c, &opt) in res_opts.iter().enumerate() {
-                                if cam_option_rect(0, c).contains(x, y) {
-                                    return Some(Target::Quality(opt));
-                                }
-                            }
-                            for (c, &opt) in fps_opts.iter().enumerate() {
-                                if cam_option_rect(1, c).contains(x, y) {
-                                    return Some(Target::Fps(opt));
-                                }
-                            }
-                            for (c, &opt) in ratio_opts.iter().enumerate() {
-                                if cam_option_rect(2, c).contains(x, y) {
-                                    return Some(Target::Ratio(opt));
-                                }
-                            }
-                            if CAM_EXPAND_MENU.contains(x, y) {
-                                return Some(Target::CamMenu);
-                            }
-                        } else if CAM_MENU_BTN.contains(x, y) {
-                            return Some(Target::CamMenu);
-                        }
-
-                        if CAM_MIRROR_BTN.contains(x, y) {
-                            return Some(Target::Mirror);
-                        }
-                        if CAM_FLIP_BTN.contains(x, y) {
-                            return Some(Target::Flip);
-                        }
-                        if mic_on && WAVE_DOCK_DOCKED.contains(x, y) {
-                            return Some(Target::WaveDock);
-                        }
-                    } else if mic_on {
-                        if quick_audio {
-                            if AUDIO_SWITCH_ISO.contains(x, y) {
-                                return Some(Target::ToggleIso);
-                            }
-                            if AUDIO_SWITCH_NORM.contains(x, y) {
-                                return Some(Target::ToggleNorm);
-                            }
-                            if AUDIO_SLIDER_NR.contains(x, y) {
-                                let ratio =
-                                    ((x - AUDIO_SLIDER_NR.x) / AUDIO_SLIDER_NR.w).clamp(0.0, 1.0);
-                                return Some(Target::NrFader(ratio * 10.0));
-                            }
-                            if AUDIO_SLIDER_VOL.contains(x, y) {
-                                let ratio =
-                                    ((x - AUDIO_SLIDER_VOL.x) / AUDIO_SLIDER_VOL.w).clamp(0.0, 1.0);
-                                return Some(Target::VolFader(ratio * 100.0));
-                            }
-                        }
-                        if WAVE_DOCK_CENTERED.contains(x, y) {
-                            return Some(Target::WaveDock);
-                        }
-                    }
-
-                    if PLAYGROUND.contains(x, y) {
-                        return Some(Target::Camera);
-                    }
-                    None
                 }
-                _ => None,
             }
+            if CONN_REMOVE_PAIRED_BTN.contains(x, y) {
+                return Some(Target::RemovePaired);
+            }
+            if CONN_REFRESH_BTN.contains(x, y) {
+                return Some(Target::Refresh);
+            }
+            for i in 0..4 {
+                if conn_transport_btn(i).contains(x, y) {
+                    return Some(Target::ToggleTransport(i as u8 + 1));
+                }
+            }
+            None
+        }
+        Screen::DrawerHelp(help_screen) => {
+            match help_screen {
+                HelpScreen::Bento => {
+                    for i in 0..6 {
+                        if help_bento_tile(i).contains(x, y) {
+                            return Some(match i {
+                                0 => Target::HelpHowTo,
+                                1 => Target::HelpPrivacy,
+                                2 => Target::HelpRate,
+                                3 => Target::HelpGitHub,
+                                4 => Target::HelpDonate,
+                                _ => Target::HelpCredits,
+                            });
+                        }
+                    }
+                }
+                _ => {
+                    if HELP_BACK_BTN.contains(x, y) {
+                        return Some(Target::HelpBack);
+                    }
+                }
+            }
+            None
+        }
+        Screen::Main {
+            cam_on,
+            mic_on,
+            cam_menu,
+            quick_audio,
+        } => {
+            if cam_on {
+                if cam_menu {
+                    let res_opts = ["1080p", "720p", "480p"];
+                    let fps_opts = ["60", "30", "24"];
+                    let ratio_opts = ["16:9", "4:3", "1:1"];
+
+                    for (c, &opt) in res_opts.iter().enumerate() {
+                        if cam_option_rect(0, c).contains(x, y) {
+                            return Some(Target::Quality(opt));
+                        }
+                    }
+                    for (c, &opt) in fps_opts.iter().enumerate() {
+                        if cam_option_rect(1, c).contains(x, y) {
+                            return Some(Target::Fps(opt));
+                        }
+                    }
+                    for (c, &opt) in ratio_opts.iter().enumerate() {
+                        if cam_option_rect(2, c).contains(x, y) {
+                            return Some(Target::Ratio(opt));
+                        }
+                    }
+                    if CAM_EXPAND_MENU.contains(x, y) {
+                        return Some(Target::CamMenu);
+                    }
+                } else if CAM_MENU_BTN.contains(x, y) {
+                    return Some(Target::CamMenu);
+                }
+
+                if CAM_MIRROR_BTN.contains(x, y) {
+                    return Some(Target::Mirror);
+                }
+                if CAM_FLIP_BTN.contains(x, y) {
+                    return Some(Target::Flip);
+                }
+                if mic_on && WAVE_DOCK_DOCKED.contains(x, y) {
+                    return Some(Target::WaveDock);
+                }
+            } else if mic_on {
+                if quick_audio {
+                    if AUDIO_SWITCH_ISO.contains(x, y) {
+                        return Some(Target::ToggleIso);
+                    }
+                    if AUDIO_SWITCH_NORM.contains(x, y) {
+                        return Some(Target::ToggleNorm);
+                    }
+                    if AUDIO_SLIDER_NR.contains(x, y) {
+                        let ratio = ((x - AUDIO_SLIDER_NR.x) / AUDIO_SLIDER_NR.w).clamp(0.0, 1.0);
+                        return Some(Target::NrFader(ratio * 10.0));
+                    }
+                    if AUDIO_SLIDER_VOL.contains(x, y) {
+                        let ratio = ((x - AUDIO_SLIDER_VOL.x) / AUDIO_SLIDER_VOL.w).clamp(0.0, 1.0);
+                        return Some(Target::VolFader(ratio * 100.0));
+                    }
+                }
+                if WAVE_DOCK_CENTERED.contains(x, y) {
+                    return Some(Target::WaveDock);
+                }
+            }
+            None
         }
     }
-}
-
-pub fn list_height(rows: usize) -> f32 {
-    rows as f32 * (ROW + GAP)
 }
 
 pub fn place(
@@ -523,72 +446,79 @@ mod tests {
         for i in 0..4 {
             assert_eq!(bottom(i + 1).x, bottom(i).right() + 1.0);
         }
-        assert_eq!(DENY.right(), WIDTH);
-        assert_eq!(DENY.x, ALLOW.right() + 1.0);
     }
 
     #[test]
     fn clicks_find_their_tile() {
-        let main = Screen::main_screen(false);
-        assert_eq!(hit(main, 10.0, 10.0, 0.0, 0), Some(Target::Camera));
-        assert_eq!(hit(main, 10.0, 340.0, 0.0, 0), Some(Target::Wifi));
-        assert_eq!(hit(main, 70.0, 340.0, 0.0, 0), Some(Target::Camera));
-        assert_eq!(hit(main, 150.0, 340.0, 0.0, 0), Some(Target::Mic));
-        assert_eq!(hit(main, 200.0, 340.0, 0.0, 0), Some(Target::Speaker));
-        assert_eq!(hit(main, 280.0, 340.0, 0.0, 0), Some(Target::Help));
-        assert_eq!(hit(main, 150.0, 312.5, 0.0, 0), None, "the hairline");
-
-        let r = repair_button();
-        assert_eq!(
-            hit(Screen::main_screen(true), r.x + 1.0, r.y + 1.0, 0.0, 0),
-            Some(Target::Repair)
-        );
-        assert_eq!(hit(Screen::Gate, 100.0, 340.0, 0.0, 0), Some(Target::Allow));
-        assert_eq!(hit(Screen::Gate, 100.0, 100.0, 0.0, 0), None);
-    }
-
-    #[test]
-    fn settings_rows_scroll_and_have_buttons_on_the_right() {
-        assert_eq!(
-            hit(Screen::Settings, 10.0, 10.0, 0.0, 5),
-            Some(Target::Back)
-        );
-        assert_eq!(
-            hit(Screen::Settings, 10.0, LIST.y + 1.0, 0.0, 5),
-            Some(Target::Row(0, 0))
-        );
-        assert_eq!(
-            hit(Screen::Settings, 10.0, LIST.y + 1.0, ROW + 1.0, 5),
-            Some(Target::Row(1, 0))
-        );
-        assert_eq!(
-            hit(Screen::Settings, WIDTH - 10.0, LIST.y + 1.0, 0.0, 5),
-            Some(Target::Row(0, 2))
-        );
-        assert_eq!(
-            hit(Screen::Settings, WIDTH - 100.0, LIST.y + 1.0, 0.0, 5),
-            Some(Target::Row(0, 1))
-        );
-        assert_eq!(
-            hit(Screen::Settings, 10.0, LIST.y + 1.0, 10.0 * ROW, 5),
-            None
-        );
+        let main = Screen::main_screen();
+        assert_eq!(hit(main, 10.0, 340.0), Some(Target::Wifi));
+        assert_eq!(hit(main, 70.0, 340.0), Some(Target::Camera));
+        assert_eq!(hit(main, 150.0, 340.0), Some(Target::Mic));
+        assert_eq!(hit(main, 200.0, 340.0), Some(Target::Speaker));
+        assert_eq!(hit(main, 280.0, 340.0), Some(Target::Help));
+        assert_eq!(hit(main, 150.0, 312.5), None, "the hairline");
     }
 
     #[test]
     fn drawer_and_cam_hud_hits() {
         assert_eq!(
             hit(
-                Screen::DrawerWifi,
+                Screen::DrawerWifi(WifiMode::Offline),
                 CONN_COPY_IP_BTN.x + 2.0,
                 CONN_COPY_IP_BTN.y + 2.0,
-                0.0,
-                0
             ),
             Some(Target::CopyIp)
         );
         assert_eq!(
-            hit(Screen::DrawerHelp(HelpScreen::Bento), 40.0, 60.0, 0.0, 0),
+            hit(
+                Screen::DrawerWifi(WifiMode::Pairing),
+                CONN_PAIR_BTN.x + 2.0,
+                CONN_PAIR_BTN.y + 2.0,
+            ),
+            Some(Target::Pair)
+        );
+        assert_eq!(
+            hit(
+                Screen::DrawerWifi(WifiMode::Pairing),
+                CONN_DECLINE_BTN.x + 2.0,
+                CONN_DECLINE_BTN.y + 2.0,
+            ),
+            Some(Target::Decline)
+        );
+        assert_eq!(
+            hit(
+                Screen::DrawerWifi(WifiMode::Connected),
+                CONN_DISCONNECT_BTN.x + 2.0,
+                CONN_DISCONNECT_BTN.y + 2.0,
+            ),
+            Some(Target::Disconnect)
+        );
+        assert_eq!(
+            hit(
+                Screen::DrawerWifi(WifiMode::Connected),
+                CONN_BLOCK_BTN.x + 2.0,
+                CONN_BLOCK_BTN.y + 2.0,
+            ),
+            Some(Target::Block)
+        );
+        assert_eq!(
+            hit(
+                Screen::DrawerWifi(WifiMode::Blocked),
+                CONN_UNBLOCK_BTN.x + 2.0,
+                CONN_UNBLOCK_BTN.y + 2.0,
+            ),
+            Some(Target::Unblock)
+        );
+        assert_eq!(
+            hit(
+                Screen::DrawerWifi(WifiMode::Forget),
+                CONN_FORGET_BTN.x + 2.0,
+                CONN_FORGET_BTN.y + 2.0,
+            ),
+            Some(Target::Forget)
+        );
+        assert_eq!(
+            hit(Screen::DrawerHelp(HelpScreen::Bento), 40.0, 60.0),
             Some(Target::HelpHowTo)
         );
         assert_eq!(
@@ -596,27 +526,18 @@ mod tests {
                 Screen::DrawerHelp(HelpScreen::HowTo),
                 HELP_BACK_BTN.x + 2.0,
                 HELP_BACK_BTN.y + 2.0,
-                0.0,
-                0
             ),
             Some(Target::HelpBack)
         );
 
         let cam_hud_screen = Screen::Main {
-            repair: false,
             cam_on: true,
             mic_on: true,
             cam_menu: false,
             quick_audio: false,
         };
         assert_eq!(
-            hit(
-                cam_hud_screen,
-                CAM_MENU_BTN.x + 2.0,
-                CAM_MENU_BTN.y + 2.0,
-                0.0,
-                0
-            ),
+            hit(cam_hud_screen, CAM_MENU_BTN.x + 2.0, CAM_MENU_BTN.y + 2.0,),
             Some(Target::CamMenu)
         );
         assert_eq!(
@@ -624,19 +545,11 @@ mod tests {
                 cam_hud_screen,
                 CAM_MIRROR_BTN.x + 2.0,
                 CAM_MIRROR_BTN.y + 2.0,
-                0.0,
-                0
             ),
             Some(Target::Mirror)
         );
         assert_eq!(
-            hit(
-                cam_hud_screen,
-                CAM_FLIP_BTN.x + 2.0,
-                CAM_FLIP_BTN.y + 2.0,
-                0.0,
-                0
-            ),
+            hit(cam_hud_screen, CAM_FLIP_BTN.x + 2.0, CAM_FLIP_BTN.y + 2.0,),
             Some(Target::Flip)
         );
         assert_eq!(
@@ -644,8 +557,6 @@ mod tests {
                 cam_hud_screen,
                 WAVE_DOCK_DOCKED.x + 2.0,
                 WAVE_DOCK_DOCKED.y + 2.0,
-                0.0,
-                0
             ),
             Some(Target::WaveDock)
         );

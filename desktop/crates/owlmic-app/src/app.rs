@@ -108,6 +108,7 @@ struct AppState {
     addresses: Vec<String>,
     /// The link that carried the session last, for the indicator while it reconnects.
     last_link: Option<u8>,
+    session_id: Option<[u8; 16]>,
     /// Supervised units that aren't well, and since when.
     units: BTreeMap<&'static str, (Health, Instant)>,
     /// What the Device Hub was last told, to tell it again after it restarts.
@@ -235,6 +236,7 @@ impl AppHub {
                 session_id,
                 phone,
             } => {
+                self.state.session_id = Some(session_id);
                 let key = hex(&phone.id);
                 let settings = self
                     .store
@@ -258,6 +260,9 @@ impl AppHub {
                 owner,
             }),
             SessionEvent::Ended { session_id } => {
+                if self.state.session_id == Some(session_id) {
+                    self.state.session_id = None;
+                }
                 self.w.link.send(LinkMsg::SessionEnded { session_id });
                 self.w.media.send(MediaMsg::Ended);
                 self.w.settings.send(SettingsMsg::Session(None));
@@ -404,6 +409,11 @@ impl AppHub {
                     self.w
                         .session
                         .send(SessionMsg::SetBlocked { phone_id, blocked });
+                }
+            }
+            Action::Disconnect => {
+                if let Some(session_id) = self.state.session_id {
+                    self.w.session.send(SessionMsg::Bye { session_id });
                 }
             }
             Action::Quit => (self.w.quit)(),
