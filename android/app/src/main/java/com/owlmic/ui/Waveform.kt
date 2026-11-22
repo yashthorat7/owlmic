@@ -33,7 +33,7 @@ private const val BARS = 25
  * the two is one smooth change of size.
  */
 @Composable
-fun Waveform(modifier: Modifier = Modifier, isDocked: Boolean = false) {
+fun Waveform(modifier: Modifier = Modifier, dockProgress: Float = 0f, isDocked: Boolean = dockProgress > 0.5f) {
     val level by Owlmic.level.collectAsState()
     val time = remember { mutableFloatStateOf(0f) }
     LaunchedEffect(Unit) {
@@ -49,8 +49,9 @@ fun Waveform(modifier: Modifier = Modifier, isDocked: Boolean = false) {
     Canvas(modifier) {
         val t = time.floatValue
         val step = size.width / BARS
-        val w = if (isDocked) 4.dp.toPx() else 5.dp.toPx()
-        val lo = if (isDocked) 4.dp.toPx() else 5.dp.toPx()
+        val p = if (dockProgress > 0f) dockProgress else if (isDocked) 1f else 0f
+        val w = (5f - p * 1f).dp.toPx()
+        val lo = (5f - p * 1f).dp.toPx()
         val hi = size.height
         val loud = waveLevel(level)
         val center = (BARS - 1) / 2f

@@ -49,6 +49,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.BiasAlignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
@@ -122,9 +123,22 @@ fun Playground(seq: TurnSequence, state: AppState, drawer: Drawer?, modifier: Mo
     )
 
     Box(modifier.clip(RoundedCornerShape(Theme.radius)).background(Theme.bg)) {
-        if (!live) DotGrid(Modifier.fillMaxSize())
-        if (live) PreviewFrame(state)
-        if (live) Frame(Modifier.fillMaxSize())
+        val camAlpha by animateFloatAsState(
+            targetValue = if (live) 1f else 0f,
+            animationSpec = tween(Tokens.Phone.CONTROLS_FADE_MS.toInt()),
+            label = "camFade",
+        )
+        if (camAlpha < 1f) {
+            Box(Modifier.fillMaxSize().graphicsLayer { alpha = 1f - camAlpha }) {
+                DotGrid(Modifier.fillMaxSize())
+            }
+        }
+        if (camAlpha > 0f) {
+            Box(Modifier.fillMaxSize().graphicsLayer { alpha = camAlpha }) {
+                PreviewFrame(state)
+                Frame(Modifier.fillMaxSize())
+            }
+        }
         Content(
             seq.layout,
             seq.fade,
@@ -193,15 +207,14 @@ private fun Content(
             StatusStrip(state, last, Modifier.width(capsule), onStrip)
         }
 
-        // Waveform Dock
-        if (mode.mic) {
-            if (mode.live) {
-                // Docked capsule at bottom when camera is on
-                DockedWave(state, mode.micOpen, maxWidth, onMicOpen)
-            } else {
-                // Centered wave when only mic is on
-                CenteredWave(state, mode.micOpen, onMicOpen)
-            }
+        // Waveform Dock (smooth animated flight between centered and docked)
+        AnimatedVisibility(
+            mode.mic,
+            Modifier.fillMaxSize(),
+            enter = fadeIn(tween(Theme.STATE_MS)),
+            exit = fadeOut(tween(Theme.STATE_MS)),
+        ) {
+            WaveformDock(state, mode.live, mode.micOpen, maxWidth, onMicOpen)
         }
 
         // Camera HUD (Format Menu on left, Mirror & Flip on right)
@@ -456,30 +469,105 @@ private fun CamHudButton(glyph: Glyph, on: Boolean = false, label: String, onCli
     }
 }
 
-/** Docked waveform capsule at the bottom when camera is on. */
+/** Unified waveform dock with smooth animated morphing between centered and docked states. */
 @Composable
-private fun DockedWave(state: AppState, open: Boolean, maxWidth: androidx.compose.ui.unit.Dp, onOpen: (Boolean) -> Unit) {
-    val width by animateDpAsState(if (open) maxWidth - 24.dp else 236.dp, tween(Theme.STATE_MS), label = "dockWidth")
-    val shape = RoundedCornerShape(12.dp)
-    val borderColor = if (open) Color(0x52FFFFFF) else Color(0x38FFFFFF)
+private fun WaveformDock(
+    state: AppState,
+    live: Boolean,
+    micOpen: Boolean,
+    maxWidth: androidx.compose.ui.unit.Dp,
+    onMicOpen: (Boolean) -> Unit,
+) {
+    val ease = CubicBezierEasing(0.16f, 1f, 0.3f, 1f)
+    val dockProgress by animateFloatAsState(
+        targetValue = if (live) 1f else 0f,
+        animationSpec = tween(360, easing = ease),
+        label = "dockProgress",
+    )
 
-    Box(
-        Modifier
-            .fillMaxSize()
-            .padding(bottom = 12.dp),
-        contentAlignment = Alignment.BottomCenter,
-    ) {
+    val targetBias = when {
+        live -> 1f
+        micOpen -> -0.38f
+        else -> 0f
+    }
+    val animatedBias by animateFloatAsState(
+        targetValue = targetBias,
+        animationSpec = tween(if (live) 360 else 280, easing = ease),
+        label = "verticalBias",
+    )
+
+    val targetWidth = if (live) {
+        if (micOpen) maxWidth - 24.dp else 236.dp
+    } else {
+        minOf(288.dp, maxWidth - 24.dp)
+    }
+    val animatedWidth by animateDpAsState(
+        targetValue = targetWidth,
+        animationSpec = tween(340, easing = ease),
+        label = "dockWidth",
+    )
+
+    val animatedBg by animateColorAsState(
+        targetValue = if (live) Color.Black else Color.Transparent,
+        animationSpec = tween(240, easing = ease),
+        label = "dockBg",
+    )
+
+    val animatedBorder by animateColorAsState(
+        targetValue = if (live) {
+            if (micOpen) Color(0x52FFFFFF) else Color(0x38FFFFFF)
+        } else Color.Transparent,
+        animationSpec = tween(240, easing = ease),
+        label = "dockBorder",
+    )
+
+    val waveHeight by animateDpAsState(
+        targetValue = if (live) 24.dp else 84.dp,
+        animationSpec = tween(340, easing = ease),
+        label = "waveHeight",
+    )
+
+    val headerHeight by animateDpAsState(
+        targetValue = if (live) 44.dp else 84.dp,
+        animationSpec = tween(340, easing = ease),
+        label = "headerHeight",
+    )
+
+    val waveWidth by animateDpAsState(
+        targetValue = if (live) 208.dp else minOf(288.dp, maxWidth - 32.dp),
+        animationSpec = tween(340, easing = ease),
+        label = "waveWidth",
+    )
+
+    val bottomPadding = (12 * dockProgress).dp
+    val shape = RoundedCornerShape(12.dp)
+
+    Box(Modifier.fillMaxSize()) {
+        if (micOpen) {
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                    ) { onMicOpen(false) },
+            )
+        }
+
+        // Unified animated capsule container
         Column(
             Modifier
-                .width(width)
+                .align(BiasAlignment(0f, animatedBias))
+                .padding(bottom = bottomPadding)
+                .width(animatedWidth)
                 .clip(shape)
-                .background(Color.Black)
-                .border(1.dp, borderColor, shape),
+                .background(animatedBg)
+                .border(1.dp, animatedBorder, shape),
         ) {
             AnimatedVisibility(
-                open,
-                enter = expandVertically(tween(Theme.STATE_MS)) + fadeIn(),
-                exit = shrinkVertically(tween(Theme.STATE_MS)) + fadeOut(),
+                visible = live && micOpen,
+                enter = expandVertically(tween(340, easing = ease)) + fadeIn(tween(200)),
+                exit = shrinkVertically(tween(340, easing = ease)) + fadeOut(tween(200)),
             ) {
                 Column(Modifier.fillMaxWidth()) {
                     Column(
@@ -494,44 +582,30 @@ private fun DockedWave(state: AppState, open: Boolean, maxWidth: androidx.compos
                     Box(Modifier.fillMaxWidth().height(1.dp).background(Color(0x26FFFFFF)))
                 }
             }
+
             Box(
                 Modifier
                     .fillMaxWidth()
-                    .height(44.dp)
-                    .clickable(role = Role.Button, onClick = { onOpen(!open) }),
+                    .height(headerHeight)
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        role = Role.Button,
+                        onClick = { onMicOpen(!micOpen) },
+                    ),
                 contentAlignment = Alignment.Center,
             ) {
-                Waveform(Modifier.width(208.dp).height(24.dp), isDocked = true)
+                Waveform(
+                    modifier = Modifier.width(waveWidth).height(waveHeight),
+                    dockProgress = dockProgress,
+                )
             }
-        }
-    }
-}
-
-/** Centered waveform when camera is off, with bottom quick panel on tap. */
-@Composable
-private fun CenteredWave(state: AppState, open: Boolean, onOpen: (Boolean) -> Unit) {
-    val offsetY by animateDpAsState(if (open) (-90).dp else 0.dp, tween(Theme.STATE_MS), label = "waveLift")
-    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Box(
-            Modifier
-                .offset { IntOffset(0, offsetY.roundToPx()) }
-                .width(288.dp)
-                .height(84.dp)
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null,
-                    role = Role.Button,
-                    onClick = { onOpen(!open) },
-                ),
-            contentAlignment = Alignment.Center,
-        ) {
-            Waveform(Modifier.fillMaxSize(), isDocked = false)
         }
 
         // Mic-only bottom quick panel
         AnimatedVisibility(
-            open,
-            Modifier.align(Alignment.BottomCenter),
+            visible = !live && micOpen,
+            modifier = Modifier.align(Alignment.BottomCenter),
             enter = slideInVertically(tween(Theme.STATE_MS)) { it } + fadeIn(),
             exit = slideOutVertically(tween(Theme.STATE_MS)) { it } + fadeOut(),
         ) {
