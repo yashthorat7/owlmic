@@ -339,6 +339,93 @@ impl Painter {
         };
     }
 
+    pub fn line(&self, x1: f32, y1: f32, x2: f32, y2: f32, rgb: u32, width: f32) {
+        let s = self.scale;
+        let p1 = Vector2 {
+            X: (x1 * s).round(),
+            Y: (y1 * s).round(),
+        };
+        let p2 = Vector2 {
+            X: (x2 * s).round(),
+            Y: (y2 * s).round(),
+        };
+        unsafe {
+            self.t()
+                .DrawLine(p1, p2, self.brush(rgb), width * s, &self.stroke);
+        }
+    }
+
+    pub fn dots_grid(&self, r: Rect, spacing: f32, dot_r: f32, rgb: u32) {
+        let mut y = r.y + spacing / 2.0;
+        while y < r.bottom() {
+            let mut x = r.x + spacing / 2.0;
+            while x < r.right() {
+                self.circle(x, y, dot_r, rgb);
+                x += spacing;
+            }
+            y += spacing;
+        }
+    }
+
+    pub fn fader(&self, r: Rect, progress: f32, rgb_fill: u32, rgb_track: u32) {
+        let track_h = 7.0;
+        let track_r = Rect::new(r.x, r.y + (r.h - track_h) / 2.0, r.w, track_h);
+        self.fill_rounded(track_r, 3.5, rgb_track);
+        let fill_w = (r.w * progress.clamp(0.0, 1.0)).max(0.0);
+        if fill_w > 0.0 {
+            self.fill_rounded(Rect::new(r.x, track_r.y, fill_w, track_h), 3.5, rgb_fill);
+        }
+        let cap_x = r.x + fill_w;
+        let cap_w = 2.5;
+        let cap_h = 13.0;
+        let cap_r = Rect::new(cap_x - cap_w / 2.0, r.y + (r.h - cap_h) / 2.0, cap_w, cap_h);
+        self.fill_rounded(cap_r, 1.25, 0xFFFFFF);
+    }
+
+    pub fn switch(&self, r: Rect, on: bool) {
+        if on {
+            self.fill_rounded(r, r.h / 2.0, 0xFFFFFF);
+            let knob_r = (r.h - 4.0) / 2.0;
+            let knob_cx = r.right() - 2.0 - knob_r;
+            let knob_cy = r.y + r.h / 2.0;
+            self.circle(knob_cx, knob_cy, knob_r, 0x000000);
+        } else {
+            self.fill_rounded(r, r.h / 2.0, 0x000000);
+            self.stroke_rounded(r, r.h / 2.0, 0x3A3A3C, 1.0);
+            let knob_r = (r.h - 6.0) / 2.0;
+            let knob_cx = r.x + 3.0 + knob_r;
+            let knob_cy = r.y + r.h / 2.0;
+            self.circle(knob_cx, knob_cy, knob_r, 0x3A3A3C);
+        }
+    }
+
+    pub fn waveform_bars(&self, r: Rect, bars: usize, active: bool, anim_seed: u64) {
+        if bars == 0 || r.w <= 0.0 {
+            return;
+        }
+        let bar_w = 3.0;
+        let gap = ((r.w - (bars as f32 * bar_w)) / (bars as f32 - 1.0).max(1.0)).max(1.0);
+        let start_x = r.x + (r.w - (bars as f32 * bar_w + (bars as f32 - 1.0) * gap)) / 2.0;
+        for i in 0..bars {
+            let bx = start_x + i as f32 * (bar_w + gap);
+            let h = if active {
+                let wave = ((i as f32 * 0.45 + (anim_seed as f32 * 0.18)).sin() * 0.5 + 0.5)
+                    * ((i as f32 * 0.25 - (anim_seed as f32 * 0.12)).cos() * 0.5 + 0.5);
+                let min_h = 4.0;
+                let max_h = r.h;
+                min_h + (max_h - min_h) * wave
+            } else {
+                3.0
+            };
+            let by = r.y + (r.h - h) / 2.0;
+            self.fill_rounded(
+                Rect::new(bx, by, bar_w, h),
+                bar_w / 2.0,
+                if active { 0xFFFFFF } else { 0x3A3A3C },
+            );
+        }
+    }
+
     pub fn watermark(&self, cx: f32, cy: f32, size: f32, opacity: f32) {
         let px_size = 128usize;
         let d2d_size = D2D_SIZE_U {

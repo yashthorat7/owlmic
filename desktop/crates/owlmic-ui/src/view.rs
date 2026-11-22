@@ -88,6 +88,7 @@ pub struct PanelState {
     pub repair: Repair,
     pub repairing: bool,
     pub version: String,
+    pub hostname: String,
 }
 
 /// What a click asks the app to do. Opening settings or a link, and scrolling, stay in the
@@ -97,6 +98,8 @@ pub enum Action {
     Pause(Which),
     /// Moves a setting to its next value.
     Cycle(&'static str),
+    /// Explicitly sets a setting to a given value.
+    Set(&'static str, String),
     Allow,
     Deny,
     Repair,
@@ -110,6 +113,8 @@ pub enum Link {
     Licences,
     Website,
     Donate,
+    GitHub,
+    Rate,
 }
 
 pub struct Indicator {
@@ -175,14 +180,39 @@ impl PanelState {
         self.settings.get(id).map_or("", String::as_str)
     }
 
+    pub fn setting(&self, id: &str) -> &str {
+        self.value(id)
+    }
+
     pub fn screen(&self, settings_open: bool) -> Screen {
         if matches!(self.connection, Connection::Approval { .. }) {
             Screen::Gate
         } else if settings_open {
             Screen::Settings
         } else {
-            Screen::Main {
-                repair: self.repair.needed(),
+            Screen::main_screen(self.repair.needed())
+        }
+    }
+
+    pub fn active_screen(
+        &self,
+        drawer: crate::layout::Drawer,
+        cam_menu: bool,
+        quick_audio: bool,
+    ) -> Screen {
+        if matches!(self.connection, Connection::Approval { .. }) {
+            Screen::Gate
+        } else {
+            match drawer {
+                crate::layout::Drawer::Wifi => Screen::DrawerWifi,
+                crate::layout::Drawer::Help(h) => Screen::DrawerHelp(h),
+                crate::layout::Drawer::None => Screen::Main {
+                    repair: self.repair.needed(),
+                    cam_on: self.camera == Feature::On && self.connected(),
+                    mic_on: self.mic == Feature::On && self.connected(),
+                    cam_menu,
+                    quick_audio,
+                },
             }
         }
     }
@@ -260,13 +290,29 @@ impl PanelState {
         rows(self)
     }
 
+    pub fn active_phone_id(&self) -> Option<String> {
+        let name = self.phone_name()?;
+        self.phones
+            .iter()
+            .find(|p| p.name == name)
+            .map(|p| p.id.clone())
+            .or_else(|| self.phones.first().map(|p| p.id.clone()))
+    }
+
+    pub fn first_paired_id(&self) -> Option<String> {
+        self.phones.first().map(|p| p.id.clone())
+    }
+
     /// The link a settings row opens, which the panel opens itself.
     pub fn link_at(&self, target: Target, rows: &[Row]) -> Option<Link> {
-        let Target::Row(i, 0) = target else {
-            return None;
-        };
-        match rows.get(i)?.action {
-            RowAction::Open(link) => Some(link),
+        match target {
+            Target::HelpRate => Some(Link::Rate),
+            Target::HelpGitHub => Some(Link::GitHub),
+            Target::HelpDonate => Some(Link::Donate),
+            Target::Row(i, 0) => match rows.get(i)?.action {
+                RowAction::Open(link) => Some(link),
+                _ => None,
+            },
             _ => None,
         }
     }
@@ -281,12 +327,46 @@ impl PanelState {
             Target::Camera => feature(Which::Camera, self.camera),
             Target::Mic => feature(Which::Mic, self.mic),
             Target::Speaker => feature(Which::Speaker, self.speaker),
-            Target::Framing => pairing("camera.framing"),
+            Target::Quality(q) => Some(Action::Set("camera.quality", q.to_string())),
+            Target::Fps(f) => Some(Action::Set("camera.frameRate", f.to_string())),
+            Target::Ratio(r) => Some(Action::Set("camera.ratio", r.to_string())),
             Target::Mirror => pairing("camera.mirror"),
-            Target::Lens => pairing("camera.lens"),
+            Target::Flip | Target::Lens => pairing("camera.lens"),
+            Target::Framing => pairing("camera.framing"),
+            Target::ToggleIso => Some(Action::Cycle("mic.isolation")),
+            Target::ToggleNorm => Some(Action::Cycle("mic.autoLevel")),
+            Target::NrFader(val) => Some(Action::Set(
+                "mic.noiseReduction",
+                (val.round() as i32).to_string(),
+            )),
+            Target::VolFader(val) => {
+                Some(Action::Set("mic.volume", (val.round() as i32).to_string()))
+            }
             Target::Repair => (!self.repairing).then_some(Action::Repair),
-            Target::Allow => Some(Action::Allow),
-            Target::Deny => Some(Action::Deny),
+            Target::Allow | Target::Pair => Some(Action::Allow),
+            Target::Deny | Target::Decline => Some(Action::Deny),
+            Target::Block => {
+                let id = self.active_phone_id()?;
+                Some(Action::BlockPhone(id, true))
+            }
+            Target::Unblock => {
+                let id = self.active_phone_id()?;
+                Some(Action::BlockPhone(id, false))
+            }
+            Target::RemovePaired => {
+                let id = self.first_paired_id()?;
+                Some(Action::RemovePhone(id))
+            }
+            Target::ToggleTransport(link) => {
+                let id = match link {
+                    1 => "link.usbDebugging",
+                    2 => "link.usbTethering",
+                    3 => "link.wifi",
+                    4 => "link.bluetooth",
+                    _ => return None,
+                };
+                Some(Action::Cycle(id))
+            }
             Target::Row(i, button) => {
                 let row = rows.get(i)?;
                 match (&row.action, button) {

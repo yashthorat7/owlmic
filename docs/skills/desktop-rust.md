@@ -14,7 +14,7 @@
   - `owlmic-settings`: Configuration store (`%APPDATA%\Owlmic\owlmic.json` on Windows, `$XDG_CONFIG_HOME/owlmic/owlmic.json` on Linux).
   - `owlmic-devices`: Audio endpoints (WASAPI loopback, virtual microphone bridge, device repair).
   - `owlmic-platform`: Shared traits (`VirtualMic`, `VirtualCam`, `AudioLoopback`, `TrayUi`).
-  - `owlmic-ui`: Platform UI shell (Win32 Direct2D $312 \times 374\text{ px}$ flyout, tray coordinator).
+  - `owlmic-ui`: Platform UI shell ($312 \times 374\text{ px}$ Bento flyout, pure cross-platform layout & state models in `layout.rs` / `view.rs`, Direct2D Win32 hardware-accelerated playground & drawer rendering in `win/`, and headless offscreen test renderer).
   - `owlmic-windows`: Windows implementations (WASAPI virtual audio & loopback, MF virtual camera, Direct2D tray).
   - `owlmic-linux`: Linux implementations (PipeWire virtual audio source & sink monitor, `v4l2loopback`, `ksni` tray).
   - `owlmic-vcam`: Windows 11 Media Foundation software camera driver (`owlmic_vcam.dll`).

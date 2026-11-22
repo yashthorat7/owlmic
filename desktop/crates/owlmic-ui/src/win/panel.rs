@@ -4,7 +4,7 @@
 
 use super::draw::{Align, Font, Painter};
 use super::tray::{self, Tray};
-use crate::layout::{self as l, Rect, Screen, Target};
+use crate::layout::{self as l, Drawer, HelpScreen, Rect, Screen, Target};
 use crate::preview::{self, Preview};
 use crate::view::{Action, Connection, Feature, Link, PanelState, Row, indicator};
 use crate::{color, fill, icons, messages as m};
@@ -111,12 +111,17 @@ struct Panel {
     state: Arc<PanelState>,
     rows: Vec<Row>,
     settings_open: bool,
+    drawer: Drawer,
+    cam_menu_open: bool,
+    quick_audio_open: bool,
     scroll: f32,
     scale: f32,
     visible: bool,
     hidden_at: Option<Instant>,
     applied_at: Instant,
+    copied_at: Option<Instant>,
     taskbar_created: u32,
+    anim_frame: u64,
 }
 
 /// Creates the panel and the tray icon and runs the message loop until [`Waker::quit`].
@@ -141,12 +146,17 @@ pub fn run(waker: &Waker, ui: Ui, open: bool) -> Result<()> {
             tray: None,
             rows: Vec::new(),
             settings_open: false,
+            drawer: Drawer::None,
+            cam_menu_open: false,
+            quick_audio_open: false,
             scroll: 0.0,
             scale: 1.0,
             visible: false,
             hidden_at: None,
             applied_at: Instant::now(),
+            copied_at: None,
             taskbar_created: RegisterWindowMessageW(w!("TaskbarCreated")),
+            anim_frame: 0,
         });
         let raw = Box::into_raw(panel);
         let hwnd = CreateWindowExW(
@@ -247,7 +257,8 @@ impl Panel {
                 self.apply();
             }
             WM_TIMER if wparam.0 == TIMER_PREVIEW => {
-                if self.state.camera == Feature::On && !self.settings_open {
+                self.anim_frame = self.anim_frame.wrapping_add(1);
+                if self.visible {
                     self.invalidate();
                 }
             }
@@ -405,21 +416,79 @@ impl Panel {
         }
         self.visible = false;
         self.settings_open = false;
+        self.drawer = Drawer::None;
+        self.cam_menu_open = false;
+        self.quick_audio_open = false;
         self.hidden_at = Some(Instant::now());
         self.ui.preview.set_wanted(false);
     }
 
     fn click(&mut self, x: f32, y: f32) {
-        let screen = self.state.screen(self.settings_open);
+        let screen = if self.settings_open {
+            Screen::Settings
+        } else {
+            self.state
+                .active_screen(self.drawer, self.cam_menu_open, self.quick_audio_open)
+        };
         let Some(target) = l::hit(screen, x, y, self.scroll, self.rows.len()) else {
             return;
         };
         match target {
+            Target::Wifi => {
+                if self.drawer == Drawer::Wifi {
+                    self.drawer = Drawer::None;
+                } else {
+                    self.drawer = Drawer::Wifi;
+                    self.cam_menu_open = false;
+                    self.quick_audio_open = false;
+                }
+            }
+            Target::Help => {
+                if matches!(self.drawer, Drawer::Help(_)) {
+                    self.drawer = Drawer::None;
+                } else {
+                    self.drawer = Drawer::Help(HelpScreen::Bento);
+                    self.cam_menu_open = false;
+                    self.quick_audio_open = false;
+                }
+            }
+            Target::HelpBack => {
+                self.drawer = Drawer::Help(HelpScreen::Bento);
+            }
+            Target::HelpHowTo => {
+                self.drawer = Drawer::Help(HelpScreen::HowTo);
+            }
+            Target::HelpCredits => {
+                self.drawer = Drawer::Help(HelpScreen::Credits);
+            }
+            Target::HelpPrivacy => {
+                self.drawer = Drawer::Help(HelpScreen::Privacy);
+            }
+            Target::CamMenu => {
+                self.cam_menu_open = !self.cam_menu_open;
+            }
+            Target::WaveDock => {
+                self.quick_audio_open = !self.quick_audio_open;
+            }
+            Target::CopyIp => {
+                let host = if self.state.hostname.is_empty() {
+                    "127.0.0.1"
+                } else {
+                    &self.state.hostname
+                };
+                let ip_str = format!("{host}:7653");
+                copy_to_clipboard(self.hwnd, &ip_str);
+                self.copied_at = Some(Instant::now());
+            }
             Target::Settings => {
                 self.settings_open = true;
+                self.drawer = Drawer::None;
                 self.scroll = 0.0;
             }
-            Target::Back => self.settings_open = false,
+            Target::Back => {
+                self.settings_open = false;
+                self.drawer = Drawer::None;
+            }
             _ => {
                 if let Some(link) = self.state.link_at(target, &self.rows) {
                     open(link);
@@ -436,10 +505,33 @@ impl Panel {
         unsafe { BeginPaint(self.hwnd, &mut ps) };
         if self.painter.begin(self.hwnd, self.scale) {
             self.painter.clear(color::HAIRLINE);
-            match self.state.screen(self.settings_open) {
+            let screen = if self.settings_open {
+                Screen::Settings
+            } else {
+                self.state
+                    .active_screen(self.drawer, self.cam_menu_open, self.quick_audio_open)
+            };
+            match screen {
                 Screen::Gate => self.draw_gate(),
                 Screen::Settings => self.draw_settings(),
-                Screen::Main { repair } => self.draw_main(repair),
+                Screen::DrawerWifi => {
+                    self.draw_drawer_wifi();
+                    self.draw_bottom_dock();
+                }
+                Screen::DrawerHelp(h) => {
+                    self.draw_drawer_help(h);
+                    self.draw_bottom_dock();
+                }
+                Screen::Main {
+                    repair,
+                    cam_on,
+                    mic_on,
+                    cam_menu,
+                    quick_audio,
+                } => {
+                    self.draw_main(repair, cam_on, mic_on, cam_menu, quick_audio);
+                    self.draw_bottom_dock();
+                }
             }
             self.painter.end();
         }
@@ -448,15 +540,22 @@ impl Panel {
         }
     }
 
-    fn draw_main(&mut self, repair: bool) {
+    fn draw_main(
+        &mut self,
+        repair: bool,
+        cam_on: bool,
+        mic_on: bool,
+        cam_menu: bool,
+        quick_audio: bool,
+    ) {
         let s = self.state.clone();
         let p = &mut self.painter;
-        let c = l::CAMERA;
+        let c = l::PLAYGROUND;
         let connected = s.connected();
         p.fill(c, color::BG);
         let (mid_x, mid_y) = (c.x + c.w / 2.0, c.y + c.h / 2.0);
 
-        if s.camera == Feature::On && connected {
+        if cam_on {
             if self.ui.preview.seq() > 0 {
                 let seq = self.ui.preview.seq();
                 let preview = self.ui.preview.clone();
@@ -483,67 +582,145 @@ impl Panel {
                 );
             }
 
-            let live_pill = Rect::new(c.right() - 66.0, c.y + 16.0, 52.0, 20.0);
+            let live_pill = Rect::new(c.right() - 66.0, c.y + 12.0, 54.0, 20.0);
             p.fill_rounded(live_pill, 10.0, 0x1A1C24);
             p.circle(live_pill.x + 10.0, live_pill.y + 10.0, 3.5, color::GREEN);
             p.text(
                 "LIVE",
-                Rect::new(live_pill.x + 16.0, live_pill.y + 2.0, 32.0, 16.0),
+                Rect::new(live_pill.x + 16.0, live_pill.y + 2.0, 34.0, 16.0),
                 Font::Caption,
                 color::GREEN,
                 Align::Left,
                 false,
             );
 
-            p.text(
-                "1080p · 60 FPS",
-                Rect::new(c.x + 24.0, c.bottom() - 28.0, 110.0, 16.0),
-                Font::Caption,
-                color::TEXT2,
-                Align::Left,
-                false,
-            );
+            // Camera format / HUD menu
+            if cam_menu {
+                p.fill_rounded(l::CAM_EXPAND_MENU, 8.0, 0x0A0A0A);
+                p.stroke_rounded(l::CAM_EXPAND_MENU, 8.0, color::HAIRLINE, 1.0);
 
-            if s.mic == Feature::On {
-                let cap = Rect::new(c.x + (c.w - 130.0) / 2.0, c.bottom() - 34.0, 130.0, 24.0);
-                p.fill_rounded(cap, 12.0, 0x0A0A0A);
-                p.stroke_rounded(cap, 12.0, color::HAIRLINE, 1.0);
-                let heights = [
-                    6.0, 10.0, 14.0, 18.0, 12.0, 16.0, 8.0, 14.0, 18.0, 12.0, 6.0,
-                ];
-                let start_x = cap.x + (cap.w - (heights.len() as f32 * 6.0)) / 2.0;
-                for (idx, &h) in heights.iter().enumerate() {
-                    let bx = start_x + idx as f32 * 6.0;
-                    p.fill_rounded(
-                        Rect::new(bx, cap.y + (cap.h - h) / 2.0, 3.0, h),
-                        1.5,
-                        color::INK,
+                let cur_q = s.setting("camera.quality");
+                let cur_fps = s.setting("camera.frameRate");
+                let cur_ratio = s.setting("camera.ratio");
+
+                let row0 = ["FHD", "HD", "480p"];
+                let row1 = ["60", "30", "24"];
+                let row2 = ["16:9", "4:3", "1:1"];
+
+                for (col, &val) in row0.iter().enumerate() {
+                    let r = l::cam_option_rect(0, col);
+                    let sel = cur_q == val || (cur_q.is_empty() && val == "FHD");
+                    if sel {
+                        p.fill(r, 0x222222);
+                    }
+                    p.text(
+                        val,
+                        r,
+                        Font::Caption,
+                        if sel { color::TEXT } else { color::TEXT2 },
+                        Align::Center,
+                        false,
                     );
                 }
-            }
-        } else if s.mic == Feature::On && connected {
-            p.watermark(mid_x, mid_y - 20.0, 140.0, 0.08);
-
-            let heights = [
-                12.0, 18.0, 28.0, 44.0, 32.0, 56.0, 76.0, 48.0, 68.0, 88.0, 68.0, 50.0, 72.0, 42.0,
-                58.0, 36.0, 46.0, 24.0, 32.0, 18.0, 10.0,
-            ];
-            let bar_w = 4.0;
-            let gap = 3.5;
-            let total_w = heights.len() as f32 * (bar_w + gap) - gap;
-            let start_x = mid_x - total_w / 2.0;
-            for (idx, &h) in heights.iter().enumerate() {
-                let bx = start_x + idx as f32 * (bar_w + gap);
-                p.fill_rounded(
-                    Rect::new(bx, mid_y - h / 2.0 - 10.0, bar_w, h),
-                    2.0,
-                    color::INK,
+                for (col, &val) in row1.iter().enumerate() {
+                    let r = l::cam_option_rect(1, col);
+                    let sel = cur_fps == val || (cur_fps.is_empty() && val == "60");
+                    if sel {
+                        p.fill(r, 0x222222);
+                    }
+                    let lbl = format!("{val}fps");
+                    p.text(
+                        &lbl,
+                        r,
+                        Font::Caption,
+                        if sel { color::TEXT } else { color::TEXT2 },
+                        Align::Center,
+                        false,
+                    );
+                }
+                for (col, &val) in row2.iter().enumerate() {
+                    let r = l::cam_option_rect(2, col);
+                    let sel = cur_ratio == val || (cur_ratio.is_empty() && val == "16:9");
+                    if sel {
+                        p.fill(r, 0x222222);
+                    }
+                    p.text(
+                        val,
+                        r,
+                        Font::Caption,
+                        if sel { color::TEXT } else { color::TEXT2 },
+                        Align::Center,
+                        false,
+                    );
+                }
+            } else {
+                p.fill_rounded(l::CAM_MENU_BTN, 6.0, 0x0A0A0A);
+                p.stroke_rounded(l::CAM_MENU_BTN, 6.0, color::HAIRLINE, 1.0);
+                let q_lbl = match s.setting("camera.quality") {
+                    "HD" => "HD",
+                    "480p" => "480p",
+                    _ => "FHD",
+                };
+                p.text(
+                    q_lbl,
+                    l::CAM_MENU_BTN,
+                    Font::Caption,
+                    color::TEXT,
+                    Align::Center,
+                    false,
                 );
             }
 
+            // Mirror & Flip buttons
+            let mirror_on = s.setting("camera.mirror") == "true";
+            p.fill_rounded(
+                l::CAM_MIRROR_BTN,
+                6.0,
+                if mirror_on { 0x333333 } else { 0x0A0A0A },
+            );
+            p.stroke_rounded(l::CAM_MIRROR_BTN, 6.0, color::HAIRLINE, 1.0);
+            p.icon(
+                icons::MIRROR,
+                l::CAM_MIRROR_BTN.x + 12.5,
+                l::CAM_MIRROR_BTN.y + 12.5,
+                13.0,
+                if mirror_on {
+                    color::ON_CONTENT
+                } else {
+                    color::TEXT
+                },
+            );
+
+            p.fill_rounded(l::CAM_FLIP_BTN, 6.0, 0x0A0A0A);
+            p.stroke_rounded(l::CAM_FLIP_BTN, 6.0, color::HAIRLINE, 1.0);
+            p.icon(
+                icons::FLIP,
+                l::CAM_FLIP_BTN.x + 12.5,
+                l::CAM_FLIP_BTN.y + 12.5,
+                13.0,
+                color::TEXT,
+            );
+
+            // Docked waveform if mic also streaming
+            if mic_on {
+                let dock = l::WAVE_DOCK_DOCKED;
+                p.fill_rounded(dock, 11.0, 0x0A0A0A);
+                p.stroke_rounded(dock, 11.0, color::HAIRLINE, 1.0);
+                p.waveform_bars(dock.inset(3.0), 18, true, self.anim_frame);
+            }
+        } else if mic_on {
+            p.watermark(mid_x, mid_y - 20.0, 140.0, 0.08);
+
+            let dock = l::WAVE_DOCK_CENTERED;
+            p.fill_rounded(dock, 12.0, 0x0A0A0A);
+            p.stroke_rounded(dock, 12.0, color::HAIRLINE, 1.0);
+
+            let bars_rect = Rect::new(dock.x + 16.0, dock.y + 12.0, dock.w - 32.0, 24.0);
+            p.waveform_bars(bars_rect, 22, true, self.anim_frame);
+
             p.text(
                 "Microphone streaming · 48 kHz Opus",
-                Rect::new(c.x + PAD, mid_y + 48.0, c.w - 2.0 * PAD, 18.0),
+                Rect::new(dock.x + 8.0, dock.y + 40.0, dock.w - 16.0, 18.0),
                 Font::Caption,
                 color::TEXT2,
                 Align::Center,
@@ -552,10 +729,17 @@ impl Panel {
         } else if s.speaker == Feature::On && connected {
             p.watermark(mid_x, mid_y - 20.0, 140.0, 0.08);
 
+            let ripple = (self.anim_frame % 60) as f32 / 60.0;
             p.circle(mid_x, mid_y - 15.0, 6.0, color::TEXT);
-            p.stroke_circle(mid_x, mid_y - 15.0, 20.0, color::TEXT, 2.0);
-            p.stroke_circle(mid_x, mid_y - 15.0, 36.0, color::TEXT2, 1.5);
-            p.stroke_circle(mid_x, mid_y - 15.0, 52.0, color::DISABLED, 1.0);
+            p.stroke_circle(mid_x, mid_y - 15.0, 16.0 + ripple * 8.0, color::TEXT, 2.0);
+            p.stroke_circle(mid_x, mid_y - 15.0, 32.0 + ripple * 8.0, color::TEXT2, 1.5);
+            p.stroke_circle(
+                mid_x,
+                mid_y - 15.0,
+                48.0 + ripple * 8.0,
+                color::DISABLED,
+                1.0,
+            );
 
             p.text(
                 "Speaker loopback active · WASAPI",
@@ -566,6 +750,7 @@ impl Panel {
                 false,
             );
         } else {
+            p.dots_grid(c, 18.0, 1.0, 0x181818);
             p.watermark(mid_x, mid_y - 24.0, 160.0, 0.12);
 
             let is_connecting = matches!(
@@ -652,25 +837,75 @@ impl Panel {
             }
         }
 
-        if connected && !repair && s.camera != Feature::On {
-            let ph = l::PHONE;
-            let name = s.phone_name().unwrap_or(m::PC_NO_PHONE);
+        // Quick Audio panel (overlaying bottom of playground when open)
+        if quick_audio && mic_on {
+            let qp = l::AUDIO_QUICK_PANEL;
+            p.fill(qp, 0x000000);
+            p.line(0.0, qp.y, l::WIDTH, qp.y, color::HAIRLINE, 1.0);
+
+            // Voice Isolation
             p.text(
-                name,
-                Rect::new(ph.x + PAD, ph.y + PAD, ph.w - 2.0 * PAD, 18.0),
-                Font::Title,
+                "Voice isolation",
+                Rect::new(14.0, qp.y + 11.0, 180.0, 20.0),
+                Font::Body,
                 color::TEXT,
                 Align::Left,
                 false,
             );
+            p.switch(l::AUDIO_SWITCH_ISO, s.setting("mic.isolation") != "false");
+
+            // Normalization
             p.text(
-                s.phone_state(),
-                Rect::new(ph.x + PAD, ph.y + PAD + 18.0, ph.w - 2.0 * PAD, 16.0),
+                "Normalization",
+                Rect::new(14.0, qp.y + 37.0, 180.0, 20.0),
+                Font::Body,
+                color::TEXT,
+                Align::Left,
+                false,
+            );
+            p.switch(l::AUDIO_SWITCH_NORM, s.setting("mic.autoLevel") != "false");
+
+            // Noise Reduction
+            let nr_str = s.setting("mic.noiseReduction");
+            let nr_val = nr_str.parse::<f32>().unwrap_or(5.0);
+            p.text(
+                "Noise reduction",
+                Rect::new(14.0, qp.y + 62.0, 120.0, 16.0),
                 Font::Caption,
                 color::TEXT2,
                 Align::Left,
                 false,
             );
+            p.text(
+                &format!("{:.0}", nr_val),
+                Rect::new(l::WIDTH - 60.0, qp.y + 62.0, 46.0, 16.0),
+                Font::Caption,
+                color::TEXT2,
+                Align::Right,
+                false,
+            );
+            p.fader(l::AUDIO_SLIDER_NR, nr_val / 10.0, 0xFFFFFF, 0x222222);
+
+            // Volume
+            let vol_str = s.setting("mic.volume");
+            let vol_val = vol_str.parse::<f32>().unwrap_or(80.0);
+            p.text(
+                "Volume",
+                Rect::new(14.0, qp.y + 104.0, 120.0, 16.0),
+                Font::Caption,
+                color::TEXT2,
+                Align::Left,
+                false,
+            );
+            p.text(
+                &format!("{:.0}%", vol_val),
+                Rect::new(l::WIDTH - 60.0, qp.y + 104.0, 46.0, 16.0),
+                Font::Caption,
+                color::TEXT2,
+                Align::Right,
+                false,
+            );
+            p.fader(l::AUDIO_SLIDER_VOL, vol_val / 100.0, 0xFFFFFF, 0x222222);
         }
 
         if repair {
@@ -701,25 +936,33 @@ impl Panel {
             p.fill(button, bg);
             p.text(m::PC_REPAIR, button, Font::Title, fg, Align::Center, false);
         }
+    }
 
-        // 5 Bento Square Action Buttons (Help, Cam, Mic, Speaker, Wi-Fi)
+    fn draw_bottom_dock(&mut self) {
+        let s = self.state.clone();
+        let p = &mut self.painter;
+        let connected = s.connected();
+
+        // b0: Wi-Fi / Connection Drawer toggle
         let b0 = l::bottom(0);
-        p.fill(b0, color::TILE);
-        p.icon(
-            icons::HELP,
-            b0.x + b0.w / 2.0,
-            b0.y + b0.h / 2.0,
-            ICON,
-            color::TEXT2,
-        );
+        let wifi_active = self.drawer == Drawer::Wifi;
+        p.fill(b0, if wifi_active { color::ON } else { color::TILE });
+        let i = indicator(&s.connection);
+        let b0_color = if wifi_active {
+            color::ON_CONTENT
+        } else {
+            i.color
+        };
+        p.icon(i.icon, b0.x + b0.w / 2.0, b0.y + b0.h / 2.0, ICON, b0_color);
 
+        // b1: Camera stream toggle
         let b1 = l::bottom(1);
         let cam_on = s.camera == Feature::On && connected;
         p.fill(b1, if cam_on { color::ON } else { color::TILE });
         let cam_icon = if cam_on {
-            icons::VIDEO
+            icons::CAMERA
         } else {
-            icons::VIDEO_OFF
+            icons::CAMERA_OFF
         };
         let cam_fg = if cam_on {
             color::ON_CONTENT
@@ -730,6 +973,7 @@ impl Panel {
         };
         p.icon(cam_icon, b1.x + b1.w / 2.0, b1.y + b1.h / 2.0, ICON, cam_fg);
 
+        // b2: Microphone stream toggle
         let b2 = l::bottom(2);
         let mic_on = s.mic == Feature::On && connected;
         p.fill(b2, if mic_on { color::ON } else { color::TILE });
@@ -743,6 +987,7 @@ impl Panel {
         };
         p.icon(mic_icon, b2.x + b2.w / 2.0, b2.y + b2.h / 2.0, ICON, mic_fg);
 
+        // b3: Speaker stream toggle
         let b3 = l::bottom(3);
         let spk_on = s.speaker == Feature::On && connected;
         p.fill(b3, if spk_on { color::ON } else { color::TILE });
@@ -760,10 +1005,433 @@ impl Panel {
         };
         p.icon(spk_icon, b3.x + b3.w / 2.0, b3.y + b3.h / 2.0, ICON, spk_fg);
 
+        // b4: Help drawer toggle
         let b4 = l::bottom(4);
-        p.fill(b4, color::TILE);
-        let i = indicator(&s.connection);
-        p.icon(i.icon, b4.x + b4.w / 2.0, b4.y + b4.h / 2.0, ICON, i.color);
+        let help_active = matches!(self.drawer, Drawer::Help(_));
+        p.fill(b4, if help_active { color::ON } else { color::TILE });
+        let help_fg = if help_active {
+            color::ON_CONTENT
+        } else {
+            color::TEXT2
+        };
+        p.icon(
+            icons::HELP,
+            b4.x + b4.w / 2.0,
+            b4.y + b4.h / 2.0,
+            ICON,
+            help_fg,
+        );
+    }
+
+    fn draw_drawer_wifi(&mut self) {
+        let s = self.state.clone();
+        let p = &mut self.painter;
+        p.fill(l::PLAYGROUND, color::BG);
+
+        // Header: Host PC Name + IP and copy button
+        let host = if s.hostname.is_empty() {
+            "PC"
+        } else {
+            &s.hostname
+        };
+        p.text(
+            host,
+            Rect::new(14.0, 8.0, 200.0, 18.0),
+            Font::Title,
+            color::TEXT,
+            Align::Left,
+            false,
+        );
+        let ip_text = format!("{host}:7653");
+        p.text(
+            &ip_text,
+            Rect::new(14.0, 26.0, 200.0, 16.0),
+            Font::Caption,
+            color::TEXT2,
+            Align::Left,
+            false,
+        );
+
+        let copy_btn = l::CONN_COPY_IP_BTN;
+        p.fill_rounded(copy_btn, 6.0, color::TILE);
+        p.stroke_rounded(copy_btn, 6.0, color::HAIRLINE, 1.0);
+        let copied = self.copied_at.is_some_and(|t| t.elapsed().as_secs() < 2);
+        if copied {
+            p.icon(
+                icons::CHECK,
+                copy_btn.x + copy_btn.w / 2.0,
+                copy_btn.y + copy_btn.h / 2.0,
+                14.0,
+                color::GREEN,
+            );
+        } else {
+            p.icon(
+                icons::COPY,
+                copy_btn.x + copy_btn.w / 2.0,
+                copy_btn.y + copy_btn.h / 2.0,
+                14.0,
+                color::TEXT2,
+            );
+        }
+        p.line(0.0, 48.0, l::WIDTH, 48.0, color::HAIRLINE, 1.0);
+
+        // Primary connection row
+        let prim = l::CONN_PRIMARY_ROW;
+        let ind = indicator(&s.connection);
+        p.icon(
+            ind.icon,
+            prim.x + 22.0,
+            prim.y + prim.h / 2.0,
+            18.0,
+            color::TEXT,
+        );
+        let name = s.phone_name().unwrap_or("Pixel 8");
+        p.text(
+            name,
+            Rect::new(42.0, prim.y + 8.0, 150.0, 18.0),
+            Font::Title,
+            color::TEXT,
+            Align::Left,
+            false,
+        );
+        p.text(
+            s.phone_state(),
+            Rect::new(42.0, prim.y + 26.0, 150.0, 16.0),
+            Font::Caption,
+            color::TEXT2,
+            Align::Left,
+            false,
+        );
+
+        if s.connected() {
+            let disc = l::CONN_DISCONNECT_BTN;
+            p.icon(
+                icons::UNPLUG,
+                disc.x + disc.w / 2.0,
+                disc.y + disc.h / 2.0,
+                16.0,
+                color::TEXT2,
+            );
+            let blk = l::CONN_BLOCK_BTN;
+            p.text(
+                "Block",
+                blk,
+                Font::Caption,
+                color::TEXT2,
+                Align::Center,
+                false,
+            );
+        } else if matches!(s.connection, Connection::Approval { .. }) {
+            let pair = l::CONN_PAIR_BTN;
+            p.fill_rounded(pair, 6.0, color::ON);
+            p.text(
+                "Pair",
+                pair,
+                Font::Caption,
+                color::ON_CONTENT,
+                Align::Center,
+                false,
+            );
+            let dec = l::CONN_DECLINE_BTN;
+            p.fill_rounded(dec, 6.0, color::TILE);
+            p.text(
+                "Deny",
+                dec,
+                Font::Caption,
+                color::TEXT,
+                Align::Center,
+                false,
+            );
+        }
+        p.line(
+            0.0,
+            prim.bottom(),
+            l::WIDTH,
+            prim.bottom(),
+            color::HAIRLINE,
+            1.0,
+        );
+
+        // Paired row
+        let paired = l::CONN_PAIRED_ROW;
+        if let Some(first_phone) = s.phones.first() {
+            p.icon(
+                icons::WIFI,
+                paired.x + 22.0,
+                paired.y + paired.h / 2.0,
+                16.0,
+                color::DISABLED,
+            );
+            p.text(
+                &first_phone.name,
+                Rect::new(42.0, paired.y + 8.0, 150.0, 18.0),
+                Font::Body,
+                color::TEXT2,
+                Align::Left,
+                false,
+            );
+            p.text(
+                "Paired",
+                Rect::new(42.0, paired.y + 26.0, 150.0, 16.0),
+                Font::Caption,
+                color::DISABLED,
+                Align::Left,
+                false,
+            );
+            let rem = l::CONN_REMOVE_PAIRED_BTN;
+            p.text(
+                "Remove",
+                rem,
+                Font::Caption,
+                color::TEXT2,
+                Align::Center,
+                false,
+            );
+        } else {
+            p.text(
+                "No other paired devices",
+                Rect::new(14.0, paired.y + 15.0, l::WIDTH - 28.0, 20.0),
+                Font::Caption,
+                color::DISABLED,
+                Align::Left,
+                false,
+            );
+        }
+        p.line(
+            0.0,
+            paired.bottom(),
+            l::WIDTH,
+            paired.bottom(),
+            color::HAIRLINE,
+            1.0,
+        );
+
+        // Transport footer
+        let tf = l::CONN_FOOTER;
+        p.line(0.0, tf.y, l::WIDTH, tf.y, color::HAIRLINE, 1.0);
+
+        let ref_btn = l::CONN_REFRESH_BTN;
+        p.stroke_rounded(ref_btn, 6.0, color::HAIRLINE, 1.0);
+        p.icon(
+            icons::REFRESH,
+            ref_btn.x + ref_btn.w / 2.0,
+            ref_btn.y + ref_btn.h / 2.0,
+            15.0,
+            color::TEXT2,
+        );
+
+        let transports: [(usize, &'static str, crate::glyph::Icon); 4] = [
+            (0, "link.usbDebugging", icons::USB),
+            (1, "link.usbTethering", icons::CABLE),
+            (2, "link.wifi", icons::WIFI),
+            (3, "link.bluetooth", icons::BLUETOOTH),
+        ];
+
+        for (idx, key, ic) in transports {
+            let btn = l::conn_transport_btn(idx);
+            let on = s.setting(key) != "false";
+            p.fill_rounded(btn, 6.0, if on { color::TILE } else { color::BG });
+            p.stroke_rounded(btn, 6.0, if on { color::HAIRLINE } else { 0x222222 }, 1.0);
+            p.icon(
+                ic,
+                btn.x + btn.w / 2.0,
+                btn.y + btn.h / 2.0,
+                15.0,
+                if on { color::TEXT } else { color::DISABLED },
+            );
+        }
+    }
+
+    fn draw_drawer_help(&mut self, screen: HelpScreen) {
+        let s = self.state.clone();
+        let p = &mut self.painter;
+        p.fill(l::PLAYGROUND, color::BG);
+
+        match screen {
+            HelpScreen::Bento => {
+                let items: [(usize, &'static str, crate::glyph::Icon); 6] = [
+                    (0, "How-to", icons::LIST),
+                    (1, "Privacy", icons::SHIELD),
+                    (2, "Rate", icons::STAR),
+                    (3, "GitHub", icons::GITHUB),
+                    (4, "Donate", icons::COFFEE),
+                    (5, "Credits", icons::USERS),
+                ];
+                for (idx, label, ic) in items {
+                    let tile = l::help_bento_tile(idx);
+                    p.fill_rounded(tile, 10.0, color::TILE);
+                    p.stroke_rounded(tile, 10.0, color::HAIRLINE, 1.0);
+                    p.icon(ic, tile.x + tile.w / 2.0, tile.y + 28.0, 22.0, color::TEXT);
+                    p.text(
+                        label,
+                        Rect::new(tile.x, tile.y + 50.0, tile.w, 18.0),
+                        Font::Caption,
+                        color::TEXT2,
+                        Align::Center,
+                        false,
+                    );
+                }
+                p.text(
+                    &s.version,
+                    Rect::new(0.0, l::PLAYGROUND.bottom() - 20.0, l::WIDTH, 16.0),
+                    Font::Caption,
+                    color::DISABLED,
+                    Align::Center,
+                    false,
+                );
+            }
+            HelpScreen::HowTo => {
+                let back = l::HELP_BACK_BTN;
+                p.icon(
+                    icons::ARROW,
+                    back.x + back.w / 2.0,
+                    back.y + back.h / 2.0,
+                    16.0,
+                    color::TEXT,
+                );
+                p.text(
+                    "How-to",
+                    Rect::new(42.0, back.y, 200.0, back.h),
+                    Font::Title,
+                    color::TEXT,
+                    Align::Left,
+                    false,
+                );
+                p.line(0.0, 40.0, l::WIDTH, 40.0, color::HAIRLINE, 1.0);
+
+                let steps: [(i32, &'static str, &'static str); 3] = [
+                    (
+                        1,
+                        "Get the Android App",
+                        "Install and open Owlmic on your phone",
+                    ),
+                    (
+                        2,
+                        "Pair with this PC",
+                        "Plug in USB or join same Wi-Fi, or copy this PC's IP",
+                    ),
+                    (
+                        3,
+                        "Pick Owlmic in apps",
+                        "Select Owlmic Camera or Mic in Discord, OBS, or Zoom",
+                    ),
+                ];
+
+                for (idx, title, desc) in steps {
+                    let y = 56.0 + (idx - 1) as f32 * 58.0;
+                    let num_r = Rect::new(14.0, y + 2.0, 20.0, 20.0);
+                    p.fill_rounded(num_r, 10.0, color::TILE);
+                    p.stroke_rounded(num_r, 10.0, color::HAIRLINE, 1.0);
+                    p.text(
+                        &idx.to_string(),
+                        num_r,
+                        Font::Caption,
+                        color::TEXT,
+                        Align::Center,
+                        false,
+                    );
+
+                    p.text(
+                        title,
+                        Rect::new(42.0, y, 250.0, 18.0),
+                        Font::Body,
+                        color::TEXT,
+                        Align::Left,
+                        false,
+                    );
+                    p.text(
+                        desc,
+                        Rect::new(42.0, y + 18.0, 250.0, 32.0),
+                        Font::Caption,
+                        color::TEXT2,
+                        Align::Left,
+                        true,
+                    );
+                }
+            }
+            HelpScreen::Privacy => {
+                let back = l::HELP_BACK_BTN;
+                p.icon(
+                    icons::ARROW,
+                    back.x + back.w / 2.0,
+                    back.y + back.h / 2.0,
+                    16.0,
+                    color::TEXT,
+                );
+                p.text(
+                    "Privacy",
+                    Rect::new(42.0, back.y, 200.0, back.h),
+                    Font::Title,
+                    color::TEXT,
+                    Align::Left,
+                    false,
+                );
+                p.line(0.0, 40.0, l::WIDTH, 40.0, color::HAIRLINE, 1.0);
+
+                p.text(
+                    "Owlmic receives camera, microphone, and speaker streams strictly over your local USB or Wi-Fi network.\n\nZero media or telemetry leaves your local network.",
+                    Rect::new(16.0, 56.0, l::WIDTH - 32.0, 180.0),
+                    Font::Body,
+                    color::TEXT2,
+                    Align::Left,
+                    true,
+                );
+            }
+            HelpScreen::Credits => {
+                let back = l::HELP_BACK_BTN;
+                p.icon(
+                    icons::ARROW,
+                    back.x + back.w / 2.0,
+                    back.y + back.h / 2.0,
+                    16.0,
+                    color::TEXT,
+                );
+                p.text(
+                    "Credits",
+                    Rect::new(42.0, back.y, 200.0, back.h),
+                    Font::Title,
+                    color::TEXT,
+                    Align::Left,
+                    false,
+                );
+                p.line(0.0, 40.0, l::WIDTH, 40.0, color::HAIRLINE, 1.0);
+
+                let credits: [(&'static str, &'static str); 4] = [
+                    ("Rust", "@rust-lang"),
+                    ("Direct2D", "@microsoft"),
+                    ("Oboe", "@google"),
+                    ("WebRTC & Opus", "Open Source"),
+                ];
+
+                for (idx, (lib, author)) in credits.iter().enumerate() {
+                    let y = 50.0 + idx as f32 * 36.0;
+                    p.text(
+                        lib,
+                        Rect::new(16.0, y, 140.0, 24.0),
+                        Font::Body,
+                        color::TEXT,
+                        Align::Left,
+                        false,
+                    );
+                    p.text(
+                        author,
+                        Rect::new(160.0, y, l::WIDTH - 176.0, 24.0),
+                        Font::Caption,
+                        color::TEXT2,
+                        Align::Right,
+                        false,
+                    );
+                    p.line(
+                        16.0,
+                        y + 30.0,
+                        l::WIDTH - 16.0,
+                        y + 30.0,
+                        color::HAIRLINE,
+                        1.0,
+                    );
+                }
+            }
+        }
     }
 
     fn draw_gate(&mut self) {
@@ -967,6 +1635,31 @@ impl Panel {
     }
 }
 
+fn copy_to_clipboard(hwnd: HWND, text: &str) {
+    use windows::Win32::Foundation::HANDLE;
+    use windows::Win32::System::DataExchange::{
+        CloseClipboard, EmptyClipboard, OpenClipboard, SetClipboardData,
+    };
+    use windows::Win32::System::Memory::{GMEM_MOVEABLE, GlobalAlloc, GlobalLock, GlobalUnlock};
+
+    unsafe {
+        if OpenClipboard(Some(hwnd)).is_ok() {
+            let _ = EmptyClipboard();
+            let wide: Vec<u16> = text.encode_utf16().chain(std::iter::once(0)).collect();
+            let bytes = wide.len() * 2;
+            if let Ok(hmem) = GlobalAlloc(GMEM_MOVEABLE, bytes) {
+                let ptr = GlobalLock(hmem);
+                if !ptr.is_null() {
+                    std::ptr::copy_nonoverlapping(wide.as_ptr().cast::<u8>(), ptr.cast(), bytes);
+                    let _ = GlobalUnlock(hmem);
+                    let _ = SetClipboardData(13, Some(HANDLE(hmem.0)));
+                }
+            }
+            let _ = CloseClipboard();
+        }
+    }
+}
+
 fn open(link: Link) {
     let target = match link {
         Link::Licences => std::env::current_exe().ok().and_then(|e| {
@@ -979,6 +1672,7 @@ fn open(link: Link) {
         }),
         Link::Website => Some("https://owlmic.app".to_owned()),
         Link::Donate => Some("https://github.com/sponsors/diveshpatil9104".to_owned()),
+        Link::GitHub | Link::Rate => Some("https://github.com/diveshpatil9104/owlmic".to_owned()),
     };
     if let Some(t) = target {
         unsafe {
@@ -1127,7 +1821,7 @@ mod tests {
             settings.insert("link.bluetooth".into(), "off".into());
             settings.insert("general.startWithWindows".into(), "on".into());
 
-            let mut states: Vec<(&str, PanelState, bool, f32)> = Vec::new();
+            let mut states: Vec<(&str, PanelState, bool, Drawer, bool, bool, f32)> = Vec::new();
 
             states.push((
                 "01_standby_no_phone.bmp",
@@ -1137,6 +1831,9 @@ mod tests {
                     version: "v0.1.0".into(),
                     ..Default::default()
                 },
+                false,
+                Drawer::None,
+                false,
                 false,
                 0.0,
             ));
@@ -1151,6 +1848,9 @@ mod tests {
                     version: "v0.1.0".into(),
                     ..Default::default()
                 },
+                false,
+                Drawer::None,
+                false,
                 false,
                 0.0,
             ));
@@ -1167,6 +1867,9 @@ mod tests {
                     version: "v0.1.0".into(),
                     ..Default::default()
                 },
+                false,
+                Drawer::None,
+                false,
                 false,
                 0.0,
             ));
@@ -1185,6 +1888,9 @@ mod tests {
                     ..Default::default()
                 },
                 false,
+                Drawer::None,
+                false,
+                false,
                 0.0,
             ));
 
@@ -1202,6 +1908,9 @@ mod tests {
                     ..Default::default()
                 },
                 false,
+                Drawer::None,
+                false,
+                false,
                 0.0,
             ));
 
@@ -1218,6 +1927,9 @@ mod tests {
                     version: "v0.1.0".into(),
                     ..Default::default()
                 },
+                false,
+                Drawer::None,
+                false,
                 false,
                 0.0,
             ));
@@ -1237,6 +1949,9 @@ mod tests {
                     ..Default::default()
                 },
                 false,
+                Drawer::None,
+                false,
+                false,
                 0.0,
             ));
 
@@ -1255,6 +1970,9 @@ mod tests {
                     ..Default::default()
                 },
                 false,
+                Drawer::None,
+                false,
+                false,
                 0.0,
             ));
 
@@ -1272,6 +1990,9 @@ mod tests {
                     version: "v0.1.0".into(),
                     ..Default::default()
                 },
+                false,
+                Drawer::None,
+                false,
                 false,
                 0.0,
             ));
@@ -1292,6 +2013,9 @@ mod tests {
                     version: "v0.1.0".into(),
                     ..Default::default()
                 },
+                false,
+                Drawer::None,
+                false,
                 false,
                 0.0,
             ));
@@ -1326,6 +2050,9 @@ mod tests {
                     ..Default::default()
                 },
                 true,
+                Drawer::None,
+                false,
+                false,
                 0.0,
             ));
 
@@ -1345,6 +2072,9 @@ mod tests {
                     ..Default::default()
                 },
                 true,
+                Drawer::None,
+                false,
+                false,
                 240.0,
             ));
 
@@ -1364,6 +2094,9 @@ mod tests {
                     ..Default::default()
                 },
                 true,
+                Drawer::None,
+                false,
+                false,
                 480.0,
             ));
 
@@ -1381,13 +2114,156 @@ mod tests {
                     ..Default::default()
                 },
                 false,
+                Drawer::None,
+                false,
+                false,
+                0.0,
+            ));
+
+            states.push((
+                "15_drawer_wifi.bmp",
+                PanelState {
+                    connection: Connection::Connected {
+                        phone: "Pixel 8".into(),
+                        link: LINK_WIFI,
+                        weak: false,
+                    },
+                    settings: settings.clone(),
+                    paired: true,
+                    phones: phones.clone(),
+                    hostname: "YASH-PC".into(),
+                    version: "v0.1.0".into(),
+                    ..Default::default()
+                },
+                false,
+                Drawer::Wifi,
+                false,
+                false,
+                0.0,
+            ));
+
+            states.push((
+                "16_drawer_help_bento.bmp",
+                PanelState {
+                    connection: Connection::Connected {
+                        phone: "Pixel 8".into(),
+                        link: LINK_WIFI,
+                        weak: false,
+                    },
+                    settings: settings.clone(),
+                    version: "v0.1.0".into(),
+                    ..Default::default()
+                },
+                false,
+                Drawer::Help(HelpScreen::Bento),
+                false,
+                false,
+                0.0,
+            ));
+
+            states.push((
+                "17_drawer_help_howto.bmp",
+                PanelState {
+                    connection: Connection::Connected {
+                        phone: "Pixel 8".into(),
+                        link: LINK_WIFI,
+                        weak: false,
+                    },
+                    settings: settings.clone(),
+                    version: "v0.1.0".into(),
+                    ..Default::default()
+                },
+                false,
+                Drawer::Help(HelpScreen::HowTo),
+                false,
+                false,
+                0.0,
+            ));
+
+            states.push((
+                "18_drawer_help_privacy.bmp",
+                PanelState {
+                    connection: Connection::Connected {
+                        phone: "Pixel 8".into(),
+                        link: LINK_WIFI,
+                        weak: false,
+                    },
+                    settings: settings.clone(),
+                    version: "v0.1.0".into(),
+                    ..Default::default()
+                },
+                false,
+                Drawer::Help(HelpScreen::Privacy),
+                false,
+                false,
+                0.0,
+            ));
+
+            states.push((
+                "19_drawer_help_credits.bmp",
+                PanelState {
+                    connection: Connection::Connected {
+                        phone: "Pixel 8".into(),
+                        link: LINK_WIFI,
+                        weak: false,
+                    },
+                    settings: settings.clone(),
+                    version: "v0.1.0".into(),
+                    ..Default::default()
+                },
+                false,
+                Drawer::Help(HelpScreen::Credits),
+                false,
+                false,
+                0.0,
+            ));
+
+            states.push((
+                "20_cam_with_hud_menu.bmp",
+                PanelState {
+                    connection: Connection::Connected {
+                        phone: "Pixel 8".into(),
+                        link: LINK_USB_DEBUGGING,
+                        weak: false,
+                    },
+                    camera: Feature::On,
+                    settings: settings.clone(),
+                    paired: true,
+                    version: "v0.1.0".into(),
+                    ..Default::default()
+                },
+                false,
+                Drawer::None,
+                true,
+                false,
+                0.0,
+            ));
+
+            states.push((
+                "21_mic_with_quick_audio.bmp",
+                PanelState {
+                    connection: Connection::Connected {
+                        phone: "Pixel 8".into(),
+                        link: LINK_USB_DEBUGGING,
+                        weak: false,
+                    },
+                    mic: Feature::On,
+                    settings: settings.clone(),
+                    paired: true,
+                    version: "v0.1.0".into(),
+                    ..Default::default()
+                },
+                false,
+                Drawer::None,
+                false,
+                true,
                 0.0,
             ));
 
             let out_dir = r"E:\Projects\owlmic\ui\pc";
             std::fs::create_dir_all(out_dir).unwrap();
 
-            for (file_name, st, settings_open, scroll) in states {
+            for (file_name, st, settings_open, drawer, cam_menu, quick_audio, scroll) in states {
                 let arc_st = Arc::new(st);
                 let rows = arc_st.rows();
                 let mut panel = Panel {
@@ -1402,12 +2278,17 @@ mod tests {
                     state: arc_st,
                     rows,
                     settings_open,
+                    drawer,
+                    cam_menu_open: cam_menu,
+                    quick_audio_open: quick_audio,
                     scroll,
                     scale: 1.0,
                     visible: true,
                     hidden_at: None,
                     applied_at: Instant::now(),
+                    copied_at: None,
                     taskbar_created: 0,
+                    anim_frame: 0,
                 };
 
                 let screen_dc = GetDC(None);
@@ -1423,10 +2304,36 @@ mod tests {
                 };
                 if panel.painter.begin_dc(mem_dc, &rc, 1.0) {
                     panel.painter.clear(color::HAIRLINE);
-                    match panel.state.screen(panel.settings_open) {
+                    let screen = if panel.settings_open {
+                        Screen::Settings
+                    } else {
+                        panel.state.active_screen(
+                            panel.drawer,
+                            panel.cam_menu_open,
+                            panel.quick_audio_open,
+                        )
+                    };
+                    match screen {
                         Screen::Gate => panel.draw_gate(),
                         Screen::Settings => panel.draw_settings(),
-                        Screen::Main { repair } => panel.draw_main(repair),
+                        Screen::DrawerWifi => {
+                            panel.draw_drawer_wifi();
+                            panel.draw_bottom_dock();
+                        }
+                        Screen::DrawerHelp(h) => {
+                            panel.draw_drawer_help(h);
+                            panel.draw_bottom_dock();
+                        }
+                        Screen::Main {
+                            repair,
+                            cam_on,
+                            mic_on,
+                            cam_menu,
+                            quick_audio,
+                        } => {
+                            panel.draw_main(repair, cam_on, mic_on, cam_menu, quick_audio);
+                            panel.draw_bottom_dock();
+                        }
                     }
                     panel.painter.end();
                 }

@@ -379,6 +379,12 @@ impl AppHub {
                     });
                 }
             }
+            Action::Set(id, value) => {
+                self.w.settings.send(SettingsMsg::Set {
+                    id: id.to_owned(),
+                    value,
+                });
+            }
             Action::Allow => self
                 .w
                 .session
@@ -457,6 +463,9 @@ impl AppHub {
             },
             repairing: s.repairing,
             version: env!("CARGO_PKG_VERSION").to_owned(),
+            hostname: std::env::var("COMPUTERNAME")
+                .or_else(|_| std::env::var("HOSTNAME"))
+                .unwrap_or_else(|_| "Owlmic PC".into()),
         }
     }
 }
