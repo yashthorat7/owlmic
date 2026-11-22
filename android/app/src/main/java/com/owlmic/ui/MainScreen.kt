@@ -71,20 +71,20 @@ import com.owlmic.core.R as Copy
  * The one screen, as drawn in the prototype (website/proto-templates): the wordmark with the help and link tiles on top,
  * the preview area in the middle, and the camera, mic and speaker tiles below, in a bento grid of rounded tiles.
  * [turn] is how the phone is held (see Turn.kt): the grid never moves; a change fades the preview's content out, turns
- * the icons, and fades it back in. [onLayoutTurn] hears when the content changes, for the status bar. [onFeature] and
- * [onTryBluetooth] go through the activity, which asks for permissions first; [onTethering] opens the system's tethering
+ * the icons, and fades it back in. [onLayoutTurn] hears when the content changes, for the status bar. [onFeature]
+ * goes through the activity, which asks for permissions first; [onTethering] opens the system's tethering
  * settings. Settings open by long-pressing a feature tile.
  */
 @Composable
-fun MainScreen(turn: Int, onLayoutTurn: (Int) -> Unit, onFeature: (Feature) -> Unit, onTryBluetooth: () -> Unit, onTethering: () -> Unit) {
+fun MainScreen(turn: Int, onLayoutTurn: (Int) -> Unit, onFeature: (Feature) -> Unit, onTethering: () -> Unit) {
     val seq = remember { TurnSequence(turn) }
     val layoutChanged by rememberUpdatedState(onLayoutTurn)
     LaunchedEffect(turn) { seq.follow(turn) { layoutChanged(it) } }
-    Screen(seq, onFeature, onTryBluetooth, onTethering)
+    Screen(seq, onFeature, onTethering)
 }
 
 @Composable
-private fun Screen(seq: TurnSequence, onFeature: (Feature) -> Unit, onTryBluetooth: () -> Unit, onTethering: () -> Unit) {
+private fun Screen(seq: TurnSequence, onFeature: (Feature) -> Unit, onTethering: () -> Unit) {
     val state by Owlmic.state.collectAsState()
     var sheet by remember { mutableStateOf<String?>(null) }
     var drawer by remember { mutableStateOf<Drawer?>(null) }
@@ -111,7 +111,6 @@ private fun Screen(seq: TurnSequence, onFeature: (Feature) -> Unit, onTryBluetoo
                         StripAction.CHOOSE -> drawer = Drawer.CONNECTION
                         StripAction.ASK_AGAIN -> Owlmic.post(AppMsg.AskAgain)
                         StripAction.TETHERING -> onTethering()
-                        StripAction.BLUETOOTH -> onTryBluetooth()
                     }
                 },
             )
@@ -188,7 +187,7 @@ private fun TopBar(seq: TurnSequence, connection: Connection, drawer: Drawer?, o
         Wordmark(seq, Modifier.weight(1f))
         val help = stringResource(Copy.string.section_help)
         Tile(Modifier.fillMaxHeight().aspectRatio(1f), on = drawer == Drawer.HELP, label = help, onTap = onHelp) { fg ->
-            Icon(Glyph.HELP, fg, help, Modifier.upright(icons), size = Theme.glyph, stroke = Tokens.Phone.TOP_GLYPH_STROKE)
+            Icon(Glyph.HELP, fg, help, Modifier.upright(icons), size = Theme.topGlyph, stroke = Tokens.Phone.TOP_GLYPH_STROKE)
         }
         val description = stringResource(linkLabel(connection))
         Tile(
@@ -207,7 +206,7 @@ private fun TopBar(seq: TurnSequence, connection: Connection, drawer: Drawer?, o
             )
             val alive = pulses(connection)
             Crossfade(glyphOf(connection), Modifier.upright(icons).graphicsLayer { alpha = if (alive) pulse else 1f }, tween(Theme.STATE_MS * 2), label = "glyph") { g ->
-                Icon(g, fg, null, size = Theme.glyph, stroke = Tokens.Phone.TOP_GLYPH_STROKE)
+                Icon(g, fg, null, size = Theme.topGlyph, stroke = Tokens.Phone.TOP_GLYPH_STROKE)
             }
         }
     }

@@ -35,6 +35,10 @@ abstract class GenerateDesign : DefaultTask() {
     @get:PathSensitive(PathSensitivity.RELATIVE)
     abstract val designDir: DirectoryProperty
 
+    @get:InputDirectory
+    @get:PathSensitive(PathSensitivity.RELATIVE)
+    abstract val iconsDir: DirectoryProperty
+
     @get:OutputDirectory
     abstract val kotlinDir: DirectoryProperty
 
@@ -51,9 +55,68 @@ abstract class GenerateDesign : DefaultTask() {
         pkg.resolve("Tokens.kt").writeText(tokensKotlin(tokens))
         pkg.resolve("Names.kt").writeText(namesKotlin(copy))
         pkg.resolve("SettingsModel.kt").writeText(settingsKotlin(settings))
+        pkg.resolve("GeneratedGlyphs.kt").writeText(glyphsKotlin(iconsDir.get().asFile))
 
         val values = resDir.get().asFile.resolve("values").apply { mkdirs() }
         values.resolve("strings.xml").writeText(stringsXml(copy))
+    }
+
+    private fun rectToPath(x: Float, y: Float, w: Float, h: Float, r: Float): String {
+        val rx = minOf(r, w / 2f, h / 2f)
+        return if (rx > 0f) {
+            "M ${x + rx} $y h ${w - 2 * rx} a $rx $rx 0 0 1 $rx $rx v ${h - 2 * rx} a $rx $rx 0 0 1 -$rx $rx h -${w - 2 * rx} a $rx $rx 0 0 1 -$rx -$rx v -${h - 2 * rx} a $rx $rx 0 0 1 $rx -$rx z"
+        } else {
+            "M $x $y h $w v $h h -$w z"
+        }
+    }
+
+    private fun parseSvg(svgText: String): List<Pair<String, Boolean>> {
+        val elements = mutableListOf<Pair<String, Boolean>>()
+        for (chunk in svgText.split("<").drop(1)) {
+            val body = chunk.substringBefore(">").trim().trimEnd('/')
+            val parts = body.split(Regex("\\s+"), limit = 2)
+            val tag = parts[0]
+            if (tag != "path" && tag != "rect") continue
+            val rest = if (parts.size > 1) parts[1] else ""
+            val attrs = mutableMapOf<String, String>()
+            val attrRegex = Regex("""(\w+)="([^"]*)"""")
+            for (match in attrRegex.findAll(rest)) {
+                attrs[match.groupValues[1]] = match.groupValues[2]
+            }
+            val isFill = attrs["fill"] == "currentColor" && attrs["stroke"] == "none"
+            if (tag == "path") {
+                val d = attrs["d"] ?: continue
+                elements.add(d to isFill)
+            } else if (tag == "rect") {
+                val x = attrs["x"]?.toFloatOrNull() ?: 0f
+                val y = attrs["y"]?.toFloatOrNull() ?: 0f
+                val w = attrs["width"]?.toFloatOrNull() ?: 0f
+                val h = attrs["height"]?.toFloatOrNull() ?: 0f
+                val rx = attrs["rx"]?.toFloatOrNull() ?: 0f
+                elements.add(rectToPath(x, y, w, h, rx) to isFill)
+            }
+        }
+        return elements
+    }
+
+    private fun glyphsKotlin(iconsFolder: java.io.File): String = buildString {
+        appendLine("// Generated from shared/assets/icons/*.svg. Do not edit.")
+        appendLine("package com.owlmic.core.design")
+        appendLine()
+        appendLine("data class GlyphPath(val data: String, val isFill: Boolean = false)")
+        appendLine()
+        appendLine("object GeneratedGlyphs {")
+        val files = iconsFolder.listFiles { f -> f.extension == "svg" && !f.name.contains("spec") }?.sortedBy { it.name } ?: emptyList()
+        for (file in files) {
+            val name = constant(file.nameWithoutExtension)
+            val elements = parseSvg(file.readText())
+            appendLine("    val $name: List<GlyphPath> = listOf(")
+            for ((data, isFill) in elements) {
+                appendLine("        GlyphPath(${kotlinString(data)}, $isFill),")
+            }
+            appendLine("    )")
+        }
+        appendLine("}")
     }
 
     @Suppress("UNCHECKED_CAST")
@@ -167,6 +230,7 @@ abstract class GenerateDesign : DefaultTask() {
 
 val generateDesign = tasks.register<GenerateDesign>("generateDesign") {
     designDir.set(rootProject.layout.projectDirectory.dir("../shared/design"))
+    iconsDir.set(rootProject.layout.projectDirectory.dir("../shared/assets/icons"))
     kotlinDir.set(layout.buildDirectory.dir("generated/design/kotlin"))
     resDir.set(layout.buildDirectory.dir("generated/design/res"))
 }

@@ -19,8 +19,8 @@ fun glyphOf(c: Connection): Glyph = when (c) {
 }
 
 fun glyphOf(link: LinkKind): Glyph = when (link) {
-    LinkKind.USB_DEBUGGING -> Glyph.PLUG
-    LinkKind.USB_TETHERING -> Glyph.CHAIN
+    LinkKind.USB_DEBUGGING -> Glyph.USB
+    LinkKind.USB_TETHERING -> Glyph.CABLE
     LinkKind.WIFI -> Glyph.WIFI
     LinkKind.BLUETOOTH -> Glyph.BLUETOOTH
 }
@@ -33,35 +33,31 @@ fun pulses(c: Connection): Boolean = when (c) {
 }
 
 /**
- * The status strip, only when there is something to read or do: the approval code, or a step only the user can take.
+ * The status strip, only when there is something to read or do: a step only the user can take.
  * Looking, connecting and reconnecting say nothing: the link tile shows them.
  */
-enum class Strip { CODE, CHOOSE, DENIED, BUSY, UPDATE, KEY_CHANGED, TETHERING, BLUETOOTH }
+enum class Strip { CHOOSE, DENIED, BUSY, UPDATE, KEY_CHANGED, TETHERING }
 
 fun stripOf(state: AppState): Strip? = when (state.connection) {
-    is Connection.Approving -> Strip.CODE
     is Connection.Choosing -> Strip.CHOOSE
     is Connection.Denied -> Strip.DENIED
     is Connection.Busy -> Strip.BUSY
     is Connection.UpdateNeeded -> Strip.UPDATE
     is Connection.KeyChanged -> Strip.KEY_CHANGED
-    // A cable is the better link, so the tethering hint wins over Bluetooth (section 14.1).
     is Connection.Searching -> when {
         state.tetherHint -> Strip.TETHERING
-        state.bluetoothOffer -> Strip.BLUETOOTH
         else -> null
     }
     else -> null
 }
 
 /** What tapping the status strip does, when it does anything. */
-enum class StripAction { TETHERING, BLUETOOTH, ASK_AGAIN, CHOOSE }
+enum class StripAction { TETHERING, ASK_AGAIN, CHOOSE }
 
 fun stripAction(strip: Strip?): StripAction? = when (strip) {
     Strip.CHOOSE -> StripAction.CHOOSE
     Strip.DENIED -> StripAction.ASK_AGAIN
     Strip.TETHERING -> StripAction.TETHERING
-    Strip.BLUETOOTH -> StripAction.BLUETOOTH
     else -> null
 }
 
@@ -145,10 +141,12 @@ val LINK_SETTINGS = listOf(
 
 /**
  * The mic's level as the sound wave shows it: under -50 dBFS it is flat, normal speech reaches well up, loud speech the
- * top. Only the picture: the mic's sound is untouched.
+ * top. Only the picture: the mic's sound is untouched. Threshold is 0.24f (1.2x the base 0.20f).
  */
+const val WAVE_THRESHOLD = 0.24f
+
 fun waveLevel(level: Float): Float {
-    val v = ((level - 0.2f) / 0.8f).coerceIn(0f, 1f)
+    val v = ((level - WAVE_THRESHOLD) / (1f - WAVE_THRESHOLD)).coerceIn(0f, 1f)
     return (v * v * (1.4f - 0.4f * v) * WAVE_GAIN).coerceAtMost(1f)
 }
 

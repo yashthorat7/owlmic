@@ -416,12 +416,12 @@ class GlRenderer {
 }
 
 /**
- * Where a picture of [ow]×[oh] goes in a preview of [pw]×[ph]: fitted whole, and on its side when [turn] is a quarter.
- * Returns x, y, width and height.
+ * Where a picture of [ow]×[oh] goes in a preview of [pw]×[ph]: zoomed to fit (cover) the playground screen,
+ * and on its side when [turn] is a quarter. Returns x, y, width and height.
  */
 internal fun fitPreview(ow: Int, oh: Int, pw: Int, ph: Int, turn: Int): IntArray {
     val (fw, fh) = if (turn % 180 != 0) oh to ow else ow to oh
-    val scale = minOf(pw.toFloat() / fw, ph.toFloat() / fh)
+    val scale = maxOf(pw.toFloat() / fw, ph.toFloat() / fh)
     val w = (fw * scale).toInt()
     val h = (fh * scale).toInt()
     return intArrayOf((pw - w) / 2, (ph - h) / 2, w, h)

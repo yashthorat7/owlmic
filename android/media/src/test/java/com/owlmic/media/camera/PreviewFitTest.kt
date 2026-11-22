@@ -7,17 +7,17 @@ import org.junit.Test
 
 class PreviewFitTest {
     @Test
-    fun anUprightPictureFitsWhole() {
-        // 1280×720 in a 1080×1400 preview: full width, centred.
-        assertArrayEquals(intArrayOf(0, 396, 1080, 607), fitPreview(1280, 720, 1080, 1400, 0))
+    fun anUprightPictureZoomsToFitPreview() {
+        // 1280×720 in a 1080×1400 preview: scaled to cover height, centred horizontally.
+        assertArrayEquals(intArrayOf(-704, 0, 2488, 1400), fitPreview(1280, 720, 1080, 1400, 0))
     }
 
     @Test
     fun aPictureMadeSidewaysLiesOnItsSideAndFillsMore() {
         // The same picture turned a quarter is 720 wide and 1280 tall on the upright screen.
-        assertArrayEquals(intArrayOf(146, 0, 787, 1400), fitPreview(1280, 720, 1080, 1400, 90))
-        assertArrayEquals(intArrayOf(146, 0, 787, 1400), fitPreview(1280, 720, 1080, 1400, 270))
-        assertArrayEquals(intArrayOf(0, 396, 1080, 607), fitPreview(1280, 720, 1080, 1400, 180))
+        assertArrayEquals(intArrayOf(0, -260, 1080, 1920), fitPreview(1280, 720, 1080, 1400, 90))
+        assertArrayEquals(intArrayOf(0, -260, 1080, 1920), fitPreview(1280, 720, 1080, 1400, 270))
+        assertArrayEquals(intArrayOf(-704, 0, 2488, 1400), fitPreview(1280, 720, 1080, 1400, 180))
     }
 
     @Test

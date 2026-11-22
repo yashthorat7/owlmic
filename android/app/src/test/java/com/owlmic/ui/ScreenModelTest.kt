@@ -19,7 +19,7 @@ class ScreenModelTest {
     fun theLinkTileShowsTheLinkOnceConnectedTheGlobeUntilThenOrTheAlert() {
         assertEquals(Glyph.WIFI, glyphOf(Connection.Connected("PC", LinkKind.WIFI)))
         assertEquals(Glyph.WIFI, glyphOf(Connection.Connected("PC", LinkKind.WIFI, weak = true)))
-        assertEquals(Glyph.PLUG, glyphOf(Connection.Connected("PC", LinkKind.USB_DEBUGGING)))
+        assertEquals(Glyph.USB, glyphOf(Connection.Connected("PC", LinkKind.USB_DEBUGGING)))
         listOf(
             Connection.Searching(),
             Connection.Choosing(2),
@@ -52,28 +52,27 @@ class ScreenModelTest {
 
     @Test
     fun theStripSpeaksOnlyWhenThereIsSomethingToReadOrDo() {
-        // Looking, connecting, reconnecting and connected say nothing: the link tile shows them.
+        // Looking, connecting, approving, reconnecting and connected say nothing: the link tile shows them.
         listOf(
             Connection.Searching(),
             Connection.Searching(unreachable = "PC"),
             Connection.Connecting("PC", LinkKind.WIFI),
+            Connection.Approving("PC", "4821", LinkKind.WIFI),
             Connection.Reconnecting("PC", null),
             Connection.Waiting("PC"),
             Connection.Connected("PC", LinkKind.WIFI),
         ).forEach { assertNull(it.toString(), stripOf(AppState(connection = it))) }
-        assertEquals(Strip.CODE, stripOf(AppState(connection = Connection.Approving("PC", "4821", LinkKind.WIFI))))
         assertEquals(Strip.CHOOSE, stripOf(AppState(connection = Connection.Choosing(2))))
         assertEquals(Strip.DENIED, stripOf(AppState(connection = Connection.Denied("PC"))))
         assertEquals(Strip.KEY_CHANGED, stripOf(AppState(connection = Connection.KeyChanged("PC"))))
-        // The tethering hint wins over Bluetooth: a cable is the better link.
-        assertEquals(Strip.TETHERING, stripOf(AppState(tetherHint = true, bluetoothOffer = true)))
-        assertEquals(Strip.BLUETOOTH, stripOf(AppState(bluetoothOffer = true)))
-        assertNull(stripOf(AppState(connection = Connection.Reconnecting("PC", null), tetherHint = true, bluetoothOffer = true)))
+        assertEquals(Strip.TETHERING, stripOf(AppState(tetherHint = true)))
+        assertNull(stripOf(AppState(bluetoothOffer = true)))
+        assertNull(stripOf(AppState(connection = Connection.Reconnecting("PC", null), tetherHint = true)))
 
         assertEquals(StripAction.CHOOSE, stripAction(Strip.CHOOSE))
         assertEquals(StripAction.ASK_AGAIN, stripAction(Strip.DENIED))
         assertEquals(StripAction.TETHERING, stripAction(Strip.TETHERING))
-        assertNull(stripAction(Strip.CODE))
+        assertNull(stripAction(Strip.KEY_CHANGED))
     }
 
     @Test
@@ -129,8 +128,8 @@ class ScreenModelTest {
     @Test
     fun theSoundWaveReachesWellUpForNormalSpeechAndTheTopWhenLoud() {
         assertEquals(0f, waveLevel(0.1f), 0f)
-        // Normal speech (about -26 dBFS, 0.71 on the meter) reaches past the middle, a fifth higher than the first round.
-        assertEquals(0.47f * 1.2f, waveLevel(0.71f), 0.02f)
+        // Normal speech (about -26 dBFS, 0.71 on the meter) reaches past the middle, scaled with 1.2x threshold.
+        assertEquals(0.53f, waveLevel(0.71f), 0.02f)
         assertEquals(1f, waveLevel(0.92f), 0.001f)
         assertEquals(1f, waveLevel(1f), 0.001f)
     }
