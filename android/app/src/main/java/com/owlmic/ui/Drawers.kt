@@ -155,14 +155,14 @@ private fun ColumnScope.ConnectionDrawer(state: AppState) {
                     if (addAddressText.isEmpty()) {
                         BasicText(
                             stringResource(Copy.string.phone_address_hint),
-                            style = Theme.pageDetail.copy(color = Color(0x4DFFFFFF), fontSize = 13.5.sp),
+                            style = Theme.pageDetail.copy(color = Color(0x4DFFFFFF), fontSize = 15.sp),
                         )
                     }
                     BasicTextField(
                         value = addAddressText,
                         onValueChange = { addAddressText = it },
                         modifier = Modifier.fillMaxWidth(),
-                        textStyle = Theme.pageText.copy(color = Color.White, fontSize = 13.5.sp, fontFeatureSettings = "tnum"),
+                        textStyle = Theme.pageText.copy(color = Color.White, fontSize = 15.sp, fontFeatureSettings = "tnum"),
                         cursorBrush = SolidColor(Color.White),
                         singleLine = true,
                     )
@@ -278,12 +278,12 @@ private fun PcEntry(state: AppState, row: PcRow, open: Boolean, onToggle: () -> 
                 stroke = 2f,
             )
             Column(Modifier.weight(1f)) {
-                BasicText(name, style = Theme.pageName.copy(fontSize = 15.sp), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                BasicText(name, style = Theme.pageName.copy(fontSize = 16.5.sp), maxLines = 1, overflow = TextOverflow.Ellipsis)
                 row.address?.takeIf { it.isNotEmpty() }?.let { addr ->
                     BasicText(
                         addr,
                         Modifier.padding(top = 2.dp),
-                        style = Theme.pageDetail.copy(color = Color(0x59FFFFFF), fontSize = 13.sp, fontFeatureSettings = "tnum"),
+                        style = Theme.pageDetail.copy(color = Color(0x73FFFFFF), fontSize = 14.sp, fontFeatureSettings = "tnum"),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
@@ -301,7 +301,7 @@ private fun PcEntry(state: AppState, row: PcRow, open: Boolean, onToggle: () -> 
                     BasicText(
                         if (row.kind == PcKind.ADDRESS) "" else lastConnected(row),
                         Modifier.weight(1f),
-                        style = Theme.pageDetail.copy(color = Theme.text2),
+                        style = Theme.pageDetail.copy(color = Theme.text2, fontSize = 14.sp),
                         maxLines = 1,
                     )
                     val id = row.id
@@ -329,7 +329,7 @@ private fun TextAction(text: String, onClick: () -> Unit) {
     BasicText(
         text,
         Modifier.clip(RoundedCornerShape(6.dp)).clickable(role = Role.Button, onClick = onClick).padding(vertical = 8.dp),
-        style = Theme.pageText.copy(fontWeight = FontWeight.Medium),
+        style = Theme.pageText.copy(fontSize = 15.sp, fontWeight = FontWeight.SemiBold),
     )
 }
 
@@ -455,7 +455,7 @@ private fun InfoGrid(onPage: (InfoPage) -> Unit) {
         BasicText(
             stringResource(Copy.string.ui_version_tag, version),
             Modifier.padding(top = 16.dp, bottom = 4.dp),
-            style = Theme.pageDetail.copy(color = Color(0x59FFFFFF), fontFamily = Theme.mono, fontSize = 11.sp, textAlign = TextAlign.Center),
+            style = Theme.pageDetail.copy(color = Color(0x73FFFFFF), fontFamily = Theme.mono, fontSize = 12.sp, textAlign = TextAlign.Center),
         )
     }
 }
@@ -479,7 +479,7 @@ private fun InfoBentoTile(glyph: Glyph, label: Int, modifier: Modifier, onClick:
             Icon(glyph, Color.White, null, size = 26.dp, stroke = 2f)
             BasicText(
                 stringResource(label),
-                style = Theme.pageDetail.copy(color = Color(0xB3FFFFFF), fontSize = 12.sp, fontWeight = FontWeight.Medium),
+                style = Theme.pageDetail.copy(color = Color(0xB3FFFFFF), fontSize = 13.5.sp, fontWeight = FontWeight.Medium),
             )
         }
     }
@@ -509,7 +509,7 @@ private fun SubPage(titleRes: Int, onBack: () -> Unit, content: @Composable Colu
             }
             BasicText(
                 stringResource(titleRes),
-                style = Theme.pageName.copy(fontSize = 13.5.sp, fontWeight = FontWeight.Medium),
+                style = Theme.pageName.copy(fontSize = 16.sp, fontWeight = FontWeight.SemiBold),
             )
         }
         Column(
@@ -536,7 +536,7 @@ private fun Privacy() {
     BasicText(
         stringResource(Copy.string.help_privacy_statement),
         Modifier.padding(vertical = 4.dp),
-        style = Theme.pageDetail.copy(fontSize = 12.5.sp, lineHeight = 19.sp, color = Color(0x99FFFFFF)),
+        style = Theme.pageDetail.copy(fontSize = 14.sp, lineHeight = 21.sp, color = Color(0xB3FFFFFF)),
     )
 }
 
@@ -552,8 +552,8 @@ private fun Credits() {
                 .padding(vertical = 14.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            BasicText(name, Modifier.weight(1f), style = Theme.pageText.copy(fontSize = 13.5.sp))
-            BasicText("@$login", style = Theme.pageDetail.copy(fontFamily = Theme.mono, fontSize = 13.sp, color = Color(0x66FFFFFF)))
+            BasicText(name, Modifier.weight(1f), style = Theme.pageText.copy(fontSize = 15.sp, fontWeight = FontWeight.Medium))
+            BasicText("@$login", style = Theme.pageDetail.copy(fontFamily = Theme.mono, fontSize = 13.5.sp, color = Color(0x73FFFFFF)))
         }
     }
     Row(
@@ -563,7 +563,7 @@ private fun Credits() {
             .padding(vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        BasicText(stringResource(Copy.string.ui_github), Modifier.weight(1f), style = Theme.pageDetail.copy(fontSize = 13.sp))
+        BasicText(stringResource(Copy.string.ui_github), Modifier.weight(1f), style = Theme.pageDetail.copy(fontSize = 14.sp))
         Icon(Glyph.EXTERNAL, Color(0xB3FFFFFF), null, size = 15.dp, stroke = 2f)
     }
 }
@@ -580,10 +580,10 @@ private fun Step(number: Int, name: Int, detail: Int, last: Boolean, onClick: ((
         }
         Column(Modifier.weight(1f).padding(top = 5.dp, bottom = if (last) 0.dp else 28.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                BasicText(stringResource(name), style = Theme.pageName)
+                BasicText(stringResource(name), style = Theme.pageName.copy(fontSize = 16.sp))
                 if (onClick != null) Icon(Glyph.OPEN, Theme.text2, null, Modifier.padding(start = 8.dp), size = 18.dp, stroke = Tokens.Phone.GLYPH_STROKE)
             }
-            BasicText(stringResource(detail), style = Theme.pageDetail)
+            BasicText(stringResource(detail), style = Theme.pageDetail.copy(fontSize = 13.5.sp, lineHeight = 19.sp))
         }
     }
 }

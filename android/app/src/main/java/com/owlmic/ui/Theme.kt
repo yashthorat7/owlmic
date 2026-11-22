@@ -39,6 +39,7 @@ object Theme {
     val gap = Tokens.Phone.GAP_DP.dp
     val radius = Tokens.Phone.TILE_RADIUS_DP.dp
     val glyph = Tokens.Phone.GLYPH_DP.dp
+    val topGlyph = Tokens.Phone.TOP_GLYPH_DP.dp
 
     val padding = Tokens.Space.TILE_PADDING_PHONE_DP.dp
     val touch = Tokens.Space.TOUCH_TARGET_DP.dp

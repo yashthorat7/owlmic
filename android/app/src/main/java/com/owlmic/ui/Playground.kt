@@ -4,7 +4,9 @@ import android.view.SurfaceHolder
 import android.view.SurfaceView
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.Crossfade
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -288,33 +290,35 @@ private fun CameraFormatMenu(state: AppState, isOpen: Boolean, onToggle: () -> U
         else -> "FHD"
     }
 
-    val width by animateDpAsState(if (isOpen) 180.dp else 50.dp, tween(Theme.STATE_MS), label = "camMenuW")
+    val ease = CubicBezierEasing(0.16f, 1f, 0.3f, 1f)
+    val width by animateDpAsState(if (isOpen) 180.dp else 50.dp, tween(240, easing = ease), label = "camMenuW")
+    val height by animateDpAsState(if (isOpen) 119.dp else 29.dp, tween(240, easing = ease), label = "camMenuH")
     val shape = RoundedCornerShape(8.dp)
     val border = if (isOpen) Color(0x5CFFFFFF) else Color(0x38FFFFFF)
     val bg = if (isOpen) Color(0xFA000000) else Color(0xE0000000)
 
     Box(
         Modifier
-            .width(width)
+            .size(width, height)
             .clip(shape)
             .background(bg)
             .border(1.dp, border, shape),
     ) {
-        if (!isOpen) {
-            Box(
-                Modifier
-                    .fillMaxWidth()
-                    .height(29.dp)
-                    .clickable(role = Role.Button, onClick = onToggle),
-                contentAlignment = Alignment.Center,
-            ) {
-                BasicText(
-                    resLabel,
-                    style = Theme.pageDetail.copy(color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Medium),
-                )
-            }
-        } else {
-            Column(Modifier.fillMaxWidth()) {
+        Crossfade(targetState = isOpen, animationSpec = tween(180), label = "camMenuContent") { open ->
+            if (!open) {
+                Box(
+                    Modifier
+                        .fillMaxSize()
+                        .clickable(role = Role.Button, onClick = onToggle),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    BasicText(
+                        resLabel,
+                        style = Theme.pageDetail.copy(color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Medium),
+                    )
+                }
+            } else {
+                Column(Modifier.fillMaxSize()) {
                 // Row 1: Resolution (FHD, HD, 480p)
                 Row(Modifier.fillMaxWidth().height(29.dp)) {
                     val resOptions = listOf("1080p" to "FHD", "720p" to "HD", "480p" to "480p")
@@ -430,6 +434,7 @@ private fun CameraFormatMenu(state: AppState, isOpen: Boolean, onToggle: () -> U
         }
     }
 }
+}
 
 /** Mirror and Flip buttons in Camera HUD. */
 @Composable
@@ -496,7 +501,7 @@ private fun DockedWave(state: AppState, open: Boolean, maxWidth: androidx.compos
                     .clickable(role = Role.Button, onClick = { onOpen(!open) }),
                 contentAlignment = Alignment.Center,
             ) {
-                Waveform(Modifier.fillMaxWidth(0.86f).height(24.dp), isDocked = true)
+                Waveform(Modifier.width(208.dp).height(24.dp), isDocked = true)
             }
         }
     }

@@ -187,7 +187,7 @@ private fun TopBar(seq: TurnSequence, connection: Connection, drawer: Drawer?, o
         Wordmark(seq, Modifier.weight(1f))
         val help = stringResource(Copy.string.section_help)
         Tile(Modifier.fillMaxHeight().aspectRatio(1f), on = drawer == Drawer.HELP, label = help, onTap = onHelp) { fg ->
-            Icon(Glyph.HELP, fg, help, Modifier.upright(icons), size = Theme.glyph, stroke = Tokens.Phone.TOP_GLYPH_STROKE)
+            Icon(Glyph.HELP, fg, help, Modifier.upright(icons), size = Theme.topGlyph, stroke = Tokens.Phone.TOP_GLYPH_STROKE)
         }
         val description = stringResource(linkLabel(connection))
         Tile(
@@ -206,7 +206,7 @@ private fun TopBar(seq: TurnSequence, connection: Connection, drawer: Drawer?, o
             )
             val alive = pulses(connection)
             Crossfade(glyphOf(connection), Modifier.upright(icons).graphicsLayer { alpha = if (alive) pulse else 1f }, tween(Theme.STATE_MS * 2), label = "glyph") { g ->
-                Icon(g, fg, null, size = Theme.glyph, stroke = Tokens.Phone.TOP_GLYPH_STROKE)
+                Icon(g, fg, null, size = Theme.topGlyph, stroke = Tokens.Phone.TOP_GLYPH_STROKE)
             }
         }
     }
