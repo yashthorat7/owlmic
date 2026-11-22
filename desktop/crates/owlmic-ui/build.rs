@@ -143,11 +143,6 @@ fn write_icons(out: &mut String, dir: &PathBuf) {
         )
         .unwrap();
     }
-    out.push_str("    pub const ARROW_RIGHT: &[Shape] = ARROW;\n");
-    out.push_str("    pub const ARROW_LEFT: &[Shape] = &[Shape::Path(&[\n");
-    out.push_str("        Seg::Move(20.0, 12.0), Seg::Line(5.0, 12.0),\n");
-    out.push_str("        Seg::Move(12.0, 18.0), Seg::Line(10.2, 18.0), Seg::Line(4.5, 12.0), Seg::Line(10.2, 6.0), Seg::Line(12.0, 6.0),\n");
-    out.push_str("    ])];\n");
     out.push_str("}\n");
 }
 

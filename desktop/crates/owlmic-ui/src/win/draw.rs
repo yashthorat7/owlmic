@@ -527,12 +527,24 @@ impl Painter {
 
     /// A Lucide icon `size` px wide (at 100%) centred on (cx, cy), stroked in `rgb`.
     pub fn icon(&self, icon: Icon, cx: f32, cy: f32, size: f32, rgb: u32) {
+        self.icon_impl(icon, cx, cy, size, rgb, false);
+    }
+
+    /// A Lucide icon rotated 180° (e.g. `arrow.svg` used as a Back button, matching prototype `rotate-180`).
+    pub fn icon_rotated_180(&self, icon: Icon, cx: f32, cy: f32, size: f32, rgb: u32) {
+        self.icon_impl(icon, cx, cy, size, rgb, true);
+    }
+
+    fn icon_impl(&self, icon: Icon, cx: f32, cy: f32, size: f32, rgb: u32, rot_180: bool) {
         let s = self.scale;
         let k = size * s / BOX;
         let (ox, oy) = (cx * s - size * s / 2.0, cy * s - size * s / 2.0);
-        let p = |x: f32, y: f32| Vector2 {
-            X: ox + x * k,
-            Y: oy + y * k,
+        let p = move |x: f32, y: f32| {
+            let (tx, ty) = if rot_180 { (BOX - x, BOX - y) } else { (x, y) };
+            Vector2 {
+                X: ox + tx * k,
+                Y: oy + ty * k,
+            }
         };
         let width = crate::icon::STROKE * k;
         let brush = self.brush(rgb);
@@ -548,12 +560,17 @@ impl Painter {
                         self.t().DrawEllipse(&e, brush, width, &self.stroke);
                     }
                     Shape::Rect { x, y, w, h, r } => {
+                        let (rx, ry) = if rot_180 {
+                            (BOX - x - w, BOX - y - h)
+                        } else {
+                            (x, y)
+                        };
                         let rr = D2D1_ROUNDED_RECT {
                             rect: D2D_RECT_F {
-                                left: ox + x * k,
-                                top: oy + y * k,
-                                right: ox + (x + w) * k,
-                                bottom: oy + (y + h) * k,
+                                left: ox + rx * k,
+                                top: oy + ry * k,
+                                right: ox + (rx + w) * k,
+                                bottom: oy + (ry + h) * k,
                             },
                             radiusX: r * k,
                             radiusY: r * k,

@@ -1282,7 +1282,7 @@ impl Panel {
             }
             HelpScreen::HowTo => {
                 let back = l::HELP_BACK_BTN;
-                p.icon(
+                p.icon_rotated_180(
                     icons::ARROW,
                     back.x + back.w / 2.0,
                     back.y + back.h / 2.0,
@@ -1351,7 +1351,7 @@ impl Panel {
             }
             HelpScreen::Privacy => {
                 let back = l::HELP_BACK_BTN;
-                p.icon(
+                p.icon_rotated_180(
                     icons::ARROW,
                     back.x + back.w / 2.0,
                     back.y + back.h / 2.0,
@@ -1379,7 +1379,7 @@ impl Panel {
             }
             HelpScreen::Credits => {
                 let back = l::HELP_BACK_BTN;
-                p.icon(
+                p.icon_rotated_180(
                     icons::ARROW,
                     back.x + back.w / 2.0,
                     back.y + back.h / 2.0,
@@ -1507,8 +1507,8 @@ impl Panel {
         let p = &self.painter;
         let b = l::BACK;
         p.fill(b, color::TILE);
-        p.icon(
-            icons::ARROW_LEFT,
+        p.icon_rotated_180(
+            icons::ARROW,
             b.x + PAD + ICON / 2.0,
             b.y + b.h / 2.0,
             ICON,
