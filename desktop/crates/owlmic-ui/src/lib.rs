@@ -5,7 +5,6 @@ include!(concat!(env!("OUT_DIR"), "/design.rs"));
 
 pub mod glyph;
 pub mod layout;
-pub mod owl;
 pub mod preview;
 pub mod view;
 #[cfg(windows)]
@@ -54,6 +53,12 @@ mod tests {
     fn messages_and_names_come_from_the_design_file() {
         assert_eq!(names::MIC_DEVICE, "Owlmic Mic");
         assert_eq!(messages::STATUS_SEARCHING, "Looking for your PC");
+    }
+
+    #[test]
+    fn brand_owl_is_generated_from_svg() {
+        assert!(!brand::OWL_BODY.is_empty());
+        assert_eq!(brand::OWL_PUPILS.len(), 2);
     }
 
     #[test]

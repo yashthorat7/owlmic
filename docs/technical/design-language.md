@@ -66,11 +66,24 @@ The phone uses no colour: green, yellow and red are the PC panel's. On the phone
 
 ## 3. Windows Native Flyout Panel (`desktop/crates/owlmic-ui`)
 
-Rather than shipping Chromium/Electron or bloated webview engines, Owlmic PC uses a **100% native Win32 GDI/GDI+ renderer**:
-- **Geometry**: Bento 6-Square layout with a fixed 312 × 374 px panel positioned above the taskbar system tray.
-- **Double-Buffered Blitting**: Drawn entirely off-screen to a memory device context (DC) and blitted to screen in a single `BitBlt` call to guarantee zero flicker.
+Rather than shipping Chromium/Electron or bloated webview engines, Owlmic PC uses a **100% native Win32 Direct2D / GDI renderer**:
+- **Geometry**: Bento layout with a fixed 312 × 374 px panel positioned above the taskbar system tray on a 1 px hairline gap (`#727272`).
+- **Rendering Architecture**: High-performance Direct2D hardware-accelerated drawing with DirectWrite typography, vector Lucide glyph paths, and double-buffered GDI memory DC fallback for offscreen testing and snapshots.
 - **Instant Response**: Panel opens in < 15 ms with zero cold-start delay.
-- **Live Video Preview & Playground**: A 310 × 310 px square playground tile displays live camera video preview, waveform dock, and overlay drawers directly inside the flyout, with 5 square action buttons across the bottom row.
+- **Top Playground Area (310 × 310 px)**:
+  - **Dot Matrix Grid & Watermark**: 18 px subtle radial dot matrix grid background with centered 152 px owl logo watermark (`opacity: 0.07`) dynamically generated from `shared/assets/brand/icon.svg` during idle and standby states. In accordance with the prototype, standby mode features pure Bauhaus minimalism with zero text pills or status overlays.
+  - **Instantaneous Camera Layer**: Real-time video preview with compact expandable format HUD (Resolution: FHD, HD, 480p; Framerate: 60, 30, 24 fps; Aspect Ratio: 16:9, 4:3, 1:1), top-right Mirror and Flip buttons, and docked waveform capsule (204 × 22 px) when microphone is simultaneously active.
+  - **Centered Waveform Dock**: Centered 248 × 68 px capsule with animated audio waveform bars and stream info when microphone is streaming and camera is off.
+  - **Quick Audio Settings Panel**: Slides up from the bottom of the playground on waveform click, providing Voice isolation switch, Normalization switch, Noise reduction fader (0–10), and Mic volume fader (0–100%).
+  - **Concentric Speaker Ripples**: Animated concentric circles pulsing outward from the speaker glyph when loopback is active.
+  - **Connection Drawer (`p-drawerWifi`)**: Host PC name & IP with instant clipboard copy button, active connection row with animated `sync-beam` and inline Pair/Decline (for approval/pairing) or Disconnect/Block (when connected), paired devices row with Remove button, and 5-item transport footer (Refresh, USB Debugging, USB Tethering, Wi-Fi, Bluetooth). Pairing is handled 100% inline without extraneous modal dialogs.
+  - **Help Drawer (`p-drawerHelp`)**: 2×3 Bento grid (How-to, Privacy, Rate, GitHub, Donate, Credits) with subpages and back navigation for How-to, Privacy, and Credits.
+- **Bottom Bento Dock**: 5 exact square action buttons across 61 px height on a 1 px hairline seam:
+  - `b0`: Wi-Fi / Connection Drawer toggle (`icons::WIFI`/`GLOBE`/`USB`/`CABLE`/`BLUETOOTH`)
+  - `b1`: Camera stream toggle (`icons::CAMERA` / `CAMERA_OFF`)
+  - `b2`: Microphone stream toggle (`icons::MIC` / `MIC_OFF`)
+  - `b3`: Speaker loopback toggle (`icons::SPEAKER` / `SPEAKER_OFF`)
+  - `b4`: Help drawer toggle (`icons::HELP`)
 
 ---
 

@@ -26,6 +26,7 @@ pub enum Font {
     Body,
     Caption,
     /// The approval code, in the monospaced face.
+    #[allow(dead_code)]
     Code,
 }
 
@@ -339,53 +340,156 @@ impl Painter {
         };
     }
 
-    pub fn watermark(&self, cx: f32, cy: f32, size: f32, opacity: f32) {
-        let px_size = 128usize;
-        let d2d_size = D2D_SIZE_U {
-            width: px_size as u32,
-            height: px_size as u32,
+    pub fn line(&self, x1: f32, y1: f32, x2: f32, y2: f32, rgb: u32, width: f32) {
+        let s = self.scale;
+        let p1 = Vector2 {
+            X: (x1 * s).round(),
+            Y: (y1 * s).round(),
         };
-        let dest = D2D_RECT_F {
-            left: (cx - size / 2.0) * self.scale,
-            top: (cy - size / 2.0) * self.scale,
-            right: (cx + size / 2.0) * self.scale,
-            bottom: (cy + size / 2.0) * self.scale,
+        let p2 = Vector2 {
+            X: (x2 * s).round(),
+            Y: (y2 * s).round(),
         };
-        let props = D2D1_BITMAP_PROPERTIES {
-            pixelFormat: D2D1_PIXEL_FORMAT {
-                format: DXGI_FORMAT_B8G8R8A8_UNORM,
-                alphaMode: D2D1_ALPHA_MODE_PREMULTIPLIED,
-            },
-            dpiX: 96.0,
-            dpiY: 96.0,
-        };
-        let mut pixels = crate::owl::bgra(px_size, true);
-        for px in pixels.as_chunks_mut::<4>().0 {
-            let a = px[3];
-            px[0] = a;
-            px[1] = a;
-            px[2] = a;
-        }
-        if let Ok(bmp) = unsafe {
-            self.t().CreateBitmap(
-                d2d_size,
-                Some(pixels.as_ptr().cast()),
-                (px_size * 4) as u32,
-                &props,
-            )
-        } {
-            unsafe {
-                self.t().DrawBitmap(
-                    &bmp,
-                    Some(&dest),
-                    opacity,
-                    D2D1_BITMAP_INTERPOLATION_MODE_LINEAR,
-                    None,
-                );
-            }
+        unsafe {
+            self.t()
+                .DrawLine(p1, p2, self.brush(rgb), width * s, &self.stroke);
         }
     }
 
+    pub fn dots_grid(&self, r: Rect, spacing: f32, dot_r: f32, rgb: u32) {
+        let mut y = r.y + spacing / 2.0;
+        while y < r.bottom() {
+            let mut x = r.x + spacing / 2.0;
+            while x < r.right() {
+                self.circle(x, y, dot_r, rgb);
+                x += spacing;
+            }
+            y += spacing;
+        }
+    }
+
+    pub fn fader(&self, r: Rect, progress: f32, rgb_fill: u32, rgb_track: u32) {
+        let track_h = 7.0;
+        let track_r = Rect::new(r.x, r.y + (r.h - track_h) / 2.0, r.w, track_h);
+        self.fill_rounded(track_r, 3.5, rgb_track);
+        let fill_w = (r.w * progress.clamp(0.0, 1.0)).max(0.0);
+        if fill_w > 0.0 {
+            self.fill_rounded(Rect::new(r.x, track_r.y, fill_w, track_h), 3.5, rgb_fill);
+        }
+        let cap_x = r.x + fill_w;
+        let cap_w = 2.5;
+        let cap_h = 13.0;
+        let cap_r = Rect::new(cap_x - cap_w / 2.0, r.y + (r.h - cap_h) / 2.0, cap_w, cap_h);
+        self.fill_rounded(cap_r, 1.25, 0xFFFFFF);
+    }
+
+    pub fn switch(&self, r: Rect, on: bool) {
+        if on {
+            self.fill_rounded(r, r.h / 2.0, 0xFFFFFF);
+            let knob_r = (r.h - 4.0) / 2.0;
+            let knob_cx = r.right() - 2.0 - knob_r;
+            let knob_cy = r.y + r.h / 2.0;
+            self.circle(knob_cx, knob_cy, knob_r, 0x000000);
+        } else {
+            self.fill_rounded(r, r.h / 2.0, 0x000000);
+            self.stroke_rounded(r, r.h / 2.0, 0x3A3A3C, 1.0);
+            let knob_r = (r.h - 6.0) / 2.0;
+            let knob_cx = r.x + 3.0 + knob_r;
+            let knob_cy = r.y + r.h / 2.0;
+            self.circle(knob_cx, knob_cy, knob_r, 0x3A3A3C);
+        }
+    }
+
+    pub fn waveform_bars(&self, r: Rect, bars: usize, active: bool, anim_seed: u64) {
+        if bars == 0 || r.w <= 0.0 {
+            return;
+        }
+        let bar_w = 3.0;
+        let gap = ((r.w - (bars as f32 * bar_w)) / (bars as f32 - 1.0).max(1.0)).max(1.0);
+        let start_x = r.x + (r.w - (bars as f32 * bar_w + (bars as f32 - 1.0) * gap)) / 2.0;
+        for i in 0..bars {
+            let bx = start_x + i as f32 * (bar_w + gap);
+            let h = if active {
+                let wave = ((i as f32 * 0.45 + (anim_seed as f32 * 0.18)).sin() * 0.5 + 0.5)
+                    * ((i as f32 * 0.25 - (anim_seed as f32 * 0.12)).cos() * 0.5 + 0.5);
+                let min_h = 4.0;
+                let max_h = r.h;
+                min_h + (max_h - min_h) * wave
+            } else {
+                3.0
+            };
+            let by = r.y + (r.h - h) / 2.0;
+            self.fill_rounded(
+                Rect::new(bx, by, bar_w, h),
+                bar_w / 2.0,
+                if active { 0xFFFFFF } else { 0x3A3A3C },
+            );
+        }
+    }
+
+    pub fn watermark(&self, cx: f32, cy: f32, size: f32, opacity: f32) {
+        self.fill_brand_owl(cx, cy, size, opacity);
+    }
+
+    pub fn fill_brand_owl(&self, cx: f32, cy: f32, size: f32, opacity: f32) {
+        let s = self.scale;
+        let k = size * s / BOX;
+        let (ox, oy) = (cx * s - size * s / 2.0, cy * s - size * s / 2.0);
+        let p = move |x: f32, y: f32| Vector2 {
+            X: ox + x * k,
+            Y: oy + y * k,
+        };
+        let brush = self.brush(0xFFFFFF);
+        unsafe {
+            brush.SetOpacity(opacity);
+            if let Ok(geometry) = self.d2d.CreatePathGeometry()
+                && let Ok(sink) = geometry.Open()
+            {
+                sink.SetFillMode(D2D1_FILL_MODE_ALTERNATE);
+                let mut open = false;
+                for seg in crate::brand::OWL_BODY {
+                    match *seg {
+                        Seg::Move(x, y) => {
+                            if open {
+                                sink.EndFigure(D2D1_FIGURE_END_CLOSED);
+                            }
+                            sink.BeginFigure(p(x, y), D2D1_FIGURE_BEGIN_FILLED);
+                            open = true;
+                        }
+                        Seg::Line(x, y) => sink.AddLine(p(x, y)),
+                        Seg::Cubic(c) => sink.AddBezier(&D2D1_BEZIER_SEGMENT {
+                            point1: p(c[0], c[1]),
+                            point2: p(c[2], c[3]),
+                            point3: p(c[4], c[5]),
+                        }),
+                        Seg::Close if open => {
+                            sink.EndFigure(D2D1_FIGURE_END_CLOSED);
+                            open = false;
+                        }
+                        _ => {}
+                    }
+                }
+                if open {
+                    sink.EndFigure(D2D1_FIGURE_END_CLOSED);
+                }
+                let _ = sink.Close();
+                self.t().FillGeometry(&geometry, brush, None);
+            }
+            for shape in crate::brand::OWL_PUPILS {
+                if let Shape::Circle { c, r } = *shape {
+                    let ellipse = D2D1_ELLIPSE {
+                        point: p(c.0, c.1),
+                        radiusX: r * k,
+                        radiusY: r * k,
+                    };
+                    self.t().FillEllipse(&ellipse, brush);
+                }
+            }
+            brush.SetOpacity(1.0);
+        }
+    }
+
+    #[allow(dead_code)]
     pub fn clip(&self, r: Rect) {
         unsafe {
             self.t()
@@ -393,6 +497,7 @@ impl Painter {
         };
     }
 
+    #[allow(dead_code)]
     pub fn unclip(&self) {
         unsafe { self.t().PopAxisAlignedClip() };
     }
@@ -440,12 +545,24 @@ impl Painter {
 
     /// A Lucide icon `size` px wide (at 100%) centred on (cx, cy), stroked in `rgb`.
     pub fn icon(&self, icon: Icon, cx: f32, cy: f32, size: f32, rgb: u32) {
+        self.icon_impl(icon, cx, cy, size, rgb, false);
+    }
+
+    /// A Lucide icon rotated 180° (e.g. `arrow.svg` used as a Back button, matching prototype `rotate-180`).
+    pub fn icon_rotated_180(&self, icon: Icon, cx: f32, cy: f32, size: f32, rgb: u32) {
+        self.icon_impl(icon, cx, cy, size, rgb, true);
+    }
+
+    fn icon_impl(&self, icon: Icon, cx: f32, cy: f32, size: f32, rgb: u32, rot_180: bool) {
         let s = self.scale;
         let k = size * s / BOX;
         let (ox, oy) = (cx * s - size * s / 2.0, cy * s - size * s / 2.0);
-        let p = |x: f32, y: f32| Vector2 {
-            X: ox + x * k,
-            Y: oy + y * k,
+        let p = move |x: f32, y: f32| {
+            let (tx, ty) = if rot_180 { (BOX - x, BOX - y) } else { (x, y) };
+            Vector2 {
+                X: ox + tx * k,
+                Y: oy + ty * k,
+            }
         };
         let width = crate::icon::STROKE * k;
         let brush = self.brush(rgb);
@@ -461,12 +578,17 @@ impl Painter {
                         self.t().DrawEllipse(&e, brush, width, &self.stroke);
                     }
                     Shape::Rect { x, y, w, h, r } => {
+                        let (rx, ry) = if rot_180 {
+                            (BOX - x - w, BOX - y - h)
+                        } else {
+                            (x, y)
+                        };
                         let rr = D2D1_ROUNDED_RECT {
                             rect: D2D_RECT_F {
-                                left: ox + x * k,
-                                top: oy + y * k,
-                                right: ox + (x + w) * k,
-                                bottom: oy + (y + h) * k,
+                                left: ox + rx * k,
+                                top: oy + ry * k,
+                                right: ox + (rx + w) * k,
+                                bottom: oy + (ry + h) * k,
                             },
                             radiusX: r * k,
                             radiusY: r * k,

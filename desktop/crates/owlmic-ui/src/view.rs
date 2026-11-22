@@ -88,6 +88,7 @@ pub struct PanelState {
     pub repair: Repair,
     pub repairing: bool,
     pub version: String,
+    pub hostname: String,
 }
 
 /// What a click asks the app to do. Opening settings or a link, and scrolling, stay in the
@@ -97,11 +98,14 @@ pub enum Action {
     Pause(Which),
     /// Moves a setting to its next value.
     Cycle(&'static str),
+    /// Explicitly sets a setting to a given value.
+    Set(&'static str, String),
     Allow,
     Deny,
     Repair,
     RemovePhone(String),
     BlockPhone(String, bool),
+    Disconnect,
     Quit,
 }
 
@@ -110,6 +114,8 @@ pub enum Link {
     Licences,
     Website,
     Donate,
+    GitHub,
+    Rate,
 }
 
 pub struct Indicator {
@@ -138,35 +144,34 @@ pub fn link_name(link: u8) -> &'static str {
     }
 }
 
-/// The connection indicator (SYSTEM_DESIGN section 36). Green is always the link's icon.
+/// The connection indicator (SYSTEM_DESIGN section 36). Monochrome matching prototype.
 pub fn indicator(c: &Connection) -> Indicator {
-    let yellow = |link, label| Indicator {
-        color: color::YELLOW,
+    let ind = |link, label| Indicator {
+        color: color::TEXT,
         icon: link_icon(link),
         label,
     };
     match c {
         Connection::NotConnected => Indicator {
-            color: color::RED,
+            color: color::DISABLED,
             icon: icons::UNPLUG,
             label: m::LINK_NOT_CONNECTED,
         },
-        Connection::Connecting { link } => yellow(*link, m::LINK_CONNECTING),
-        Connection::Approval { link, .. } => yellow(*link, m::LINK_APPROVAL),
-        Connection::Reconnecting { link, .. } => yellow(*link, m::STATUS_RECONNECTING),
+        Connection::Connecting { link } => ind(*link, m::LINK_CONNECTING),
+        Connection::Approval { link, .. } => ind(*link, m::LINK_APPROVAL),
+        Connection::Reconnecting { link, .. } => ind(*link, m::STATUS_RECONNECTING),
         Connection::Connected {
             link, weak: true, ..
-        } => yellow(*link, m::LINK_WEAK),
-        Connection::Connected { link, .. } => Indicator {
-            color: color::GREEN,
-            icon: link_icon(*link),
-            label: match *link {
+        } => ind(*link, m::LINK_WEAK),
+        Connection::Connected { link, .. } => ind(
+            *link,
+            match *link {
                 LINK_USB_DEBUGGING => m::LINK_USB_DEBUGGING,
                 LINK_USB_TETHERING => m::LINK_USB_TETHERING,
                 LINK_BLUETOOTH => m::LINK_BLUETOOTH,
                 _ => m::LINK_WIFI,
             },
-        },
+        ),
     }
 }
 
@@ -175,15 +180,44 @@ impl PanelState {
         self.settings.get(id).map_or("", String::as_str)
     }
 
-    pub fn screen(&self, settings_open: bool) -> Screen {
-        if matches!(self.connection, Connection::Approval { .. }) {
-            Screen::Gate
-        } else if settings_open {
-            Screen::Settings
-        } else {
-            Screen::Main {
-                repair: self.repair.needed(),
+    pub fn setting(&self, id: &str) -> &str {
+        self.value(id)
+    }
+
+    pub fn is_blocked(&self) -> bool {
+        let id = self.active_phone_id().or_else(|| self.first_paired_id());
+        id.and_then(|id| self.phones.iter().find(|p| p.id == id).map(|p| p.blocked))
+            .unwrap_or(false)
+    }
+
+    pub fn active_screen(
+        &self,
+        drawer: crate::layout::Drawer,
+        cam_menu: bool,
+        quick_audio: bool,
+    ) -> Screen {
+        match drawer {
+            crate::layout::Drawer::Wifi => {
+                let mode = if matches!(self.connection, Connection::Approval { .. }) {
+                    crate::layout::WifiMode::Pairing
+                } else if self.connected() {
+                    crate::layout::WifiMode::Connected
+                } else if self.is_blocked() {
+                    crate::layout::WifiMode::Blocked
+                } else if self.first_paired_id().is_some() {
+                    crate::layout::WifiMode::Forget
+                } else {
+                    crate::layout::WifiMode::Offline
+                };
+                Screen::DrawerWifi(mode)
             }
+            crate::layout::Drawer::Help(h) => Screen::DrawerHelp(h),
+            crate::layout::Drawer::None => Screen::Main {
+                cam_on: self.camera == Feature::On && self.connected(),
+                mic_on: self.mic == Feature::On && self.connected(),
+                cam_menu,
+                quick_audio,
+            },
         }
     }
 
@@ -260,19 +294,31 @@ impl PanelState {
         rows(self)
     }
 
+    pub fn active_phone_id(&self) -> Option<String> {
+        let name = self.phone_name()?;
+        self.phones
+            .iter()
+            .find(|p| p.name == name)
+            .map(|p| p.id.clone())
+            .or_else(|| self.phones.first().map(|p| p.id.clone()))
+    }
+
+    pub fn first_paired_id(&self) -> Option<String> {
+        self.phones.first().map(|p| p.id.clone())
+    }
+
     /// The link a settings row opens, which the panel opens itself.
-    pub fn link_at(&self, target: Target, rows: &[Row]) -> Option<Link> {
-        let Target::Row(i, 0) = target else {
-            return None;
-        };
-        match rows.get(i)?.action {
-            RowAction::Open(link) => Some(link),
+    pub fn link_at(&self, target: Target) -> Option<Link> {
+        match target {
+            Target::HelpRate => Some(Link::Rate),
+            Target::HelpGitHub => Some(Link::GitHub),
+            Target::HelpDonate => Some(Link::Donate),
             _ => None,
         }
     }
 
-    /// What a click does. `rows` is the settings list as drawn.
-    pub fn click(&self, target: Target, rows: &[Row]) -> Option<Action> {
+    /// What a click does.
+    pub fn click(&self, target: Target) -> Option<Action> {
         let feature = |which, state: Feature| {
             (state != Feature::Off && self.connected()).then_some(Action::Pause(which))
         };
@@ -281,28 +327,44 @@ impl PanelState {
             Target::Camera => feature(Which::Camera, self.camera),
             Target::Mic => feature(Which::Mic, self.mic),
             Target::Speaker => feature(Which::Speaker, self.speaker),
-            Target::Framing => pairing("camera.framing"),
+            Target::Quality(q) => Some(Action::Set("camera.quality", q.to_string())),
+            Target::Fps(f) => Some(Action::Set("camera.frameRate", f.to_string())),
+            Target::Ratio(r) => Some(Action::Set("camera.ratio", r.to_string())),
             Target::Mirror => pairing("camera.mirror"),
-            Target::Lens => pairing("camera.lens"),
-            Target::Repair => (!self.repairing).then_some(Action::Repair),
-            Target::Allow => Some(Action::Allow),
-            Target::Deny => Some(Action::Deny),
-            Target::Row(i, button) => {
-                let row = rows.get(i)?;
-                match (&row.action, button) {
-                    (RowAction::Phone(p), 1) => {
-                        Some(Action::RemovePhone(self.phones.get(*p)?.id.clone()))
-                    }
-                    (RowAction::Phone(p), 2) => {
-                        let phone = self.phones.get(*p)?;
-                        Some(Action::BlockPhone(phone.id.clone(), !phone.blocked))
-                    }
-                    (_, 0) if !row.enabled => None,
-                    (RowAction::Cycle(id), 0) => Some(Action::Cycle(id)),
-                    (RowAction::Repair, 0) => (!self.repairing).then_some(Action::Repair),
-                    (RowAction::Quit, 0) => Some(Action::Quit),
-                    _ => None,
-                }
+            Target::Flip => pairing("camera.lens"),
+            Target::ToggleIso => Some(Action::Cycle("mic.isolation")),
+            Target::ToggleNorm => Some(Action::Cycle("mic.autoLevel")),
+            Target::NrFader(val) => Some(Action::Set(
+                "mic.noiseReduction",
+                (val.round() as i32).to_string(),
+            )),
+            Target::VolFader(val) => {
+                Some(Action::Set("mic.volume", (val.round() as i32).to_string()))
+            }
+            Target::Pair => Some(Action::Allow),
+            Target::Decline => Some(Action::Deny),
+            Target::Disconnect => Some(Action::Disconnect),
+            Target::Block => {
+                let id = self.active_phone_id()?;
+                Some(Action::BlockPhone(id, true))
+            }
+            Target::Unblock => {
+                let id = self.active_phone_id()?;
+                Some(Action::BlockPhone(id, false))
+            }
+            Target::RemovePaired | Target::Forget => {
+                let id = self.active_phone_id().or_else(|| self.first_paired_id())?;
+                Some(Action::RemovePhone(id))
+            }
+            Target::ToggleTransport(link) => {
+                let id = match link {
+                    1 => "link.usbDebugging",
+                    2 => "link.usbTethering",
+                    3 => "link.wifi",
+                    4 => "link.bluetooth",
+                    _ => return None,
+                };
+                Some(Action::Cycle(id))
             }
             _ => None,
         }
@@ -488,17 +550,17 @@ mod tests {
     }
 
     #[test]
-    fn the_indicator_is_red_yellow_or_the_green_link_icon() {
-        assert_eq!(indicator(&Connection::NotConnected).color, color::RED);
+    fn the_indicator_is_monochrome_with_link_icon() {
+        assert_eq!(indicator(&Connection::NotConnected).color, color::DISABLED);
         let i = indicator(&connected().connection);
-        assert_eq!((i.color, i.label), (color::GREEN, m::LINK_WIFI));
+        assert_eq!((i.color, i.label), (color::TEXT, m::LINK_WIFI));
         assert_eq!(i.icon, icons::WIFI);
         let weak = indicator(&Connection::Connected {
             phone: "P".into(),
             link: LINK_USB_TETHERING,
             weak: true,
         });
-        assert_eq!((weak.color, weak.icon), (color::YELLOW, icons::CABLE));
+        assert_eq!((weak.color, weak.icon), (color::TEXT, icons::CABLE));
     }
 
     #[test]
@@ -516,88 +578,52 @@ mod tests {
     #[test]
     fn tiles_pause_only_what_the_phone_turned_on() {
         let mut s = connected();
-        assert_eq!(s.click(Target::Mic, &[]), None);
+        assert_eq!(s.click(Target::Mic), None);
         s.mic = Feature::On;
-        assert_eq!(s.click(Target::Mic, &[]), Some(Action::Pause(Which::Mic)));
+        assert_eq!(s.click(Target::Mic), Some(Action::Pause(Which::Mic)));
         assert_eq!(
-            s.click(Target::Camera, &[]),
+            s.click(Target::Camera),
             None,
             "the phone hasn't turned it on"
         );
         s.camera = Feature::On;
-        assert_eq!(
-            s.click(Target::Camera, &[]),
-            Some(Action::Pause(Which::Camera))
-        );
+        assert_eq!(s.click(Target::Camera), Some(Action::Pause(Which::Camera)));
         s.camera = Feature::Paused;
         assert_eq!(
-            s.click(Target::Camera, &[]),
+            s.click(Target::Camera),
             Some(Action::Pause(Which::Camera)),
             "and resumes it"
         );
-        assert_eq!(
-            s.click(Target::Lens, &[]),
-            Some(Action::Cycle("camera.lens"))
-        );
+        assert_eq!(s.click(Target::Flip), Some(Action::Cycle("camera.lens")));
         s.paired = false;
-        assert_eq!(s.click(Target::Framing, &[]), None);
+        assert_eq!(s.click(Target::Flip), None);
     }
 
     #[test]
-    fn settings_rows_show_value_texts_and_phone_buttons() {
+    fn connection_and_bento_targets_work() {
         let mut s = connected();
         s.phones.push(PhoneEntry {
             id: "01".into(),
             name: "Pixel 8".into(),
             blocked: false,
         });
-        let rows = s.rows();
-        let value_of = |label: &str| &rows.iter().find(|r| r.label == label).unwrap().value;
-        assert_eq!(value_of(m::SETTING_MIC_VOLUME), "+6 dB");
-        assert_eq!(value_of(m::SETTING_MIC_NOISE_REDUCTION), m::VALUE_OFF);
-        assert_eq!(value_of(m::SETTING_MIC_AUTO_LEVEL), m::VALUE_ON);
-        assert_eq!(value_text("mic.volume", "-9"), "-9 dB");
-        assert_eq!(value_text("mic.volume", "0"), "0 dB");
-        assert_eq!(value_text("mic.noiseReduction", "7"), "7");
-        let phone = rows
-            .iter()
-            .position(|r| r.action == RowAction::Phone(0))
-            .unwrap();
         assert_eq!(
-            s.click(Target::Row(phone, 2), &rows),
+            s.click(Target::Block),
             Some(Action::BlockPhone("01".into(), true))
         );
         assert_eq!(
-            s.click(Target::Row(phone, 1), &rows),
+            s.click(Target::Unblock),
+            Some(Action::BlockPhone("01".into(), false))
+        );
+        assert_eq!(
+            s.click(Target::RemovePaired),
             Some(Action::RemovePhone("01".into()))
         );
-        let website = rows
-            .iter()
-            .position(|r| r.action == RowAction::Open(Link::Website))
-            .unwrap();
+        assert_eq!(s.click(Target::Disconnect), Some(Action::Disconnect));
         assert_eq!(
-            s.link_at(Target::Row(website, 0), &rows),
-            Some(Link::Website)
+            s.click(Target::ToggleTransport(3)),
+            Some(Action::Cycle("link.wifi"))
         );
-        assert_eq!(s.click(Target::Row(website, 0), &rows), None);
-        s.paired = false;
-        let rows = s.rows();
-        let volume = rows
-            .iter()
-            .position(|r| r.label == m::SETTING_MIC_VOLUME)
-            .unwrap();
-        assert_eq!(
-            s.click(Target::Row(volume, 0), &rows),
-            None,
-            "pairing settings need a phone"
-        );
-        let start = rows
-            .iter()
-            .position(|r| r.label == m::SETTING_GENERAL_START_WITH_WINDOWS)
-            .unwrap();
-        assert_eq!(
-            s.click(Target::Row(start, 0), &rows),
-            Some(Action::Cycle("general.startWithWindows"))
-        );
+        assert_eq!(s.link_at(Target::HelpGitHub), Some(Link::GitHub));
     }
 }

@@ -18,6 +18,10 @@ fn main() {
         &mut out,
         &PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../shared/assets/icons"),
     );
+    write_brand_owl(
+        &mut out,
+        &PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../shared/assets/brand/icon.svg"),
+    );
 
     let dest = PathBuf::from(std::env::var("OUT_DIR").unwrap()).join("design.rs");
     std::fs::write(dest, out).unwrap();
@@ -143,11 +147,6 @@ fn write_icons(out: &mut String, dir: &PathBuf) {
         )
         .unwrap();
     }
-    out.push_str("    pub const ARROW_RIGHT: &[Shape] = ARROW;\n");
-    out.push_str("    pub const ARROW_LEFT: &[Shape] = &[Shape::Path(&[\n");
-    out.push_str("        Seg::Move(20.0, 12.0), Seg::Line(5.0, 12.0),\n");
-    out.push_str("        Seg::Move(12.0, 18.0), Seg::Line(10.2, 18.0), Seg::Line(4.5, 12.0), Seg::Line(10.2, 6.0), Seg::Line(12.0, 6.0),\n");
-    out.push_str("    ])];\n");
     out.push_str("}\n");
 }
 
@@ -385,4 +384,85 @@ fn path(d: &str) -> Vec<Seg> {
         }
     }
     segs
+}
+
+fn write_brand_owl(out: &mut String, brand_path: &PathBuf) {
+    println!("cargo:rerun-if-changed={}", brand_path.display());
+    let svg = std::fs::read_to_string(brand_path)
+        .unwrap_or_else(|e| panic!("can't read {}: {e}", brand_path.display()));
+
+    let min_x = 24.9f32;
+    let min_y = 33.85f32;
+    let vb_size = 421.15f32;
+    let scale = 24.0 / vb_size;
+
+    let elems = elements(&svg);
+    out.push_str("\npub mod brand {\n    use crate::glyph::{Seg, Shape};\n");
+
+    let path_elem = elems
+        .iter()
+        .find(|(tag, _)| tag == "path")
+        .expect("brand icon.svg missing path");
+    let d = &path_elem
+        .1
+        .iter()
+        .find(|(k, _)| k == "d")
+        .expect("brand icon.svg path missing d")
+        .1;
+    let raw_segs = path(d);
+    let mut normalized_segs = Vec::new();
+    for seg in raw_segs {
+        match seg {
+            Seg::Move(x, y) => normalized_segs.push(format!(
+                "Seg::Move({:?}, {:?})",
+                (x - min_x) * scale,
+                (y - min_y) * scale
+            )),
+            Seg::Line(x, y) => normalized_segs.push(format!(
+                "Seg::Line({:?}, {:?})",
+                (x - min_x) * scale,
+                (y - min_y) * scale
+            )),
+            Seg::Cubic(c) => normalized_segs.push(format!(
+                "Seg::Cubic([{:?}, {:?}, {:?}, {:?}, {:?}, {:?}])",
+                (c[0] - min_x) * scale,
+                (c[1] - min_y) * scale,
+                (c[2] - min_x) * scale,
+                (c[3] - min_y) * scale,
+                (c[4] - min_x) * scale,
+                (c[5] - min_y) * scale
+            )),
+            Seg::Close => normalized_segs.push("Seg::Close".to_owned()),
+            _ => {}
+        }
+    }
+    writeln!(
+        out,
+        "    pub const OWL_BODY: &[Seg] = &[{}];",
+        normalized_segs.join(", ")
+    )
+    .unwrap();
+
+    let circles: Vec<String> = elems
+        .iter()
+        .filter(|(tag, _)| tag == "circle")
+        .map(|(_, attrs)| {
+            let cx = attr(attrs, "cx");
+            let cy = attr(attrs, "cy");
+            let r = attr(attrs, "r");
+            format!(
+                "Shape::Circle {{ c: ({:?}, {:?}), r: {:?} }}",
+                (cx - min_x) * scale,
+                (cy - min_y) * scale,
+                r * scale
+            )
+        })
+        .collect();
+    writeln!(
+        out,
+        "    pub const OWL_PUPILS: &[Shape] = &[{}];",
+        circles.join(", ")
+    )
+    .unwrap();
+    out.push_str("}\n");
 }
