@@ -22,7 +22,6 @@ import com.owlmic.core.design.Tokens
 enum class Glyph(val elements: () -> List<GlyphPath>) {
     ALERT({ GeneratedGlyphs.ALERT }),
     ARROW({ GeneratedGlyphs.ARROW }),
-    BACK({ GeneratedGlyphs.BACK }),
     BLUETOOTH({ GeneratedGlyphs.BLUETOOTH }),
     CABLE({ GeneratedGlyphs.CABLE }),
     CAMERA({ GeneratedGlyphs.CAMERA }),
@@ -43,10 +42,8 @@ enum class Glyph(val elements: () -> List<GlyphPath>) {
     MIC({ GeneratedGlyphs.MIC }),
     MIC_OFF({ GeneratedGlyphs.MIC_OFF }),
     MIRROR({ GeneratedGlyphs.MIRROR }),
-    OPEN({ GeneratedGlyphs.OPEN }),
     PLUS({ GeneratedGlyphs.PLUS }),
     REFRESH({ GeneratedGlyphs.REFRESH }),
-    RECONNECT({ GeneratedGlyphs.RECONNECT }),
     SHIELD({ GeneratedGlyphs.SHIELD }),
     SPEAKER({ GeneratedGlyphs.SPEAKER }),
     SPEAKER_OFF({ GeneratedGlyphs.SPEAKER_OFF }),
@@ -56,16 +53,7 @@ enum class Glyph(val elements: () -> List<GlyphPath>) {
     USERS({ GeneratedGlyphs.USERS }),
     VIDEO({ GeneratedGlyphs.VIDEO }),
     VIDEO_OFF({ GeneratedGlyphs.VIDEO_OFF }),
-    WIFI({ GeneratedGlyphs.WIFI }),
-
-    // Aliases
-    PLUG({ GeneratedGlyphs.PLUG }),
-    CHAIN({ GeneratedGlyphs.CHAIN }),
-    HOW_TO({ GeneratedGlyphs.HOW_TO }),
-    PEOPLE({ GeneratedGlyphs.PEOPLE }),
-    EYE({ GeneratedGlyphs.ALERT }),
-    EYE_OFF({ GeneratedGlyphs.ALERT }),
-    SLIDERS({ GeneratedGlyphs.ALERT });
+    WIFI({ GeneratedGlyphs.WIFI });
 
     private val vectors = HashMap<Float, ImageVector>()
 

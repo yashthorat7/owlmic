@@ -116,13 +116,6 @@ abstract class GenerateDesign : DefaultTask() {
             }
             appendLine("    )")
         }
-        appendLine("    val BACK: List<GlyphPath> get() = ARROW")
-        appendLine("    val OPEN: List<GlyphPath> get() = EXTERNAL")
-        appendLine("    val PLUG: List<GlyphPath> get() = USB")
-        appendLine("    val CHAIN: List<GlyphPath> get() = CABLE")
-        appendLine("    val PEOPLE: List<GlyphPath> get() = USERS")
-        appendLine("    val HOW_TO: List<GlyphPath> get() = LIST")
-        appendLine("    val RECONNECT: List<GlyphPath> get() = REFRESH")
         appendLine("}")
     }
 

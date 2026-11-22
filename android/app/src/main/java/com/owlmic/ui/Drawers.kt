@@ -440,7 +440,7 @@ private fun InfoGrid(onPage: (InfoPage) -> Unit) {
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                InfoBentoTile(Glyph.HOW_TO, Copy.string.ui_how_to, Modifier.weight(1f)) { onPage(InfoPage.HOW_TO) }
+                InfoBentoTile(Glyph.LIST, Copy.string.ui_how_to, Modifier.weight(1f)) { onPage(InfoPage.HOW_TO) }
                 InfoBentoTile(Glyph.SHIELD, Copy.string.ui_privacy, Modifier.weight(1f)) { onPage(InfoPage.PRIVACY) }
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -449,7 +449,7 @@ private fun InfoGrid(onPage: (InfoPage) -> Unit) {
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 InfoBentoTile(Glyph.COFFEE, Copy.string.ui_donate, Modifier.weight(1f)) { Links.open(context, Links.DONATE) }
-                InfoBentoTile(Glyph.PEOPLE, Copy.string.ui_credits, Modifier.weight(1f)) { onPage(InfoPage.CREDITS) }
+                InfoBentoTile(Glyph.USERS, Copy.string.ui_credits, Modifier.weight(1f)) { onPage(InfoPage.CREDITS) }
             }
         }
         BasicText(
@@ -581,7 +581,7 @@ private fun Step(number: Int, name: Int, detail: Int, last: Boolean, onClick: ((
         Column(Modifier.weight(1f).padding(top = 5.dp, bottom = if (last) 0.dp else 28.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 BasicText(stringResource(name), style = Theme.pageName.copy(fontSize = 16.sp))
-                if (onClick != null) Icon(Glyph.OPEN, Theme.text2, null, Modifier.padding(start = 8.dp), size = 18.dp, stroke = Tokens.Phone.GLYPH_STROKE)
+                if (onClick != null) Icon(Glyph.EXTERNAL, Theme.text2, null, Modifier.padding(start = 8.dp), size = 18.dp, stroke = Tokens.Phone.GLYPH_STROKE)
             }
             BasicText(stringResource(detail), style = Theme.pageDetail.copy(fontSize = 13.5.sp, lineHeight = 19.sp))
         }

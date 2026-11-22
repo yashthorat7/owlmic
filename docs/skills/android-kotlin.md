@@ -41,9 +41,9 @@
    - **Header**: Wordmark, Help tile, and Connection tile with pulse breathing indicator.
    - **Center Playground**:
      - Dot grid and watermark owl when idle.
-     - Aspect ratio crop box with optical crop border lines (pillarbox / letterbox).
-     - Compact expandable format HUD (50dp closed, 180dp open) for Resolution (FHD/HD/480p), FPS (60/30/24), and Aspect Ratio (Auto/16:9/4:3/1:1/3:4/9:16) with 4s idle auto-dim.
-     - Centered waveform (288dp width, 84dp bars) when camera off; docked waveform capsule (236dp width, 24dp bars) when camera on, expandable to `calc(100% - 24dp)` with hardware faders (`.owl-switch` and `.fader`).
+     - Camera preview with auto zoom-to-fit (cover) framing and optical crop border lines for explicit target aspect ratios.
+     - Compact expandable format HUD (50 × 29 dp closed, 180 × 128 dp open) for Resolution (FHD/HD/480p), FPS (60/30/24), and Aspect Ratio (Auto/16:9/4:3/1:1/3:4/9:16) with 4s idle auto-dim and dual-axis motion.
+     - Centered 208 dp waveform container (fixed-width bars so amplitude doesn't stretch horizontally on drawer expansion); docked waveform capsule when camera on, expandable into mic hardware faders and toggles.
    - **Drawers**:
      - Connection Drawer: Inline handshake sweep (`sync-beam` animated gradient line on the connection row), inline Add Host row (`+`), and 6-column transport footer (refresh + 4 link toggles).
      - Help Drawer: 2x3 bento grid (How-to, Privacy, Rate, GitHub, Donate, Credits) with subpages.

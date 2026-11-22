@@ -76,24 +76,41 @@ Rather than shipping Chromium/Electron or bloated webview engines, Owlmic PC use
 
 ## 4. Android Compose UI (`android/app`)
 
-The main screen follows the prototype in `website/proto-templates`: black tiles on a 1 dp grey seam, in three bands.
+The main screen strictly replicates the Bento layout prototyped in `shared/design/prototypes/`: OLED black tiles on a 1 dp grey seam (`phone.gapDp`), organized into three primary functional bands.
 
-| Band | Contents |
-| :--- | :--- |
-| Top row (72 dp) | The OWLMIC wordmark, a **?** tile that opens Setup & Help, and the link tile that opens Connection |
-| Preview area | The owl on a dot grid while nothing is on; the mic's sound wave; the camera's picture with its capsule while it is on; the status strip while not connected |
-| Bottom row (118 dp) | Camera, mic and speaker icon tiles: tap to turn on or off, long-press for that feature's settings |
+| Band | Geometry | Contents |
+| :--- | :--- | :--- |
+| **Top Bar** | 66 dp height (`phone.topBarDp`) | OWLMIC wordmark, **?** tile that opens Help & Info, and connection tile |
+| **Playground Area** | Flexible weight (`1f`) | Centered owl watermark on dot grid when idle; live camera preview with optical crop borders and expandable format HUD; docked/floating audio waveform; status strip |
+| **Bottom Bar** | 124 dp height (`phone.bottomBarDp`) | 3 square Bento feature tiles (Camera, Mic, Speaker) with 35 dp glyphs; tap to toggle ON/OFF, long-press for feature settings sheet |
 
-- **Text:** only what the user must read or act on. The status strip shows the PC's name and the approval code, or a step only the user can take (choose a PC, ask again, update, forget a changed PC, turn on USB tethering, try Bluetooth). Looking, connecting and reconnecting say nothing; the link tile shows them. No button carries text, except the info page's six.
-- **Link tile:** always in ink. Its icon is the link in use (USB debugging, USB tethering, Wi-Fi, Bluetooth) once connected; a globe until then; an alert when something needs the user (refused, busy, update, key changed, can't reach). While on its way the icon dims softly in and out (`linkPulseLow`, `linkPulseMs`): no blink, no glow.
-- **Feature tiles** show only their icon, slashed while off, and are dimmed until a PC is connected. Why one is paused, restarting or stuck is said to screen readers.
-- **Drawers** slide down from the top bar, from the tile that opened it, and fill the preview area. Content only, no header: the same tile or Back closes it.
-  - **Connection:** the connected PC first with a tick, then the other PCs this phone used (most recent first), new PCs that answered and addresses added by hand; blocked PCs below a line. A row is only the name; it opens in place into two rows: the address with the link it used as a quiet icon, then when it was last connected with Connect, Block, Unblock or Remove. The footer is five equal buttons: Reconnect, a line like the one above, then USB debugging, Wi-Fi, USB tethering and Bluetooth (bright when on, faint when off).
-  - **Info:** two rows of three square buttons, How-to, Privacy Policy, Rate, GitHub, Donate and Credits, and the version at the very bottom. How-to (the three steps as numbered circles on a line) and Credits open as pages of their own with only a back arrow.
-- **Controls** (`Controls.kt`): ink on black. A setting with steps is a slider whose first step is off (noise reduction) or whose middle is neutral (volume, 0 dB); on/off settings are switches with a tick on the thumb. No chevrons and no glow anywhere on the preview.
-  - **Mic only:** the sound wave sits in the middle of the preview, no wider than the capsule would be. A round settings button at the bottom right opens the mic's settings from the top, ending in a line, with the wave under it.
-  - **Camera on:** small round buttons at the top right: eye (the preview off and back on; the PC still gets the picture), mirror preview and flip, light when on. With the mic on too, the wave sits in a capsule at the bottom, 80% of the phone's width upright and the same width sideways (`capsuleWidthFraction`, `capsuleHeightDp`); tapping it grows it upward into the mic's settings, ending in a line above the wave.
-  - The round buttons rest at 20% (`controlsDimAlpha`) and work there; a touch anywhere on the preview brings them up over 200 ms (`controlsFadeMs`), and 3 s without one (`controlsIdleMs`) lets them back down.
-  - The preview is what the PC gets, fitted whole and upright for whoever holds the phone. Only when fitting leaves room, a blurred copy of the same picture fills it. A black line as wide as the grid's seam frames it.
-- **Sideways:** the activity stays locked to portrait and the layout never moves. One quarter-turn value (0, 90 or 270, from an `OrientationEventListener` with 20 degrees of hysteresis past the diagonal; upside down and flat keep the last value) drives a change in three steps: what is on the preview (and the wordmark, drawers and settings) fades out (`turnFadeMs`), the tile icons turn over 250 ms (`turnMs`), then the content fades back in laid out for the new hold. The status bar hides or comes back at that same moment. The wordmark letters turn one by one, a little apart (`wordmarkLetterGapDp`), and always read O to C top to bottom. Drawers and the settings sheet are laid out for the turned shape, then turned, so rows span the reader's width. A black band (`sideBandDp`) sits under the bottom tiles either way, and over the top tiles while sideways.
-- Single activity (`MainActivity.kt`) observing immutable state from `AppHub`; screen decisions live in `ScreenModel.kt` and are unit tested, the turn in `Turn.kt`. Icons are drawn in `Glyphs.kt`; the wordmark and owl are vector drawables.
+### Key Screen Invariants & Mechanics
+- **Text & Status Signals**: Minimalist high-signal copy. The status strip shows PC state, manual selection, or user actions (tethering switch, update prompt). Searching, connecting, and reconnecting remain silent, conveyed visually by the pulsing connection tile.
+- **Top-Bar Tiles & Glyphs**:
+  - Wordmark dynamically rotates letter-by-letter to match device orientation.
+  - Help and Connection tiles use 26 dp glyphs (`phone.topGlyphDp`).
+  - Connection tile displays active link type (USB, Tethering, Wi-Fi, Bluetooth), globe during discovery, or alert glyph for attention. During negotiation, the icon breathes smoothly (`linkPulseLow`, `linkPulseMs`).
+- **Feature Tiles**:
+  - High-contrast 35 dp vector glyphs (`phone.glyphDp`) centered in 124 dp square tiles.
+  - Inverted pure white (`#FFFFFF`) with black glyphs when active; muted outline when off; dimmed when no PC is connected.
+- **Drawers**:
+  - Slide down over the playground area with cubic easing (`DRAWER_SLIDE_MS`, `DRAWER_FADE_MS`).
+  - **Connection Drawer**: Zero-dialog inline handshake sweep (`sync-beam` animated gradient line on active connecting PC row). Inline `+` / `Add PC` manual host entry. 6-column transport footer: Refresh button (spin animation), 1 px vertical divider, and 4 transport toggle buttons (USB debugging, Tethering, Wi-Fi, Bluetooth).
+  - **Help & Info Drawer**: 2×3 Bento grid (How-to, Privacy, Rate, GitHub, Donate, Credits) with dedicated subpages and back navigation for How-to, Privacy, and Credits.
+- **Camera Preview & Formatting**:
+  - **Auto Zoom-to-Fit**: Camera preview rendered via `GlRenderer` uses cover scaling to fill the available playground area without letterbox bars.
+  - **Optical Crop Borders**: Crisp hairline guides outline target aspect ratios when explicit framing is chosen.
+  - **Format Heads-Up Display (HUD)**: Compact expandable dropdown menu at top-left (closed: 50 × 29 dp, open: 180 × 128 dp) featuring dual-axis easing (`CubicBezierEasing(0.16f, 1f, 0.3f, 1f)`) and Crossfade transitions between Resolution (FHD 1080p, HD 720p, 480p), Framerate (60fps, 30fps, 24fps), and Aspect Ratio (Auto, 16:9, 4:3, 1:1, 3:4, 9:16).
+  - **HUD Auto-Dimming**: Format menu and top-right mirror/flip buttons fade to 0.15 alpha after 4 seconds idle (`controlsIdleMs`), waking immediately upon any screen touch.
+- **Audio Waveform & Controls**:
+  - Centered 208 dp container for waveform bars; docks into a bottom capsule when camera is active.
+  - Tapping the docked capsule expands it upward into audio controls (voice isolation toggle, auto-level switch, noise reduction slider, volume slider) without stretching the internal waveform bars horizontally.
+- **Dynamic Glyph Pipeline**:
+  - All icons are dynamically parsed from `shared/assets/icons/*.svg` by the Gradle task `:core:generateDesign` into `GeneratedGlyphs.kt`.
+  - `Glyphs.kt` provides a clean 1:1 type-safe enum mapping with zero hardcoded path strings or legacy aliases.
+- **Launcher Icon**:
+  - Pure OLED black background (`#000000`) with centered official owl vector scaled to 0.54 (`ic_launcher_foreground.xml`), providing ~3.25 dp breathing room padding per side.
+- **Sideways & Orientation**:
+  - Activity remains portrait-locked; UI responds to rotation angles (0°, 90°, 270°) by fading content, rotating icon glyphs, and reflowing drawer layouts smoothly.
+- **Single Activity Architecture**:
+  - `MainActivity.kt` observes immutable state from `AppHub`; deterministic UI decisions are calculated in `ScreenModel.kt` and tested in `ScreenModelTest.kt`.

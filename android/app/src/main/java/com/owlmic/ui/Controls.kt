@@ -283,26 +283,3 @@ fun SquareButton(
         if (on) Icon(Glyph.CHECK, Theme.ink, null, Modifier.align(Alignment.TopEnd).padding(6.dp), size = 14.dp, stroke = 2.6f)
     }
 }
-
-/**
- * A small round button over the preview, icon only. [on] turns it light with a black icon, as a top tile is while its
- * drawer is open.
- */
-@Composable
-fun RoundButton(glyph: Glyph, label: String, modifier: Modifier = Modifier, on: Boolean = false, onClick: () -> Unit) {
-    val bg by animateColorAsState(if (on) Theme.ink else Theme.bg, tween(Theme.STATE_MS), label = "round")
-    val fg by animateColorAsState(if (on) Theme.onContent else Theme.ink, tween(Theme.STATE_MS), label = "roundIcon")
-    val onText = stringResource(Copy.string.value_on)
-    Box(
-        modifier
-            .size(Tokens.Phone.ROUND_BUTTON_DP.dp)
-            .clip(CircleShape)
-            .background(bg)
-            .border(1.dp, Theme.stripEdge, CircleShape)
-            .semantics { if (on) stateDescription = onText }
-            .clickable(role = Role.Button, onClickLabel = label, onClick = onClick),
-        contentAlignment = Alignment.Center,
-    ) {
-        Icon(glyph, fg, label, size = 20.dp, stroke = 2f)
-    }
-}
