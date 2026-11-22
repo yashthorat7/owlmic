@@ -106,8 +106,6 @@ def check_rust(fix: bool = False, verbose: bool = False) -> bool:
     print(" [2/3] Rust Workspace (desktop/)")
     desktop_dir = ROOT / "desktop"
     if not desktop_dir.exists():
-        desktop_dir = ROOT / "pc"
-    if not desktop_dir.exists():
         print_row("• Workspace Check", "SKIP", "desktop/ directory not found", indent=7)
         return True
 

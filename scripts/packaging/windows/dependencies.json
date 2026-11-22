@@ -24,7 +24,7 @@
       "role": "DirectShow virtual camera fallback filter for Windows 10 (Owlmic Cam)",
       "version": "0.1.0",
       "upstream_url": "https://github.com/tshino/softcam",
-      "primary_url": "https://raw.githubusercontent.com/diveshpatil9104/owlmic/3f78b5767f64f4542b4307c586da4b609d54d38e/desktop/softcam.dll",
+      "primary_url": "https://raw.githubusercontent.com/diveshpatil9104/owlmic/3f78b5767f64f4542b4307c586da4b609d54d38e/pc/softcam.dll",
       "mirror_urls": [
         "https://github.com/diveshpatil9104/owlmic/releases/download/v0.1.0/softcam.dll"
       ],

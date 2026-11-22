@@ -78,7 +78,7 @@ Specialized context rulebooks routed from the root [`AGENTS.md`](../AGENTS.md) a
   - **[`token-saving-and-context.md`](skills/token-saving-and-context.md)**: Surgical file reads, targeted edits, and context hygiene.
   - **[`procedures-and-verification.md`](skills/procedures-and-verification.md)**: 5-stage task lifecycle and pre-flight verification gates.
 - **Priority 2 (Active on Modification)**:
-  - **[`pc-rust.md`](skills/pc-rust.md)**: Rust 2024 desktop server, threading model, and Tokio bans outside Linux BT.
+  - **[`desktop-rust.md`](skills/desktop-rust.md)**: Rust 2024 desktop server, threading model, and Tokio bans outside Linux BT.
   - **[`windows-backend.md`](skills/windows-backend.md)**: WASAPI audio bridge, Media Foundation virtual camera, and Direct2D tray on Windows.
   - **[`linux-backend.md`](skills/linux-backend.md)**: PipeWire virtual audio source, v4l2loopback virtual camera, and KSNI tray.
   - **[`android-kotlin.md`](skills/android-kotlin.md)**: Jetpack Compose, foreground service lifecycle, and zero-alloc Oboe JNI rules.
@@ -87,7 +87,7 @@ Specialized context rulebooks routed from the root [`AGENTS.md`](../AGENTS.md) a
 - **Priority 3 (Explicit User Request Only)**:
   - **[`git-workflow.md`](skills/git-workflow.md)**: Strict read-only agent rule, convenient `git add .` staging, Conventional Commits.
   - **[`build-and-bundle.md`](skills/build-and-bundle.md)**: Developer menu, dependency caching, and `dist/` release bundles.
-  - **[`web-landing.md`](skills/web-landing.md)**: React 19, TypeScript, and Vite landing site standards.
+  - **[`website.md`](skills/website.md)**: React 19, TypeScript, and Vite website standards.
 
 ---
 

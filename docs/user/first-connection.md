@@ -53,7 +53,7 @@ If your PC and phone are connected via a USB cable:
    - Owlmic detects the tethering network interface immediately and connects without wireless encryption overhead.
 2. **USB Debugging (ADB)**:
    - Enable **Developer options** and **USB debugging** on your phone.
-   - When connected via USB cable, the Owlmic PC app automatically executes `adb reverse tcp:7653 tcp:7653`.
+   - When connected via USB cable, the Owlmic desktop app automatically executes `adb reverse tcp:7653 tcp:7653`.
    - Your phone connects over the lightning-fast USB bridge with ultra-low latency (<10 ms).
 
 ---
