@@ -364,9 +364,23 @@ impl AppHub {
                     Which::Camera => (MediaFeature::Camera, self.state.features.camera),
                     Which::Speaker => (MediaFeature::Speaker, self.state.features.speaker),
                 };
+                let next_on = now != FeatureState::On;
+                let next_state = if next_on {
+                    FeatureState::On
+                } else {
+                    FeatureState::Off
+                };
+                match which {
+                    Which::Mic => self.state.features.mic = next_state,
+                    Which::Camera => self.state.features.camera = next_state,
+                    Which::Speaker => self.state.features.speaker = next_state,
+                }
+                self.w
+                    .link
+                    .send(LinkMsg::Send(Message::State(self.state.features)));
                 self.w.media.send(MediaMsg::Pause {
                     feature,
-                    paused: now == FeatureState::On,
+                    paused: !next_on,
                 });
             }
             Action::Cycle(id) => {
@@ -376,6 +390,7 @@ impl AppHub {
                     .values
                     .get(id)
                     .cloned()
+                    .or_else(|| owlmic_settings::find(id).map(|d| d.default.to_string()))
                     .unwrap_or_default();
                 if let Some(value) = next_value(id, &current) {
                     self.w.settings.send(SettingsMsg::Set {

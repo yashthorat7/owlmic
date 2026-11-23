@@ -1,4 +1,4 @@
-//! The camera tile's preview (SYSTEM_DESIGN section 33.1): what Owlmic Cam sends, at 10 frames a
+//! The camera tile's preview (SYSTEM_DESIGN section 33.1): what Owlmic Cam sends, at 30 frames a
 //! second, only while the panel is open. The video thread fills it; the panel reads it.
 
 use std::sync::Mutex;
@@ -6,7 +6,7 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 
 pub const WIDTH: usize = crate::panel::CAMERA_WIDTH_PX as usize;
 pub const HEIGHT: usize = crate::panel::CAMERA_HEIGHT_PX as usize;
-pub const EVERY_MS: u64 = 100;
+pub const EVERY_MS: u64 = 33;
 
 pub struct Preview {
     wanted: AtomicBool,

@@ -41,6 +41,10 @@ fn is_general(id: &str) -> bool {
     id.starts_with("general.")
 }
 
+fn is_link(id: &str) -> bool {
+    id.starts_with("link.")
+}
+
 pub struct SettingsHub {
     store: Arc<Store>,
     phone: Option<String>,
@@ -58,7 +62,7 @@ impl SettingsHub {
         let general = hub.store.read(|d| d.general.clone());
         let values = crate::SETTINGS
             .iter()
-            .filter(|d| is_general(d.id))
+            .filter(|d| is_general(d.id) || is_link(d.id))
             .map(|d| (d.id.to_owned(), book::value(&general, d.id).to_owned()));
         (hub.emit)(SettingsEvent::Apply(values.collect()));
         hub.publish();
@@ -77,7 +81,13 @@ impl SettingsHub {
         let values = crate::SETTINGS
             .iter()
             .map(|d| {
-                let from = if is_general(d.id) { &general } else { &pairing };
+                let from = if is_general(d.id)
+                    || (is_link(d.id) && (self.phone.is_none() || !pairing.contains_key(d.id)))
+                {
+                    &general
+                } else {
+                    &pairing
+                };
                 (d.id.to_owned(), book::value(from, d.id).to_owned())
             })
             .collect();
@@ -97,10 +107,18 @@ impl Hub for SettingsHub {
                 self.phone = phone;
                 if self.phone.is_some() {
                     let pairing = self.pairing();
+                    let general = self.store.read(|d| d.general.clone());
                     let values = crate::SETTINGS
                         .iter()
                         .filter(|d| !is_general(d.id))
-                        .map(|d| (d.id.to_owned(), book::value(&pairing, d.id).to_owned()));
+                        .map(|d| {
+                            let from = if is_link(d.id) && !pairing.contains_key(d.id) {
+                                &general
+                            } else {
+                                &pairing
+                            };
+                            (d.id.to_owned(), book::value(from, d.id).to_owned())
+                        });
                     (self.emit)(SettingsEvent::Apply(values.collect()));
                 }
             }
@@ -119,12 +137,16 @@ impl Hub for SettingsHub {
             }
             SettingsMsg::Set { id, value } => {
                 let general = is_general(&id);
+                let link = is_link(&id);
                 let phone = self.phone.clone();
-                if !general && phone.is_none() {
+                if !general && !link && phone.is_none() {
                     return;
                 }
                 let change = self.store.update(|d| {
-                    let target = if general {
+                    if link {
+                        book::set_local(&mut d.general, &id, &value);
+                    }
+                    let target = if general || (link && phone.is_none()) {
                         &mut d.general
                     } else {
                         d.pairings.entry(phone.unwrap_or_default()).or_default()
@@ -133,7 +155,9 @@ impl Hub for SettingsHub {
                 });
                 let Some(change) = change else { return };
                 (self.emit)(SettingsEvent::Apply(vec![(id.clone(), value)]));
-                if crate::find(&id).is_some_and(|d| d.scope == crate::Scope::Shared) {
+                if crate::find(&id).is_some_and(|d| d.scope == crate::Scope::Shared)
+                    && self.phone.is_some()
+                {
                     (self.emit)(SettingsEvent::ToPhone(vec![change]));
                 }
             }
@@ -243,6 +267,18 @@ mod tests {
             applied(&events),
             vec![("camera.lens".into(), "back".into())]
         );
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn link_settings_toggle_without_phone() {
+        let (mut h, events, dir) = hub();
+        events.lock().unwrap().clear();
+        h.handle(SettingsMsg::Set {
+            id: "link.wifi".into(),
+            value: "off".into(),
+        });
+        assert!(applied(&events).contains(&("link.wifi".into(), "off".into())));
         let _ = std::fs::remove_dir_all(dir);
     }
 }

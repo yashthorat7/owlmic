@@ -11,8 +11,8 @@ use controls::GATE_OFF;
 use crate::audio::dsp::{AudioDsp, Processing};
 use resample::{JitterStats, Playout};
 use ring::SampleRing;
-use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, AtomicI32, AtomicU32, AtomicUsize, Ordering};
+use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
 /// The mic's jitter buffer. The receive thread pushes and the output device's thread pops; each
@@ -34,6 +34,7 @@ pub struct JitterBuffer {
     /// Output side.
     playout: Mutex<Playout>,
     output_rate: AtomicU32,
+    meter_level: Arc<AtomicU32>,
 }
 
 impl JitterBuffer {
@@ -51,6 +52,7 @@ impl JitterBuffer {
             stats: Mutex::new(JitterStats::new()),
             playout: Mutex::new(Playout::new()),
             output_rate: AtomicU32::new(SAMPLE_RATE),
+            meter_level: Arc::new(AtomicU32::new(0)),
         }
     }
 
@@ -93,10 +95,34 @@ impl JitterBuffer {
         if samples.is_empty() {
             return;
         }
+        let mut sum = 0.0f64;
+        for &s in samples.iter() {
+            let sf = s as f64;
+            sum += sf * sf;
+        }
+        let rms = (sum / samples.len() as f64).sqrt();
+        let target = if rms <= 0.0 {
+            0.0f32
+        } else {
+            let db = 20.0 * (rms / 32768.0).log10();
+            ((db + 60.0) / 48.0).clamp(0.0, 1.0) as f32
+        };
+        let prev = f32::from_bits(self.meter_level.load(Ordering::Relaxed));
+        let next = if target > prev {
+            prev + (target - prev) * 0.6
+        } else {
+            prev * 0.8 + target * 0.2
+        };
+        self.meter_level.store(next.to_bits(), Ordering::Relaxed);
+
         if let Ok(mut dsp) = self.dsp.lock() {
             dsp.process(samples, self.processing());
         }
         self.ring.push(samples);
+    }
+
+    pub fn meter(&self) -> Arc<AtomicU32> {
+        self.meter_level.clone()
     }
 
     /// Receive side: drops what is queued; the output starts over at its next callback.

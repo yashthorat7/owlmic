@@ -44,9 +44,10 @@ Once paired, Owlmic operates transparently. This guide covers daily controls, sw
 ## 3. PC Tray Flyout & Controls
 
 Click the **Owl icon** in your Windows taskbar system tray:
-- **Phone Status Tile**: Shows the connected phone model (e.g., "Pixel 8"), active transport (e.g., "USB debugging" or "Wi-Fi"), and battery/signal health.
-- **Mic Tile**: Displays whether Owlmic Mic is currently in use by any Windows application (Discord, Teams, Zoom). Allows one-click muting from the PC.
-- **Camera Tile & Live Preview**: Displays a smooth 10 FPS low-latency thumbnail of what Owlmic Cam is currently capturing and broadcasting to Windows apps.
+- **Bidirectional Controls (Hive Mind)**: Toggling the **Camera**, **Mic**, or **Speaker** button on your PC companion immediately toggles the hardware capture, streaming, and UI tiles on your Android phone, and vice versa. Neither device gets out of sync.
+- **Microphone Waveform Dock**: Displays a live, dynamic audio waveform that responds in real time to your voice level. Clicking the waveform opens the quick audio controls (voice isolation, speech normalization, noise reduction slider, and volume).
+- **Camera Live Preview**: Displays a smooth 30 FPS low-latency preview of your video feed with resolution, framerate, and aspect ratio controls.
+- **Connection Drawer**: Tap the connection button in the bottom dock to review your PC's IP, active phone link, toggle supported transports (USB debugging, tethering, Wi-Fi, Bluetooth) online or offline, and refresh nearby devices. Tap any bottom feature button to close the drawer.
 - **Speaker Tile**: Toggle PC audio redirection. When enabled, Owlmic captures Windows system audio and streams it to your phone.
   - *Quiet PC Speakers option*: When enabled, Owlmic automatically mutes your PC's desktop speakers while streaming audio to your phone.
 
