@@ -6,6 +6,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [Unreleased]
+
+### Added
+- **Bidirectional Feature Sync (Hive Mind)**:
+  - Synchronized feature toggling (`STATE` `0x20`) across Android and PC companion; activating or pausing mic, camera, or speaker on either device updates the other in real time.
+- **Audio DSP & Live Waveform Metering**:
+  - Real-time RMS audio metering in `owlmic-media` published via lock-free atomic meter to the PC UI, driving live audio waveforms matching user speech levels.
+- **Connection Drawer & Transport Controls**:
+  - Support for offline transport configuration: USB, tethering, Wi-Fi, and Bluetooth links can be toggled without requiring an active phone session, persisting locally and synchronizing on connect.
+  - Interactive 420 ms spinning feedback on the PC refresh button.
+  - Contextual connection indicator subtitles (`ind.label`) replacing duplicate host IP text.
+  - Safe paired device retention guards preventing accidental primary phone removal.
+
+### Fixed
+- **Camera Pipeline Stutter & Freezing**:
+  - Resolved H.264 slice reassembly frame dropping issue on multi-slice NAL boundaries in `owlmic-devices`, eliminating video freezing.
+  - Improved PC live video preview cadence to a smooth 30 FPS.
+
+---
+
 ## [0.1.0] - 2026-10-04
 
 ### Added

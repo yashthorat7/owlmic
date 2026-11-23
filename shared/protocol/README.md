@@ -153,7 +153,8 @@ A sender announces each stream with STREAM_START before its first packet.
 
 - The mic's STREAM_START may add `"noiseSuppressor": false` when the phone has no noise suppressor of its own; the PC then adds its own when the setting asks for noise reduction on the phone.
 - The PC asks for a keyframe with KEYFRAME_REQUEST.
-- **Pausing:** either side may send STATE with a feature set to `paused`. The phone pauses that feature and answers with the same STATE, and reports `on` again when the user resumes it.
+- **State Synchronization (Hive Mind):** `STATE` (`0x20`) is bidirectional. Either side may send `STATE` with a feature set to `off`, `on`, or `paused`. Toggling a feature on the phone or PC companion immediately synchronizes capture, hardware rendering, and button states across both devices.
+- **Settings Synchronization:** `SETTINGS` (`0x21`) synchronizes versioned configuration pairs across peers (`changes: [{id, value, version}]`). Shared settings include audio DSP controls, camera format choices, and transport toggles (`link.usbDebugging`, `link.usbTethering`, `link.wifi`, `link.bluetooth`). Transport toggles configured on PC while offline are stored locally and synchronized upon session activation.
 
 ## 7. Versions
 

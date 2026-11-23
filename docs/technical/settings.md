@@ -24,13 +24,13 @@ All setting keys, allowable value enums, scopes, and target UI visibility rules 
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | `mic.noiseReduction` | `0` to `10` | `5` | shared | phone, pc | Noise reduction strength: 0 is off; 1 to 4 PC only and gentle; 5 the phone's suppressor; 6 to 10 adds the PC's denoiser and a noise gate that wants more above the room at each level ([media.md](media.md)) |
 | `mic.volume` | `-12`, `-9`, `-6`, `-3`, `0`, `3`, `6`, `9`, `12` | `0` | shared | phone, pc | Volume in dB, applied on the PC after the normalization |
-| `mic.isolation` | `on`, `off` | `on` | shared | phone | Keeps the Speaker's sound out of the mic: Android's echo canceller in communication mode, with the phone's own echo suppressor behind it |
+| `mic.isolation` | `on`, `off` | `on` | shared | phone, pc | Keeps the Speaker's sound out of the mic: Android's echo canceller in communication mode, with the phone's own echo suppressor behind it |
 | `mic.autoLevel` | `on`, `off` | `on` | shared | phone, pc | The PC's speech normalization (AGC): the voice at one loudness from near or far |
 | `camera.lens` | `back`, `front` | `front` | shared | phone, pc | Active camera lens |
-| `camera.quality` | `auto`, `720p`, `1080p` | `auto` | shared | phone, pc | Video streaming resolution |
+| `camera.quality` | `auto`, `480p`, `720p`, `1080p` | `auto` | shared | phone, pc | Video streaming resolution |
 | `camera.frameRate` | `24`, `30`, `60` | `24` | shared | phone, pc | Video capture frame rate |
 | `camera.orientation` | `auto`, `landscape`, `portrait` | `auto` | shared | phone | Camera sensor orientation lock |
-| `camera.ratio` | `full`, `16:9`, `4:3`, `1:1`, `9:16` | `full` | shared | phone | Shape of the picture the PC receives: the sensor's whole frame, or a crop the user picks |
+| `camera.ratio` | `full`, `16:9`, `4:3`, `1:1`, `3:4`, `9:16` | `full` | shared | phone, pc | Shape of the picture the PC receives: the sensor's whole frame, or a crop the user picks |
 | `camera.mirrorPreview` | `off`, `on` | `on` | phone | phone | Mirrors the phone's own preview only, never what the PC receives |
 | `camera.framing` | `fill`, `fit` | `fit` | pc | pc | How the PC's 16:9 virtual camera shows a picture of another shape: `fit` (the default) shows all of it with bars, `fill` crops it |
 | `camera.mirror` | `off`, `on` | `off` | pc | pc | Horizontal video mirroring |
@@ -64,6 +64,10 @@ Shared settings synchronize via `SETTINGS` (`0x21`) control messages:
 - When a `SETTINGS` frame is received, the receiver compares incoming versions against its current state.
 - **Higher Version Wins**: The newer version replaces the existing value.
 - **Tie Breaker**: If versions are identical, the PC's setting value takes precedence to ensure determinism.
+
+### Offline & Transport Link Configuration
+- Transport links (`link.usbDebugging`, `link.usbTethering`, `link.wifi`, `link.bluetooth`) can be toggled on the PC companion at any time, even before a phone connects.
+- While offline, transport settings persist to the PC's general settings (`d.general`). Upon phone connection, active transport preferences automatically synchronize to the phone pairing book and link monitors.
 
 ---
 

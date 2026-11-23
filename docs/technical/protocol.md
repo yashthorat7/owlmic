@@ -43,14 +43,18 @@ Control messages are framed as:
 | `0x10` | **PING** | Both | `t` (microsecond clock) | Latency tracking |
 | `0x11` | **PONG** | Both | `t` (echoed microsecond clock) | Latency response |
 | `0x12` | **REPORT** | Both | `lossPct`, `jitterMs`, `rttMs`, `kbps`, optional `thermal` | Network and hardware metrics |
-| `0x20` | **STATE** | Both | `mic`, `camera`, `speaker`: `"off"`, `"on"`, or `"paused"` | Hardware streaming states |
-| `0x21` | **SETTINGS** | Both | `changes`: `[{"id", "value", "version"}]` | Versioned settings synchronization |
+| `0x20` | **STATE** | Both | `mic`, `camera`, `speaker`: `"off"`, `"on"`, or `"paused"` | Bidirectional streaming states (hive mind) |
+| `0x21` | **SETTINGS** | Both | `changes`: `[{"id", "value", "version"}]` | Versioned settings and transport synchronization |
 | `0x22` | **STREAM_START** | Both | `stream`, `codec`, parameters (`sampleRate`, `channels`, `width`, `height`, `fps`) | Announces incoming media stream |
 | `0x23` | **STREAM_STOP** | Both | `stream` | Halts media stream |
 | `0x24` | **KEYFRAME_REQ**| PC → Phone | `{}` | Requests immediate H.264 IDR keyframe |
 | `0x25` | **RESTART_STREAM**| Both | `stream` | Requests clean decoder restart |
 | `0x30` | **SWITCH** | PC → Phone | `link` | Commands session traffic migration to target link |
 | `0x3F` | **BYE** | Both | optional `reason` | Graceful disconnection |
+
+### Bidirectional State & Settings Synchronization (Hive Mind)
+- **Feature Controls**: Either peer may toggle or pause features (`mic`, `camera`, `speaker`). Emitting `STATE` immediately synchronizes active capture, decoder/player pipelines, and UI buttons across both devices without latency or state divergence.
+- **Configuration & Transports**: Shared settings (`mic.*`, `camera.*`, `link.*`) synchronize via `SETTINGS` (`0x21`). Transport toggles on PC operate offline or online; when a session connects, active choices reconcile deterministically.
 
 ---
 

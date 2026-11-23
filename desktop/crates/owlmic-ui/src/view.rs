@@ -184,6 +184,86 @@ impl PanelState {
         self.value(id)
     }
 
+    /// Normalizes both `"on"`/`"off"` (store) and `"true"`/`"false"` boolean strings.
+    pub fn is_on(&self, id: &str, default: bool) -> bool {
+        match self.value(id) {
+            "on" | "true" | "1" => true,
+            "off" | "false" | "0" => false,
+            _ => default,
+        }
+    }
+
+    /// Normalizes `"1080p"`/`"FHD"`, `"720p"`/`"HD"`, `"480p"` to prototype labels.
+    pub fn camera_quality_label(&self) -> &'static str {
+        match self.value("camera.quality") {
+            "720p" | "HD" => "HD",
+            "480p" => "480p",
+            _ => "FHD",
+        }
+    }
+
+    pub fn camera_fps_label(&self) -> &'static str {
+        match self.value("camera.frameRate") {
+            "60" => "60",
+            "24" => "24",
+            _ => "30",
+        }
+    }
+
+    pub fn camera_ratio_label(&self) -> &'static str {
+        match self.value("camera.ratio") {
+            "16:9" => "16:9",
+            "4:3" => "4:3",
+            "1:1" => "1:1",
+            "3:4" => "3:4",
+            "9:16" => "9:16",
+            _ => "Auto",
+        }
+    }
+
+    pub fn mic_nr_value(&self) -> f32 {
+        self.value("mic.noiseReduction")
+            .parse::<f32>()
+            .unwrap_or(5.0)
+            .clamp(0.0, 10.0)
+    }
+
+    pub fn mic_volume_db(&self) -> i32 {
+        let v = self.value("mic.volume");
+        if let Ok(n) = v.parse::<f32>() {
+            if (-12.0..=12.0).contains(&n) {
+                return n.round() as i32;
+            }
+            return ((n / 100.0 * 24.0) - 12.0).round() as i32;
+        }
+        0
+    }
+
+    pub fn mic_volume_percent(&self) -> f32 {
+        let v = self.value("mic.volume");
+        if let Ok(n) = v.parse::<f32>() {
+            if n > 12.0 {
+                return n.clamp(0.0, 100.0);
+            }
+            return (((n.clamp(-12.0, 12.0) + 12.0) / 24.0) * 100.0).clamp(0.0, 100.0);
+        }
+        50.0
+    }
+
+    pub fn host_ip(&self) -> String {
+        if let Some(addr) = self.addresses.first()
+            && !addr.is_empty()
+        {
+            return addr.clone();
+        }
+        let host = if self.hostname.is_empty() {
+            "127.0.0.1"
+        } else {
+            &self.hostname
+        };
+        format!("{host}:7653")
+    }
+
     pub fn is_blocked(&self) -> bool {
         let id = self.active_phone_id().or_else(|| self.first_paired_id());
         id.and_then(|id| self.phones.iter().find(|p| p.id == id).map(|p| p.blocked))
@@ -213,8 +293,9 @@ impl PanelState {
             }
             crate::layout::Drawer::Help(h) => Screen::DrawerHelp(h),
             crate::layout::Drawer::None => Screen::Main {
-                cam_on: self.camera == Feature::On && self.connected(),
-                mic_on: self.mic == Feature::On && self.connected(),
+                cam_on: matches!(self.camera, Feature::On | Feature::Restarting)
+                    && self.connected(),
+                mic_on: matches!(self.mic, Feature::On | Feature::Restarting) && self.connected(),
                 cam_menu,
                 quick_audio,
             },
@@ -228,6 +309,20 @@ impl PanelState {
             | Connection::Reconnecting { phone, .. } => Some(phone),
             _ => None,
         }
+    }
+
+    pub fn primary_phone_name(&self) -> &str {
+        self.phone_name()
+            .or_else(|| self.phones.first().map(|p| p.name.as_str()))
+            .unwrap_or("No phone")
+    }
+
+    /// Secondary paired phone (never duplicating the device already shown in the primary row).
+    pub fn secondary_phone(&self) -> Option<&PhoneEntry> {
+        let primary_id = self.active_phone_id().or_else(|| self.first_paired_id());
+        self.phones
+            .iter()
+            .find(|p| primary_id.as_deref() != Some(p.id.as_str()))
     }
 
     pub fn connected(&self) -> bool {
@@ -307,7 +402,7 @@ impl PanelState {
         self.phones.first().map(|p| p.id.clone())
     }
 
-    /// The link a settings row opens, which the panel opens itself.
+    /// The link a Help tile opens directly.
     pub fn link_at(&self, target: Target) -> Option<Link> {
         match target {
             Target::HelpRate => Some(Link::Rate),
@@ -319,40 +414,60 @@ impl PanelState {
 
     /// What a click does.
     pub fn click(&self, target: Target) -> Option<Action> {
-        let feature = |which, state: Feature| {
-            (state != Feature::Off && self.connected()).then_some(Action::Pause(which))
-        };
+        let feature = |which| self.connected().then_some(Action::Pause(which));
         let pairing = |id| self.paired.then_some(Action::Cycle(id));
         match target {
-            Target::Camera => feature(Which::Camera, self.camera),
-            Target::Mic => feature(Which::Mic, self.mic),
-            Target::Speaker => feature(Which::Speaker, self.speaker),
-            Target::Quality(q) => Some(Action::Set("camera.quality", q.to_string())),
+            Target::Camera => feature(Which::Camera),
+            Target::Mic => feature(Which::Mic),
+            Target::Speaker => feature(Which::Speaker),
+            Target::Quality(q) => {
+                let val = match q {
+                    "FHD" | "1080p" => "1080p",
+                    "HD" | "720p" => "720p",
+                    _ => "480p",
+                };
+                Some(Action::Set("camera.quality", val.to_string()))
+            }
             Target::Fps(f) => Some(Action::Set("camera.frameRate", f.to_string())),
-            Target::Ratio(r) => Some(Action::Set("camera.ratio", r.to_string())),
+            Target::Ratio(r) => {
+                let val = match r {
+                    "Auto" => "full",
+                    other => other,
+                };
+                Some(Action::Set("camera.ratio", val.to_string()))
+            }
             Target::Mirror => pairing("camera.mirror"),
             Target::Flip => pairing("camera.lens"),
             Target::ToggleIso => Some(Action::Cycle("mic.isolation")),
             Target::ToggleNorm => Some(Action::Cycle("mic.autoLevel")),
             Target::NrFader(val) => Some(Action::Set(
                 "mic.noiseReduction",
-                (val.round() as i32).to_string(),
+                (val.round() as i32).clamp(0, 10).to_string(),
             )),
             Target::VolFader(val) => {
-                Some(Action::Set("mic.volume", (val.round() as i32).to_string()))
+                const VOL_STEPS: &[&str] = &["-12", "-9", "-6", "-3", "0", "3", "6", "9", "12"];
+                let idx = ((val / 100.0 * 8.0).round() as usize).min(8);
+                Some(Action::Set("mic.volume", VOL_STEPS[idx].to_string()))
             }
             Target::Pair => Some(Action::Allow),
             Target::Decline => Some(Action::Deny),
             Target::Disconnect => Some(Action::Disconnect),
             Target::Block => {
-                let id = self.active_phone_id()?;
+                let id = self.active_phone_id().or_else(|| self.first_paired_id())?;
                 Some(Action::BlockPhone(id, true))
             }
             Target::Unblock => {
-                let id = self.active_phone_id()?;
+                let id = self.active_phone_id().or_else(|| self.first_paired_id())?;
                 Some(Action::BlockPhone(id, false))
             }
-            Target::RemovePaired | Target::Forget => {
+            Target::RemovePaired => {
+                let id = self
+                    .secondary_phone()
+                    .map(|p| p.id.clone())
+                    .or_else(|| self.first_paired_id())?;
+                Some(Action::RemovePhone(id))
+            }
+            Target::Forget => {
                 let id = self.active_phone_id().or_else(|| self.first_paired_id())?;
                 Some(Action::RemovePhone(id))
             }
@@ -536,9 +651,11 @@ mod tests {
             paired: true,
             settings: [
                 ("camera.framing", "fill"),
-                ("mic.volume", "6"),
-                ("mic.noiseReduction", "0"),
+                ("mic.volume", "80"),
+                ("mic.noiseReduction", "5"),
                 ("mic.autoLevel", "on"),
+                ("camera.mirror", "off"),
+                ("camera.quality", "1080p"),
                 ("general.startWithWindows", "on"),
             ]
             .into_iter()
@@ -547,6 +664,18 @@ mod tests {
             version: "1.0.0".into(),
             ..PanelState::default()
         }
+    }
+
+    #[test]
+    fn setting_normalization_handles_on_off_and_labels() {
+        let s = connected();
+        assert!(s.is_on("mic.autoLevel", false));
+        assert!(!s.is_on("camera.mirror", true));
+        assert_eq!(s.camera_quality_label(), "FHD");
+        assert_eq!(s.camera_fps_label(), "30");
+        assert_eq!(s.camera_ratio_label(), "Auto");
+        assert_eq!(s.mic_nr_value(), 5.0);
+        assert_eq!(s.mic_volume_percent(), 80.0);
     }
 
     #[test]
@@ -576,27 +705,31 @@ mod tests {
     }
 
     #[test]
-    fn tiles_pause_only_what_the_phone_turned_on() {
+    fn buttons_toggle_when_connected() {
         let mut s = connected();
-        assert_eq!(s.click(Target::Mic), None);
+        assert_eq!(s.click(Target::Mic), Some(Action::Pause(Which::Mic)));
         s.mic = Feature::On;
         assert_eq!(s.click(Target::Mic), Some(Action::Pause(Which::Mic)));
-        assert_eq!(
-            s.click(Target::Camera),
-            None,
-            "the phone hasn't turned it on"
-        );
+        assert_eq!(s.click(Target::Camera), Some(Action::Pause(Which::Camera)));
         s.camera = Feature::On;
         assert_eq!(s.click(Target::Camera), Some(Action::Pause(Which::Camera)));
-        s.camera = Feature::Paused;
         assert_eq!(
-            s.click(Target::Camera),
-            Some(Action::Pause(Which::Camera)),
-            "and resumes it"
+            s.click(Target::Speaker),
+            Some(Action::Pause(Which::Speaker))
+        );
+        s.speaker = Feature::On;
+        assert_eq!(
+            s.click(Target::Speaker),
+            Some(Action::Pause(Which::Speaker))
         );
         assert_eq!(s.click(Target::Flip), Some(Action::Cycle("camera.lens")));
         s.paired = false;
         assert_eq!(s.click(Target::Flip), None);
+
+        let not_conn = PanelState::default();
+        assert_eq!(not_conn.click(Target::Mic), None);
+        assert_eq!(not_conn.click(Target::Camera), None);
+        assert_eq!(not_conn.click(Target::Speaker), None);
     }
 
     #[test]

@@ -169,6 +169,7 @@ pub fn run(open: bool) {
     let a = app.clone();
     let me = devices.clone();
     let win11 = owlmic_vcam::register::is_windows_11();
+    let meter = jitter.meter();
     let d = (store.clone(), jitter, speaker, video, preview.clone());
     spawn_supervised(
         "devices",
@@ -202,6 +203,7 @@ pub fn run(open: bool) {
     let ui = Ui {
         state: panel,
         preview,
+        meter,
         on_action: Box::new(move |action| a.send(AppMsg::Ui(action))),
     };
     let _ = owlmic_ui::win::run(&waker, ui, open);

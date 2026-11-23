@@ -142,7 +142,7 @@ class VideoEncoder(
 
     private companion object {
         const val MIME = MediaFormat.MIMETYPE_VIDEO_AVC
-        const val KEYFRAME_EVERY_S = 2
+        const val KEYFRAME_EVERY_S = 1
         const val REPEAT_AFTER_US = 100_000L
 
         /** True when the access unit opens with a sequence parameter set (NAL type 7) after its start code. */

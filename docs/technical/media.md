@@ -62,6 +62,7 @@ This document describes the capture, encoding, transmission, jitter compensation
   - **Speech Normalization (AGC)** (`mic.autoLevel`, on by default): brings speech to -20 dBFS RMS from anywhere between about -50 and 0 dBFS (-20 to +30 dB), so how far someone sits from the phone doesn't show. Only speech frames move it: a speech level that follows louder syllables quickly and quieter ones slowly sets the gain, which comes down fast and goes up gently, settling well under a second. Between words the gain holds, so the room never swells up in the pauses. The gain ramps across each frame (no zipper noise), and a frame whose peak would pass 29000 is turned down from its first sample.
   - **Volume** (`mic.volume`, -12 to +12 dB in 3 dB steps, 0 by default): a gain on top of the normalization, smoothed with it, so it works whether Auto level is on or off.
   - **Soft-Knee Limiter**: above 28000 peaks round off before full scale, so neither the normalization nor the volume clips. With every stage off the audio passes untouched.
+  - **Live RMS Audio Metering (`pipeline/mod.rs`)**: Computes real-time frame RMS level and writes normalized (0–100) volume to a shared atomic meter (`Arc<AtomicU32>`), driving the dynamic audio waveform visualization in the PC UI without allocation or lock contention.
 
 ---
 
@@ -110,7 +111,8 @@ This document describes the capture, encoding, transmission, jitter compensation
 - **Reassembly Engine (`reassembly.rs`)**:
   - Collects slices into full frames based on `frame_id`, `fragment_index`, and `fragment_count`.
   - If a fragment is lost, the entire frame is dropped and LinkHub throttles a `KEYFRAME_REQUEST` back to the phone (max once every 500 ms).
-- **Backpressure & Drop Policy**: Queue depth is strictly 1 (`KEEP_ONLY_LATEST`). Intermediate frames are dropped immediately if the decoder falls behind.
+- **Backpressure & Drop Policy**: Queue depth is strictly 1 (`KEEP_ONLY_LATEST`). Intermediate frames are dropped immediately if the decoder falls behind. Multi-slice frames are preserved until the slice sequence completes to prevent partial decoding corruption or 1-frame-per-few-seconds freezes.
+- **Preview Cadence (`preview.rs`)**: Feeds the Win32 GDI preview at a stable 30 FPS (33 ms) update cadence while the virtual camera pipeline processes at full capture rate (up to 60 FPS).
 - **Visible Aperture Decoding (`decoder.rs`)**: Decodes H.264 into NV12 buffers, clipping to `MF_MT_MINIMUM_DISPLAY_APERTURE` visible width to eliminate 16-byte macroblock stride skew and preserve exact aspect ratio.
 - **Shared Memory Ring (`shared.rs`)**:
   - Writes decoded NV12 frames to a lock-free, atomic shared memory ring buffer.

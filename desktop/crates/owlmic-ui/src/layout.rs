@@ -74,7 +74,7 @@ pub const CAM_FLIP_BTN: Rect = Rect::new(277.0, 10.0, 25.0, 25.0);
 pub fn cam_option_rect(row: usize, col: usize) -> Rect {
     let w = CAM_EXPAND_MENU.w / 3.0;
     let h = 25.0;
-    let y = CAM_EXPAND_MENU.y + 28.0 + row as f32 * h;
+    let y = CAM_EXPAND_MENU.y + 1.0 + row as f32 * h;
     let x = CAM_EXPAND_MENU.x + col as f32 * w;
     Rect::new(x, y, w, h)
 }
@@ -88,9 +88,9 @@ pub const WAVE_DOCK_CENTERED: Rect = Rect::new(
 );
 pub const WAVE_DOCK_DOCKED: Rect = Rect::new(
     (WIDTH - 204.0) / 2.0,
-    PLAYGROUND.bottom() - 12.0 - 22.0,
+    PLAYGROUND.bottom() - 12.0 - 36.0,
     204.0,
-    22.0,
+    36.0,
 );
 
 // Audio Quick Panel Controls
@@ -103,22 +103,23 @@ pub const AUDIO_SLIDER_NR: Rect = Rect::new(14.0, AUDIO_QUICK_PANEL.y + 72.0, WI
 pub const AUDIO_SLIDER_VOL: Rect = Rect::new(14.0, AUDIO_QUICK_PANEL.y + 116.0, WIDTH - 28.0, 18.0);
 
 // Connection Drawer Controls
-pub const CONN_COPY_IP_BTN: Rect = Rect::new(WIDTH - 14.0 - 28.0, 12.0, 28.0, 28.0);
-pub const CONN_PRIMARY_ROW: Rect = Rect::new(0.0, 50.0, WIDTH, 52.0);
-pub const CONN_DISCONNECT_BTN: Rect = Rect::new(WIDTH - 14.0 - 45.0 - 28.0, 62.0, 28.0, 28.0);
-pub const CONN_BLOCK_BTN: Rect = Rect::new(WIDTH - 14.0 - 40.0, 62.0, 40.0, 28.0);
-pub const CONN_PAIR_BTN: Rect = Rect::new(WIDTH - 14.0 - 28.0 - 6.0 - 28.0, 62.0, 28.0, 28.0);
-pub const CONN_DECLINE_BTN: Rect = Rect::new(WIDTH - 14.0 - 28.0, 62.0, 28.0, 28.0);
-pub const CONN_UNBLOCK_BTN: Rect = Rect::new(WIDTH - 14.0 - 55.0, 62.0, 55.0, 28.0);
-pub const CONN_FORGET_BTN: Rect = Rect::new(WIDTH - 14.0 - 55.0, 62.0, 55.0, 28.0);
-pub const CONN_PAIRED_ROW: Rect = Rect::new(0.0, 104.0, WIDTH, 50.0);
-pub const CONN_REMOVE_PAIRED_BTN: Rect = Rect::new(WIDTH - 14.0 - 55.0, 115.0, 55.0, 28.0);
-pub const CONN_FOOTER: Rect = Rect::new(0.0, PLAYGROUND.bottom() - 44.0, WIDTH, 44.0);
-pub const CONN_REFRESH_BTN: Rect = Rect::new(8.0, CONN_FOOTER.y + 4.0, 36.0, 36.0);
+pub const CONN_COPY_IP_BTN: Rect = Rect::new(WIDTH - 14.0 - 28.0, 13.0, 28.0, 28.0);
+pub const CONN_PRIMARY_ROW: Rect = Rect::new(0.0, 54.0, WIDTH, 60.0);
+pub const CONN_DISCONNECT_BTN: Rect =
+    Rect::new(WIDTH - 14.0 - 40.0 - 10.0 - 28.0, 70.0, 28.0, 28.0);
+pub const CONN_BLOCK_BTN: Rect = Rect::new(WIDTH - 14.0 - 40.0, 70.0, 40.0, 28.0);
+pub const CONN_PAIR_BTN: Rect = Rect::new(WIDTH - 14.0 - 28.0 - 10.0 - 28.0, 70.0, 28.0, 28.0);
+pub const CONN_DECLINE_BTN: Rect = Rect::new(WIDTH - 14.0 - 28.0, 70.0, 28.0, 28.0);
+pub const CONN_UNBLOCK_BTN: Rect = Rect::new(WIDTH - 14.0 - 55.0, 70.0, 55.0, 28.0);
+pub const CONN_FORGET_BTN: Rect = Rect::new(WIDTH - 14.0 - 45.0, 70.0, 45.0, 28.0);
+pub const CONN_PAIRED_ROW: Rect = Rect::new(0.0, 114.0, WIDTH, 60.0);
+pub const CONN_REMOVE_PAIRED_BTN: Rect = Rect::new(WIDTH - 14.0 - 50.0, 130.0, 50.0, 28.0);
+pub const CONN_FOOTER: Rect = Rect::new(0.0, PLAYGROUND.bottom() - 52.0, WIDTH, 52.0);
+pub const CONN_REFRESH_BTN: Rect = Rect::new(8.0, CONN_FOOTER.y + 8.0, 53.0, 36.0);
 
 pub fn conn_transport_btn(i: usize) -> Rect {
-    let x = 52.0 + i as f32 * 62.0;
-    Rect::new(x, CONN_FOOTER.y + 4.0, 56.0, 36.0)
+    let x = 67.0 + i as f32 * 59.0;
+    Rect::new(x, CONN_FOOTER.y + 8.0, 53.0, 36.0)
 }
 
 // Help Drawer Bento Grid
@@ -141,6 +142,92 @@ pub fn help_bento_tile(i: usize) -> Rect {
 
 pub const HELP_BACK_BTN: Rect = Rect::new(10.0, 8.0, 28.0, 28.0);
 
+pub const TILE_RADIUS: f32 = 12.0;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CropMode {
+    None,
+    Pillar,
+    Letter,
+}
+
+pub fn cam_crop_rect(ratio: &str) -> (Rect, CropMode) {
+    let target_ar = match ratio {
+        "16:9" => 16.0 / 9.0,
+        "4:3" => 4.0 / 3.0,
+        "1:1" => 1.0,
+        "3:4" => 3.0 / 4.0,
+        "9:16" => 9.0 / 16.0,
+        _ => 0.0,
+    };
+    let lw = PLAYGROUND.w;
+    let lh = PLAYGROUND.h;
+    if target_ar <= 0.0 || (lw / lh - target_ar).abs() < 0.01 {
+        return (PLAYGROUND, CropMode::None);
+    }
+    if lw / lh > target_ar {
+        let w = (lh * target_ar).round();
+        let x = PLAYGROUND.x + ((lw - w) / 2.0).round();
+        (Rect::new(x, PLAYGROUND.y, w, lh), CropMode::Pillar)
+    } else {
+        let h = (lw / target_ar).round();
+        let y = PLAYGROUND.y + ((lh - h) / 2.0).round();
+        (Rect::new(PLAYGROUND.x, y, lw, h), CropMode::Letter)
+    }
+}
+
+pub const WAVE_DOCK_LIFTED: Rect = Rect::new((WIDTH - 248.0) / 2.0, 38.0, 248.0, 68.0);
+pub const WAVE_DOCK_EXPANDED: Rect = Rect::new(13.0, 101.0, 286.0, 198.0);
+pub const WAVE_DOCK_EXPANDED_SETTINGS: Rect = Rect::new(13.0, 101.0, 286.0, 164.0);
+pub const WAVE_DOCK_EXPANDED_HEADER: Rect = Rect::new(13.0, 265.0, 286.0, 34.0);
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct AudioControls {
+    pub iso_label: Rect,
+    pub iso_switch: Rect,
+    pub norm_label: Rect,
+    pub norm_switch: Rect,
+    pub nr_label: Rect,
+    pub nr_value: Rect,
+    pub nr_fader: Rect,
+    pub vol_label: Rect,
+    pub vol_value: Rect,
+    pub vol_fader: Rect,
+}
+
+pub fn audio_controls(panel: Rect) -> AudioControls {
+    AudioControls {
+        iso_label: Rect::new(panel.x + 14.0, panel.y + 12.0, panel.w - 28.0 - 40.0, 18.0),
+        iso_switch: Rect::new(panel.right() - 14.0 - 34.0, panel.y + 12.0, 34.0, 18.0),
+        norm_label: Rect::new(panel.x + 14.0, panel.y + 38.0, panel.w - 28.0 - 40.0, 18.0),
+        norm_switch: Rect::new(panel.right() - 14.0 - 34.0, panel.y + 38.0, 34.0, 18.0),
+        nr_label: Rect::new(panel.x + 14.0, panel.y + 64.0, panel.w - 28.0 - 40.0, 16.0),
+        nr_value: Rect::new(panel.right() - 14.0 - 40.0, panel.y + 64.0, 40.0, 16.0),
+        nr_fader: Rect::new(panel.x + 14.0, panel.y + 82.0, panel.w - 28.0, 20.0),
+        vol_label: Rect::new(panel.x + 14.0, panel.y + 108.0, panel.w - 28.0 - 40.0, 16.0),
+        vol_value: Rect::new(panel.right() - 14.0 - 40.0, panel.y + 108.0, 40.0, 16.0),
+        vol_fader: Rect::new(panel.x + 14.0, panel.y + 126.0, panel.w - 28.0, 20.0),
+    }
+}
+
+pub fn active_audio_panel(cam_active: bool) -> Rect {
+    if cam_active {
+        WAVE_DOCK_EXPANDED_SETTINGS
+    } else {
+        AUDIO_QUICK_PANEL
+    }
+}
+
+pub const CONN_HEADER: Rect = Rect::new(0.0, 0.0, WIDTH, 54.0);
+pub const CONN_FOOTER_DIVIDER_X: f32 = 64.0;
+pub const HELP_HEADER: Rect = Rect::new(0.0, 0.0, WIDTH, 44.0);
+
+pub fn help_credit_row(idx: usize) -> Rect {
+    let row_h = 38.0;
+    let y = HELP_HEADER.bottom() + 6.0 + idx as f32 * row_h;
+    Rect::new(0.0, y, WIDTH, row_h)
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum HelpScreen {
     #[default]
@@ -160,6 +247,7 @@ pub enum Drawer {
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Target {
+    CamCanvas,
     // Bottom 5 bento navigation buttons
     Wifi,
     Camera,
@@ -201,6 +289,8 @@ pub enum Target {
     HelpGitHub,
     HelpDonate,
     HelpCredits,
+    HelpReleases,
+    HelpCredit(usize),
     HelpBack,
 }
 
@@ -288,11 +378,7 @@ pub fn hit(screen: Screen, x: f32, y: f32) -> Option<Target> {
                         return Some(Target::Forget);
                     }
                 }
-                WifiMode::Offline => {
-                    if CONN_BLOCK_BTN.contains(x, y) {
-                        return Some(Target::Block);
-                    }
-                }
+                WifiMode::Offline => {}
             }
             if CONN_REMOVE_PAIRED_BTN.contains(x, y) {
                 return Some(Target::RemovePaired);
@@ -323,6 +409,28 @@ pub fn hit(screen: Screen, x: f32, y: f32) -> Option<Target> {
                         }
                     }
                 }
+                HelpScreen::Credits => {
+                    if HELP_BACK_BTN.contains(x, y) {
+                        return Some(Target::HelpBack);
+                    }
+                    for i in 0..5 {
+                        if help_credit_row(i).contains(x, y) {
+                            return Some(Target::HelpCredit(i));
+                        }
+                    }
+                    if help_credit_row(5).contains(x, y) {
+                        return Some(Target::HelpGitHub);
+                    }
+                }
+                HelpScreen::HowTo => {
+                    if HELP_BACK_BTN.contains(x, y) {
+                        return Some(Target::HelpBack);
+                    }
+                    let rel_rect = Rect::new(50.0, 56.0, 200.0, 22.0);
+                    if rel_rect.contains(x, y) {
+                        return Some(Target::HelpReleases);
+                    }
+                }
                 _ => {
                     if HELP_BACK_BTN.contains(x, y) {
                         return Some(Target::HelpBack);
@@ -339,9 +447,10 @@ pub fn hit(screen: Screen, x: f32, y: f32) -> Option<Target> {
         } => {
             if cam_on {
                 if cam_menu {
-                    let res_opts = ["1080p", "720p", "480p"];
+                    let res_opts = ["FHD", "HD", "480p"];
                     let fps_opts = ["60", "30", "24"];
-                    let ratio_opts = ["16:9", "4:3", "1:1"];
+                    let row2 = ["Auto", "16:9", "4:3"];
+                    let row3 = ["1:1", "3:4", "9:16"];
 
                     for (c, &opt) in res_opts.iter().enumerate() {
                         if cam_option_rect(0, c).contains(x, y) {
@@ -353,8 +462,13 @@ pub fn hit(screen: Screen, x: f32, y: f32) -> Option<Target> {
                             return Some(Target::Fps(opt));
                         }
                     }
-                    for (c, &opt) in ratio_opts.iter().enumerate() {
+                    for (c, &opt) in row2.iter().enumerate() {
                         if cam_option_rect(2, c).contains(x, y) {
+                            return Some(Target::Ratio(opt));
+                        }
+                    }
+                    for (c, &opt) in row3.iter().enumerate() {
+                        if cam_option_rect(3, c).contains(x, y) {
                             return Some(Target::Ratio(opt));
                         }
                     }
@@ -371,27 +485,57 @@ pub fn hit(screen: Screen, x: f32, y: f32) -> Option<Target> {
                 if CAM_FLIP_BTN.contains(x, y) {
                     return Some(Target::Flip);
                 }
-                if mic_on && WAVE_DOCK_DOCKED.contains(x, y) {
+                if mic_on && quick_audio {
+                    let ac = audio_controls(WAVE_DOCK_EXPANDED_SETTINGS);
+                    if ac.iso_switch.contains(x, y) || ac.iso_label.contains(x, y) {
+                        return Some(Target::ToggleIso);
+                    }
+                    if ac.norm_switch.contains(x, y) || ac.norm_label.contains(x, y) {
+                        return Some(Target::ToggleNorm);
+                    }
+                    if ac.nr_fader.contains(x, y) {
+                        let ratio = ((x - ac.nr_fader.x) / ac.nr_fader.w).clamp(0.0, 1.0);
+                        return Some(Target::NrFader(ratio * 10.0));
+                    }
+                    if ac.vol_fader.contains(x, y) {
+                        let ratio = ((x - ac.vol_fader.x) / ac.vol_fader.w).clamp(0.0, 1.0);
+                        return Some(Target::VolFader(ratio * 100.0));
+                    }
+                    if WAVE_DOCK_EXPANDED_HEADER.contains(x, y) {
+                        return Some(Target::WaveDock);
+                    }
+                    if WAVE_DOCK_EXPANDED.contains(x, y) {
+                        return None;
+                    }
+                } else if mic_on && WAVE_DOCK_DOCKED.contains(x, y) {
                     return Some(Target::WaveDock);
+                }
+                if PLAYGROUND.contains(x, y) {
+                    return Some(Target::CamCanvas);
                 }
             } else if mic_on {
                 if quick_audio {
-                    if AUDIO_SWITCH_ISO.contains(x, y) {
+                    let ac = audio_controls(AUDIO_QUICK_PANEL);
+                    if ac.iso_switch.contains(x, y) || ac.iso_label.contains(x, y) {
                         return Some(Target::ToggleIso);
                     }
-                    if AUDIO_SWITCH_NORM.contains(x, y) {
+                    if ac.norm_switch.contains(x, y) || ac.norm_label.contains(x, y) {
                         return Some(Target::ToggleNorm);
                     }
-                    if AUDIO_SLIDER_NR.contains(x, y) {
-                        let ratio = ((x - AUDIO_SLIDER_NR.x) / AUDIO_SLIDER_NR.w).clamp(0.0, 1.0);
+                    if ac.nr_fader.contains(x, y) {
+                        let ratio = ((x - ac.nr_fader.x) / ac.nr_fader.w).clamp(0.0, 1.0);
                         return Some(Target::NrFader(ratio * 10.0));
                     }
-                    if AUDIO_SLIDER_VOL.contains(x, y) {
-                        let ratio = ((x - AUDIO_SLIDER_VOL.x) / AUDIO_SLIDER_VOL.w).clamp(0.0, 1.0);
+                    if ac.vol_fader.contains(x, y) {
+                        let ratio = ((x - ac.vol_fader.x) / ac.vol_fader.w).clamp(0.0, 1.0);
                         return Some(Target::VolFader(ratio * 100.0));
                     }
+                    if AUDIO_QUICK_PANEL.contains(x, y) {
+                        return None;
+                    }
                 }
-                if WAVE_DOCK_CENTERED.contains(x, y) {
+                if WAVE_DOCK_CENTERED.contains(x, y) || (!quick_audio && PLAYGROUND.contains(x, y))
+                {
                     return Some(Target::WaveDock);
                 }
             }
@@ -411,10 +555,16 @@ pub fn place(
         work.0 + margin,
         (work.2 - size.0 - margin).max(work.0 + margin),
     );
-    let y = if anchor.1 < work.1 {
-        work.1 + margin
+    let y = if anchor.1 < work.1 || (anchor.3 - work.1) < (work.3 - anchor.1) {
+        (anchor.3 + margin).clamp(
+            work.1 + margin,
+            (work.3 - size.1 - margin).max(work.1 + margin),
+        )
     } else {
-        work.3 - size.1 - margin
+        (anchor.1 - size.1 - margin).clamp(
+            work.1 + margin,
+            (work.3 - size.1 - margin).max(work.1 + margin),
+        )
     };
     (x, y)
 }
@@ -433,6 +583,11 @@ mod tests {
         assert_eq!(
             place((100, 1050, 124, 1074), work, (312, 374), 12),
             (12, 654)
+        );
+        // Above Windows 11 tray overflow capsule (icon top at 940 px)
+        assert_eq!(
+            place((1800, 940, 1824, 964), work, (312, 374), 12),
+            (1596, 554)
         );
         let top = (0, 40, 1920, 1080);
         assert_eq!(place((1800, 8, 1824, 32), top, (312, 374), 12).1, 52);

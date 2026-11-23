@@ -324,6 +324,7 @@ impl Painter {
         unsafe { self.t().FillEllipse(&e, self.brush(rgb)) };
     }
 
+    #[allow(dead_code)]
     pub fn stroke_circle(&self, cx: f32, cy: f32, r: f32, rgb: u32, width: f32) {
         let s = self.scale;
         let e = D2D1_ELLIPSE {
@@ -368,6 +369,7 @@ impl Painter {
         }
     }
 
+    #[allow(dead_code)]
     pub fn fader(&self, r: Rect, progress: f32, rgb_fill: u32, rgb_track: u32) {
         let track_h = 7.0;
         let track_r = Rect::new(r.x, r.y + (r.h - track_h) / 2.0, r.w, track_h);
@@ -383,6 +385,7 @@ impl Painter {
         self.fill_rounded(cap_r, 1.25, 0xFFFFFF);
     }
 
+    #[allow(dead_code)]
     pub fn switch(&self, r: Rect, on: bool) {
         if on {
             self.fill_rounded(r, r.h / 2.0, 0xFFFFFF);
@@ -400,6 +403,7 @@ impl Painter {
         }
     }
 
+    #[allow(dead_code)]
     pub fn waveform_bars(&self, r: Rect, bars: usize, active: bool, anim_seed: u64) {
         if bars == 0 || r.w <= 0.0 {
             return;

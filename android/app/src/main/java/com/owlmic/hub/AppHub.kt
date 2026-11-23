@@ -502,31 +502,59 @@ class AppHub(private val app: Application, private val onState: (AppState) -> Un
     private fun control(m: com.owlmic.core.proto.Message) {
         when (m) {
             is State -> {
-                // The PC pauses and resumes what the phone turned on; it never turns anything on (section 17.4).
-                if (m.mic == FeatureState.PAUSED && state.mic.isOn) {
-                    micPausedByPc = true
-                    applyMicPause()
-                } else if (m.mic == FeatureState.ON && micPausedByPc) {
-                    micPausedByPc = false
-                    applyMicPause()
+                when (m.mic) {
+                    FeatureState.ON -> if (!state.mic.isOn) {
+                        if (micPausedByPc) {
+                            micPausedByPc = false
+                            applyMicPause()
+                        } else {
+                            setFeature(Feature.MIC, true)
+                        }
+                    }
+                    FeatureState.PAUSED -> if (state.mic.isOn && !micPausedByPc) {
+                        micPausedByPc = true
+                        applyMicPause()
+                    }
+                    FeatureState.OFF -> if (state.mic.isOn || state.mic.phase == FeaturePhase.PAUSED) {
+                        setFeature(Feature.MIC, false)
+                    }
                 }
-                if (m.camera == FeatureState.PAUSED && state.camera.isOn) {
-                    cameraPausedByPc = true
-                    media.post(MediaMsg.CameraPaused(true))
-                    set(Feature.CAMERA, FeatureView(FeaturePhase.PAUSED))
-                } else if (m.camera == FeatureState.ON && cameraPausedByPc) {
-                    cameraPausedByPc = false
-                    media.post(MediaMsg.CameraPaused(false))
-                    set(Feature.CAMERA, FeatureView(FeaturePhase.ON))
+                when (m.camera) {
+                    FeatureState.ON -> if (!state.camera.isOn) {
+                        if (cameraPausedByPc) {
+                            cameraPausedByPc = false
+                            media.post(MediaMsg.CameraPaused(false))
+                            set(Feature.CAMERA, FeatureView(FeaturePhase.ON))
+                        } else {
+                            setFeature(Feature.CAMERA, true)
+                        }
+                    }
+                    FeatureState.PAUSED -> if (state.camera.isOn && !cameraPausedByPc) {
+                        cameraPausedByPc = true
+                        media.post(MediaMsg.CameraPaused(true))
+                        set(Feature.CAMERA, FeatureView(FeaturePhase.PAUSED))
+                    }
+                    FeatureState.OFF -> if (state.camera.isOn || state.camera.phase == FeaturePhase.PAUSED) {
+                        setFeature(Feature.CAMERA, false)
+                    }
                 }
-                if (m.speaker == FeatureState.PAUSED && state.speaker.isOn) {
-                    speakerPausedByPc = true
-                    set(Feature.SPEAKER, FeatureView(FeaturePhase.PAUSED))
-                } else if (m.speaker == FeatureState.ON && speakerPausedByPc) {
-                    speakerPausedByPc = false
-                    set(Feature.SPEAKER, FeatureView(FeaturePhase.ON))
+                when (m.speaker) {
+                    FeatureState.ON -> if (!state.speaker.isOn) {
+                        if (speakerPausedByPc) {
+                            speakerPausedByPc = false
+                            set(Feature.SPEAKER, FeatureView(FeaturePhase.ON))
+                        } else {
+                            setFeature(Feature.SPEAKER, true)
+                        }
+                    }
+                    FeatureState.PAUSED -> if (state.speaker.isOn && !speakerPausedByPc) {
+                        speakerPausedByPc = true
+                        set(Feature.SPEAKER, FeatureView(FeaturePhase.PAUSED))
+                    }
+                    FeatureState.OFF -> if (state.speaker.isOn || state.speaker.phase == FeaturePhase.PAUSED) {
+                        setFeature(Feature.SPEAKER, false)
+                    }
                 }
-                // The PC hears back what the phone now does, "paused" included.
                 sendState()
             }
             is SettingsMessage -> settings.post(SettingsMsg.Remote(m.changes))
