@@ -1,0 +1,94 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 216" width="880" height="216" role="img" aria-label="Owlmic core architectural capabilities">
+  <defs>
+    <style>
+      .idx { font: 600 9px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; fill: #8E8E93; letter-spacing: 0.9px; }
+      .title { font: 600 13px ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; fill: #FFFFFF; }
+      .pill { fill: #141416; stroke: #262626; stroke-width: 1; }
+      .pill-txt { font: 600 10px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; fill: #E6E6E6; }
+      .sub { font: 400 10.5px ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; fill: #8E8E93; }
+      .dot { fill: #30D158; }
+    </style>
+  </defs>
+
+  <rect x="0.5" y="0.5" width="879" height="215" rx="12" fill="#000000" stroke="#262626" />
+
+  <!-- Tile 1: Native Runtime -->
+  <rect x="10" y="10" width="425" height="93" rx="8" fill="#0A0A0A" stroke="#262626" />
+  <text x="22" y="27" class="idx">01 / NATIVE HARDWARE · ZERO WEBVIEWS</text>
+  <circle cx="421" cy="24" r="2.5" class="dot" />
+  <text x="22" y="47" class="title">Win32 Direct2D &amp; Rust 2024 Companion</text>
+
+  <g transform="translate(22, 57)">
+    <rect x="0" y="0" width="84" height="20" rx="4" class="pill" />
+    <text x="42" y="14" text-anchor="middle" class="pill-txt">&lt; 15 ms launch</text>
+
+    <rect x="90" y="0" width="84" height="20" rx="4" class="pill" />
+    <text x="132" y="14" text-anchor="middle" class="pill-txt">&lt; 15 MB RAM</text>
+
+    <rect x="180" y="0" width="82" height="20" rx="4" class="pill" />
+    <text x="221" y="14" text-anchor="middle" class="pill-txt">&lt; 4 MB setup</text>
+
+    <rect x="268" y="0" width="132" height="20" rx="4" class="pill" />
+    <text x="334" y="14" text-anchor="middle" class="pill-txt">PipeWire · v4l2loopback</text>
+  </g>
+
+  <!-- Tile 2: Carrier Switching -->
+  <rect x="445" y="10" width="425" height="93" rx="8" fill="#0A0A0A" stroke="#262626" />
+  <text x="457" y="27" class="idx">02 / ZERO-DROP CARRIER LADDER</text>
+  <circle cx="856" cy="24" r="2.5" class="dot" />
+  <text x="457" y="47" class="title">Make-Before-Break &amp; 30s Session Hold</text>
+
+  <g transform="translate(457, 57)">
+    <rect x="0" y="0" width="96" height="20" rx="4" class="pill" />
+    <text x="48" y="14" text-anchor="middle" class="pill-txt">&lt; 10 ms USB ADB</text>
+
+    <rect x="102" y="0" width="88" height="20" rx="4" class="pill" />
+    <text x="146" y="14" text-anchor="middle" class="pill-txt">&lt; 15 ms Tether</text>
+
+    <rect x="196" y="0" width="84" height="20" rx="4" class="pill" />
+    <text x="238" y="14" text-anchor="middle" class="pill-txt">&lt; 25 ms Wi-Fi</text>
+
+    <rect x="286" y="0" width="114" height="20" rx="4" class="pill" />
+    <text x="343" y="14" text-anchor="middle" class="pill-txt">~45 ms BT Failover</text>
+  </g>
+
+  <!-- Tile 3: Audio DSP & Video -->
+  <rect x="10" y="113" width="425" height="93" rx="8" fill="#0A0A0A" stroke="#262626" />
+  <text x="22" y="130" class="idx">03 / BROADCAST AUDIO DSP &amp; VIDEO HAL</text>
+  <circle cx="421" cy="127" r="2.5" class="dot" />
+  <text x="22" y="150" class="title">48 kHz Oboe / AAudio &amp; Hardware MediaCodec</text>
+
+  <g transform="translate(22, 160)">
+    <rect x="0" y="0" width="86" height="20" rx="4" class="pill" />
+    <text x="43" y="14" text-anchor="middle" class="pill-txt">RNNoise AI Gate</text>
+
+    <rect x="92" y="0" width="82" height="20" rx="4" class="pill" />
+    <text x="133" y="14" text-anchor="middle" class="pill-txt">±0.2% Resampler</text>
+
+    <rect x="180" y="0" width="102" height="20" rx="4" class="pill" />
+    <text x="231" y="14" text-anchor="middle" class="pill-txt">10–30 ms Jitter Buf</text>
+
+    <rect x="288" y="0" width="112" height="20" rx="4" class="pill" />
+    <text x="344" y="14" text-anchor="middle" class="pill-txt">NV12 Atomic Ring</text>
+  </g>
+
+  <!-- Tile 4: Crypto & Local Trust -->
+  <rect x="445" y="113" width="425" height="93" rx="8" fill="#0A0A0A" stroke="#262626" />
+  <text x="457" y="130" class="idx">04 / LOCAL P2P &amp; VERIFIABLE SECURITY</text>
+  <circle cx="856" cy="127" r="2.5" class="dot" />
+  <text x="457" y="150" class="title">NIST P-256 ECDH &amp; AES-256-GCM Framing</text>
+
+  <g transform="translate(457, 160)">
+    <rect x="0" y="0" width="94" height="20" rx="4" class="pill" />
+    <text x="47" y="14" text-anchor="middle" class="pill-txt">4-Digit TOFU Code</text>
+
+    <rect x="100" y="0" width="92" height="20" rx="4" class="pill" />
+    <text x="146" y="14" text-anchor="middle" class="pill-txt">64-Pkt Replay Win</text>
+
+    <rect x="198" y="0" width="86" height="20" rx="4" class="pill" />
+    <text x="241" y="14" text-anchor="middle" class="pill-txt">HKDF-SHA256</text>
+
+    <rect x="290" y="0" width="110" height="20" rx="4" class="pill" />
+    <text x="345" y="14" text-anchor="middle" class="pill-txt">Zero Cloud Relay</text>
+  </g>
+</svg>

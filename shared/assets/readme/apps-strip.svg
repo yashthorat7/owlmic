@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 52" width="880" height="52" role="img" aria-label="Owlmic software and OS compatibility strip">
+  <defs>
+    <style>
+      .lbl { font: 600 8.5px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; fill: #8E8E93; letter-spacing: 0.8px; }
+      .app { font: 600 11px ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; fill: #E6E6E6; }
+      .os { font: 500 10.5px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; fill: #8E8E93; }
+      .dot { fill: #30D158; }
+      .pill { fill: #141416; stroke: #262626; stroke-width: 1; }
+    </style>
+  </defs>
+
+  <rect x="0.5" y="0.5" width="879" height="51" rx="8" fill="#0A0A0A" stroke="#262626" />
+
+  <!-- Label -->
+  <text x="18" y="30" class="lbl">COMPATIBILITY</text>
+  <line x1="110" y1="12" x2="110" y2="40" stroke="#262626" />
+
+  <!-- Apps -->
+  <g transform="translate(122, 14)">
+    <rect x="0" y="0" width="76" height="24" rx="5" class="pill" />
+    <circle cx="10" cy="12" r="2.5" class="dot" />
+    <text x="18" y="16" class="app">Discord</text>
+
+    <rect x="82" y="0" width="88" height="24" rx="5" class="pill" />
+    <circle cx="92" cy="12" r="2.5" class="dot" />
+    <text x="100" y="16" class="app">OBS Studio</text>
+
+    <rect x="176" y="0" width="62" height="24" rx="5" class="pill" />
+    <circle cx="186" cy="12" r="2.5" class="dot" />
+    <text x="194" y="16" class="app">Zoom</text>
+
+    <rect x="244" y="0" width="66" height="24" rx="5" class="pill" />
+    <circle cx="254" cy="12" r="2.5" class="dot" />
+    <text x="262" y="16" class="app">Teams</text>
+
+    <rect x="316" y="0" width="98" height="24" rx="5" class="pill" />
+    <circle cx="326" cy="12" r="2.5" class="dot" />
+    <text x="334" y="16" class="app">Google Meet</text>
+
+    <rect x="420" y="0" width="62" height="24" rx="5" class="pill" />
+    <circle cx="430" cy="12" r="2.5" class="dot" />
+    <text x="438" y="16" class="app">Skype</text>
+  </g>
+
+  <!-- OS Platform pill -->
+  <line x1="624" y1="12" x2="624" y2="40" stroke="#262626" />
+  <rect x="636" y="14" width="230" height="24" rx="5" class="pill" />
+  <text x="751" y="30" text-anchor="middle" class="os">Win 11/10 · Linux · Android 8+</text>
+</svg>

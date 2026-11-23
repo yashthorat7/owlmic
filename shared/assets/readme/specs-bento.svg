@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 92" width="880" height="92" role="img" aria-label="Owlmic technical specifications">
+  <defs>
+    <style>
+      .val { font: 600 19px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; fill: #FFFFFF; letter-spacing: -0.3px; }
+      .sub { font: 400 11.5px ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; fill: #8E8E93; }
+    </style>
+  </defs>
+
+  <rect x="0.5" y="0.5" width="879" height="91" rx="10" fill="#000000" stroke="#262626" />
+
+  <line x1="176" y1="1" x2="176" y2="91" stroke="#262626" />
+  <line x1="352" y1="1" x2="352" y2="91" stroke="#262626" />
+  <line x1="528" y1="1" x2="528" y2="91" stroke="#262626" />
+  <line x1="704" y1="1" x2="704" y2="91" stroke="#262626" />
+
+  <text x="24" y="42" class="val">&lt; 4 MB</text>
+  <text x="24" y="65" class="sub">Win32 installer</text>
+
+  <text x="200" y="42" class="val">&lt; 10 ms</text>
+  <text x="200" y="65" class="sub">USB audio latency</text>
+
+  <text x="376" y="42" class="val">&lt; 15 MB</text>
+  <text x="376" y="65" class="sub">Idle RAM · Rust</text>
+
+  <text x="552" y="42" class="val">1080p60</text>
+  <text x="552" y="65" class="sub">Native virtual cam</text>
+
+  <text x="728" y="42" class="val">Local P2P</text>
+  <text x="728" y="65" class="sub">P-256 · AES-GCM</text>
+</svg>
