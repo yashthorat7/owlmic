@@ -1,234 +1,167 @@
-# Owlmic
+<div align="center">
+  <br />
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="shared/assets/readme/wordmark-dark.svg" />
+    <source media="(prefers-color-scheme: light)" srcset="shared/assets/readme/wordmark-light.svg" />
+    <img src="shared/assets/readme/wordmark-dark.svg" alt="Owlmic" width="220" />
+  </picture>
 
-<p align="center">
-  <a href="https://github.com/diveshpatil9104/owlmic/releases"><img src="https://img.shields.io/github/v/release/diveshpatil9104/owlmic?style=for-the-badge&color=FFFFFF&label=Download%20v0.1.0" alt="Download"></a>
-  <a href="https://github.com/diveshpatil9104/owlmic/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/diveshpatil9104/owlmic/ci.yml?branch=main&style=for-the-badge&label=CI" alt="CI"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-green?style=for-the-badge" alt="License: MIT"></a>
-  <a href="https://github.com/diveshpatil9104/owlmic/discussions"><img src="https://img.shields.io/badge/Discussions-Join-blue?style=for-the-badge&logo=github" alt="Discussions"></a>
-  <a href="https://github.com/diveshpatil9104/owlmic/stargazers"><img src="https://img.shields.io/github/stars/diveshpatil9104/owlmic?style=for-the-badge&color=FFD60A&logo=github" alt="Stars"></a>
-  <a href="docs/README.md"><img src="https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20Android-informational?style=for-the-badge" alt="Platforms"></a>
-</p>
+  <br /><br />
 
-<p align="center"><strong>Fast. Lightweight. Real-time. Seamless.</strong><br>
-Your Android phone is your PC's studio-grade microphone, HD camera, and remote speaker across four automatic, prioritized connection levels.</p>
+  <p><strong>Your Android phone is your PC's studio microphone, 1080p60 webcam, and low-latency speaker.</strong></p>
 
----
+  <p>
+    <a href="https://github.com/diveshpatil9104/owlmic/releases">Download v0.1.0</a>
+    &nbsp;&middot;&nbsp;
+    <a href="https://owlmic.com">Website</a>
+    &nbsp;&middot;&nbsp;
+    <a href="docs/README.md">Documentation</a>
+    &nbsp;&middot;&nbsp;
+    <a href="docs/technical/protocol.md">Protocol v3</a>
+    &nbsp;&middot;&nbsp;
+    <a href="https://github.com/diveshpatil9104/owlmic/discussions">Discussions</a>
+  </p>
+</div>
 
-## Overview
+<br />
 
-Owlmic turns your Android smartphone into your Windows or Linux PC's studio-grade **microphone**, low-latency HD **webcam**, and remote **speaker**. Video conferencing and streaming software (Discord, Zoom, Microsoft Teams, OBS Studio, Google Meet, Skype) detect **Owlmic Mic** and **Owlmic Cam** as standard native system hardware.
+<div align="center">
+  <img src="shared/assets/readme/specs-bento.svg" alt="Owlmic Specs: Sub-4MB Installer, Sub-10ms Latency, Sub-15MB RAM, 1080p60 Native VCam, Local P2P" width="100%" />
+</div>
 
-```
-       ┌────────────────────────────────────────────────────────┐
-       │                 ANDROID CLIENT APP                     │
-       │  Jetpack Compose UI (OLED Black) ──► AppHub            │
-       │  OwlmicService (Foreground Service)                    │
-       │   ├─ SettingsHub (Versioned store)                     │
-       │   ├─ MediaHub (AAudio capture, CameraX, H.264, Audio)  │
-       │   └─ LinkHub (Transporter: ADB, Tether, Wi-Fi, BT)     │
-       └───────────────────────────┬────────────────────────────┘
-                                   │
-  4 Connection Levels:             │ Level 1: USB Debugging (TCP :7653 via adb reverse)
-                                   │ Level 2: USB Tethering (TCP :7653 + UDP :7655)
-                                   │ Level 3: Wi-Fi LAN (TCP :7653 + UDP :7655, AES-GCM)
-                                   │ Level 4: Bluetooth RFCOMM (Serial Port Profile)
-                                   ▼
-       ┌────────────────────────────────────────────────────────┐
-       │               PC SERVER (WINDOWS & LINUX)              │
-       │  Win32 Native Tray / Linux KSNI Tray ──► AppHub        │
-       │  Supervised Thread Hubs (Rust):                        │
-       │   ├─ LinkHub (Listeners, Discovery responder, Probes)  │
-       │   ├─ SessionHub (TOFU trust, P-256 ECDH, Sessions)     │
-       │   ├─ MediaHub (Jitter buffer, H.264 reassembly, NV12)  │
-       │   ├─ DeviceHub (WASAPI / PipeWire / V4L2 virtual cams) │
-       │   └─ SettingsHub (owlmic.json versioned store)         │
-       └────────────────────────────────────────────────────────┘
-```
+<br />
+
+<div align="center">
+  <img src="shared/assets/readme/hero-showcase.png" alt="Owlmic Android client and native Windows tray flyout streaming simultaneously" width="100%" />
+</div>
+
+<br />
+
+<div align="center">
+  <img src="shared/assets/readme/apps-strip.svg" alt="Owlmic Compatibility: Discord, OBS Studio, Zoom, Teams, Google Meet, Skype on Windows, Linux, and Android" width="100%" />
+</div>
+
+<br />
 
 ---
 
-## Key Features
+## Why Owlmic
 
-- 🎙️ **Owlmic Mic**: 48 kHz studio-quality audio capture with an adaptive jitter buffer, cubic drift resampling (±0.2%), and optional AI-based RNNoise suppression. Streamed uncompressed raw 16-bit PCM over USB cables and via Opus (48 kbps) with forward error correction (FEC) over wireless networks.
-- 📷 **Owlmic Cam**: Low-latency H.264 video up to 1080p60. GPU OpenGL texture processing handles orientation, crop/fill framing, and mirroring. Native Windows 11 Media Foundation virtual camera (`owlmic_vcam.dll`), Windows 10 DirectShow filter (`softcam.dll`), and Linux `v4l2loopback`.
-- 🔊 **Speaker Loopback**: Route PC audio back to your phone's speaker or connected Bluetooth headphones with optional "Quiet PC speakers" physical muting.
-- ⚡ **Zero-Configuration Transporter**: Connects in under 1 second. Automatically migrates between USB debugging, USB tethering, Wi-Fi, and Bluetooth without dropping active calls (make-before-break).
-- 🛡️ **Privacy & Trust (TOFU)**: Peer-to-peer only. Zero cloud servers, zero telemetry, zero accounts. Secured with NIST P-256 ECDH, 4-digit numeric verification codes, and AES-256-GCM authenticated encryption.
-- 🪶 **Ultra Lightweight**: Single 4 MB installer on Windows. Idle memory usage under 15 MB. Tray flyout opens natively in < 15 ms using Win32 GDI/Direct2D with zero webview overhead. Native Linux StatusNotifierItem (KSNI) tray. Pure OLED black (`#000000`) Jetpack Compose UI on Android.
+<div align="center">
+  <img src="shared/assets/readme/features-bento.svg" alt="Owlmic Core Capabilities Bento: Native Hardware, Zero-Drop Ladder, Audio DSP, and Local P2P" width="100%" />
+</div>
+
+<br />
+
+- **Native Hardware, Zero WebViews** &mdash; Rust 2024 engine across 13 crates using `std::thread` and bounded mailboxes. Win32 Direct2D flyout opens in `< 15 ms`, idles `< 15 MB` RAM, sub-4 MB installer. Native PipeWire, `v4l2loopback`, and KSNI on Linux.
+- **Zero-Drop Carrier Ladder** &mdash; Plug in USB mid-call and live audio/video migrates off Wi-Fi without dropping a sample (**Make-Before-Break**). 30-second **Session Hold** keeps virtual device handles alive during failover.
+- **Studio Audio DSP & Hardware Video** &mdash; 48 kHz C++ Oboe/AAudio, adaptive jitter buffer (10–30 ms), `±0.2%` cubic drift resampler, RNNoise AI suppression, and soft-knee limiter. OpenGL ES shader into hardware `MediaCodec` H.264 and atomic NV12 shared ring buffer.
+- **Strict Local P2P & Cryptographic Trust** &mdash; Zero cloud relays, zero accounts, zero telemetry. TOFU pairing via NIST P-256 ECDH, HKDF-SHA256, 4-digit safety code, and AES-256-GCM authenticated encryption.
 
 ---
 
-## The Four Connection Levels
+## Architecture & Transport Ladder
 
-| Priority | Level | Carrier | Latency | Media Format | Best For |
-| :---: | :--- | :--- | :--- | :--- | :--- |
-| **1** | **USB Debugging** | Direct USB via `adb reverse` | < 10 ms | Raw PCM & 1080p60 | Competitive gaming, studio podcasts, live streaming |
-| **2** | **USB Tethering** | Standard USB cable (RNDIS/NCM) | < 15 ms | Raw PCM & 1080p60 | Everyday high-speed wired connection |
-| **3** | **Wi-Fi** | Local Area Network / Hotspot | < 25 ms | Opus (48 kbps) & 1080p | Wireless freedom around your desk and room |
-| **4** | **Bluetooth** | RFCOMM Serial Profile | ~45 ms | Opus (24 kbps, audio only) | Failover when outside Wi-Fi coverage |
+<div align="center">
+  <img src="shared/assets/readme/architecture.svg" alt="Owlmic System Architecture: Android Client, 4-Level Wire Protocol v3 Transporter, Rust PC Server, and Native Virtual Devices" width="100%" />
+</div>
+
+<br />
+
+The phone is always the client (`OwlmicService`), and the PC is always the server listening on TCP `7653` (control + ADB media), UDP `7654` (discovery), and UDP `7655` (media datagrams).
+
+| Priority | Carrier | Latency | Audio / Video | Security | Best For |
+| :---: | :--- | :---: | :--- | :--- | :--- |
+| **1** | **USB Debugging** (`adb reverse`) | `< 10 ms` | 48 kHz PCM &middot; 1080p60 | P-256 Handshake | Streaming, studio recording, esports |
+| **2** | **USB Tethering** (RNDIS / NCM) | `< 15 ms` | 48 kHz PCM &middot; 1080p60 | P-256 Handshake | Everyday wired zero-config connection |
+| **3** | **Wi-Fi LAN / Hotspot** | `< 25 ms` | Opus 48 kbps + FEC &middot; 1080p60 | AES-256-GCM | Desk and room wireless mobility |
+| **4** | **Bluetooth RFCOMM** | `~45 ms` | Opus 24 kbps (audio only) | AES-256-GCM | Wireless audio failover |
+
+---
+
+## Technical Interface & Audio DSP
+
+<div align="center">
+  <img src="shared/assets/readme/ui-bento-showcase.png" alt="Owlmic camera format HUD, live audio DSP controls, and multi-transport connection drawer" width="100%" />
+</div>
+
+<br />
+
+Bidirectional control synchronizes format, lens, and audio DSP settings instantly over Protocol v3. If a Windows OS update ever disrupts virtual device registration, click **Repair** in the tray flyout for single-UAC automated recovery.
+
+---
+
+## Engineering Tech Stack
+
+<div align="center">
+  <img src="shared/assets/readme/tech-stack.svg" alt="Owlmic Engineering Tech Stack Bento Grid: Desktop Engine, Android Client, Media & DSP, Protocol & Security" width="100%" />
+</div>
+
+<br />
+
+| Subsystem | Stack | Architecture Highlights |
+| :--- | :--- | :--- |
+| **Desktop Core** | Rust 2024 (13 workspace crates) | Supervised `std::thread` hubs, bounded mailboxes, zero Tokio in core |
+| **Desktop UI** | Win32 Direct2D / GDI &middot; Linux KSNI | `< 15 ms` flyout launch, 1px hairline Bento layout, zero Electron/WebView |
+| **Virtual Hardware** | WASAPI &middot; Win11 MF (`owlmic_vcam.dll`) &middot; Win10 DS &middot; PipeWire &middot; `v4l2loopback` | Lock-free atomic NV12 shared ring buffer, `MFCreateVirtualCamera` |
+| **Android Client** | Kotlin &middot; Jetpack Compose &middot; C++ JNI | Pure `#000000` OLED UI, zero-alloc Oboe/AAudio capture, CameraX + OpenGL ES |
+| **Media & DSP** | `libopus` &middot; `nnnoiseless` (RNNoise) &middot; Hardware `MediaCodec` | Adaptive jitter buffer, `±0.2%` cubic drift resampler, `KEEP_ONLY_LATEST` video |
+| **Protocol & Trust** | Wire Protocol v3 &middot; NIST P-256 &middot; HKDF-SHA256 &middot; AES-256-GCM | Canonical JSON + binary framing verified by shared cross-platform vectors |
 
 ---
 
 ## Quick Start
 
-### 1. Install Owlmic
-- **Windows**: Download and run [`Owlmic-Setup-0.1.0.exe`](https://github.com/diveshpatil9104/owlmic/releases) (or compile with `python scripts/menu.py build windows`). Owlmic runs silently in the system notification tray.
-- **Linux**: Extract the release tarball, install the user service (`systemctl --user enable --now owlmic.service`), or run `owlmic` directly. See the [Linux Installation Guide](docs/user/install-linux.md).
-- **Android**: Install the APK from [GitHub Releases](https://github.com/diveshpatil9104/owlmic/releases) or compile with `python scripts/menu.py build android`.
+1. **Install**
+   - **Windows 10 / 11:** Run [`Owlmic-Setup-0.1.0.exe`](https://github.com/diveshpatil9104/owlmic/releases) (silent notification tray companion).
+   - **Linux:** Extract tarball from [Releases](https://github.com/diveshpatil9104/owlmic/releases) and enable `systemctl --user enable --now owlmic.service`. See [`install-linux.md`](docs/user/install-linux.md).
+   - **Android (8.0+):** Install the APK from [Releases](https://github.com/diveshpatil9104/owlmic/releases).
 
-### 2. Connect Your Phone
-- **USB Cable (Fastest, Recommended)**:
-  - Plug your phone into your PC with a standard USB cable.
-  - Enable **USB Tethering** (instant zero-config IP link) or **USB Debugging** (automatic `adb reverse`).
-- **Wi-Fi (Wireless Freedom)**:
-  - Connect your PC and phone to the same Wi-Fi router (or phone mobile hotspot).
+2. **Connect**
+   - Plug USB cable (**USB Tethering** or **USB Debugging** for `< 15 ms` uncompressed audio), or connect to the same Wi-Fi.
 
-### 3. Pair & Stream (TOFU Security)
-1. Open **Owlmic** on your Android phone. It discovers your PC within 1–2 seconds.
-2. Confirm the 4-digit pairing safety code displayed on your phone and PC desktop flyout.
-3. Click **Allow** on your PC. Both devices are now cryptographically paired; future reconnects are instant.
-4. Select **Owlmic Mic** as your microphone and **Owlmic Cam** as your camera in Discord, Zoom, Teams, Google Meet, or OBS Studio!
+3. **Pair & Select Hardware**
+   - Open Owlmic on Android. Confirm the 4-digit code on PC and tap **Allow**.
+   - Select **Owlmic Mic** and **Owlmic Cam** in Discord, OBS, Zoom, Teams, or Meet.
 
 ---
 
-## Unified Developer & Release Menu
+## Build from Source
 
-All builds, test suites, invariant checks, dependency audits, and release packaging are unified under `scripts/menu.py` (zero external dependencies, standard library Python 3):
+All desktop, Android, invariant, and packaging workflows run through standard library Python 3 (`scripts/menu.py`):
 
 ```bash
-# Launch interactive developer & release menu:
+git clone --recurse-submodules https://github.com/diveshpatil9104/owlmic.git
+cd owlmic
+
+# Interactive dashboard
 python scripts/menu.py
 
-# Non-interactive CLI automation:
-python scripts/menu.py build [release|all|desktop|android|windows|linux]
-python scripts/menu.py check [--fix]
-python scripts/menu.py verify
-python scripts/menu.py deps [--check|--fetch]
-python scripts/menu.py clean
-python scripts/menu.py hooks
+# Direct CLI targets
+python scripts/menu.py build windows   # -> dist/windows/Owlmic-Setup-0.1.0.exe
+python scripts/menu.py build linux     # -> dist/linux/Owlmic-v0.1.0-linux-x86_64.tar.gz
+python scripts/menu.py build android   # -> dist/android/Owlmic-v0.1.0.apk
+python scripts/menu.py check           # Invariants + rustfmt/clippy/test + Android lint
 ```
 
-| Command | Purpose | Output / Target |
-| :--- | :--- | :--- |
-| `python scripts/menu.py` | Full interactive terminal dashboard | Interactive selection |
-| `python scripts/menu.py build release` | Build full release bundle (all platforms) | `dist/release/` |
-| `python scripts/menu.py build android` | Compile Android release client APK | `dist/android/Owlmic-v0.1.0.apk` |
-| `python scripts/menu.py build windows` | Windows installer & portable binaries | `dist/windows/Owlmic-Setup-0.1.0.exe` |
-| `python scripts/menu.py build linux` | Linux standalone tarball & systemd unit | `dist/linux/Owlmic-v0.1.0-linux-x86_64.tar.gz` |
-| `python scripts/menu.py check [--fix]` | Full pre-flight verification gate | Invariants + Rust + Android lint/tests |
-| `python scripts/menu.py verify` | Repository invariants check | Casing, binary ban, JSON, tokio, versions |
-| `python scripts/menu.py deps [--check\|--fetch]` | Audit or prefetch packaging dependencies | Driver cache (`VB-CABLE`, `softcam.dll`) |
-| `python scripts/menu.py clean` | Clean build artifacts | Reset `dist/` |
-| `python scripts/menu.py hooks` | Activate repository git hooks | `core.hooksPath` -> `scripts/hooks` |
-
-Build outputs are saved to `dist/android/`, `dist/windows/`, and `dist/linux/`. Packaging dependencies (`VB-CABLE` audio driver and `softcam.dll` virtual camera fallback) are tracked in `scripts/packaging/windows/dependencies.json`, verified via SHA-256, and cached locally for offline and reproducible builds.
+Packaging dependencies (`VB-CABLE` and `softcam.dll`) are SHA-256 pinned in `scripts/packaging/windows/dependencies.json` for reproducible builds. Full prerequisites are in [`docs/technical/building.md`](docs/technical/building.md).
 
 ---
 
 ## Documentation
 
-Comprehensive guides, specifications, and architecture manuals are located in [`docs/`](docs/README.md):
+| End Users | Technical Specifications |
+| :--- | :--- |
+| [Install on Windows](docs/user/install-windows.md) &middot; [Linux](docs/user/install-linux.md) &middot; [Android](docs/user/install-android.md) | [System Architecture](docs/technical/architecture.md) &middot; [Transporter](docs/technical/transporter.md) |
+| [First Connection & TOFU Pairing](docs/user/first-connection.md) | [Wire Protocol v3](docs/technical/protocol.md) &middot; [Security & Crypto](docs/technical/security.md) |
+| [Connection Levels & Switching](docs/user/connection-levels.md) | [Audio & Video Media Pipelines](docs/technical/media.md) |
+| [Everyday Use](docs/user/everyday-use.md) &middot; [Troubleshooting](docs/user/troubleshooting.md) | [Virtual Devices](docs/technical/virtual-devices.md) &middot; [Design Language](docs/technical/design-language.md) |
 
-### User Guides
-- [Installing on Windows](docs/user/install-windows.md) — Windows 10/11 installation and driver setup
-- [Installing on Linux](docs/user/install-linux.md) — PipeWire virtual source, v4l2loopback camera, systemd service
-- [Installing on Android](docs/user/install-android.md) — APK installation, permissions, battery optimization
-- [First Connection & Pairing](docs/user/first-connection.md) — 4-digit safety code confirmation, TOFU trust
-- [Everyday Use](docs/user/everyday-use.md) — Mic, camera, and speaker toggles, video quality, tray panel
-- [Connection Levels & Switching](docs/user/connection-levels.md) — USB, Wi-Fi, Bluetooth ladder and make-before-break
-- [Troubleshooting & Repair](docs/user/troubleshooting.md) — Firewall, drivers, connection drops, one-click repair
-- [Privacy & Security](docs/user/privacy.md) — Local peer-to-peer guarantees, zero telemetry, on-device crypto
-- [Uninstalling](docs/user/uninstall.md) — Clean driver and endpoint removal
-
-### Technical Reference
-- [System Architecture](docs/technical/architecture.md) — Topology, role invariant, Hub & Mailbox threading model
-- [The Transporter & Networking](docs/technical/transporter.md) — UDP beacons, link priority ladder, carrier migration
-- [Wire Protocol v3 Specification](docs/technical/protocol.md) — Binary framing, JSON control packets, media datagrams
-- [Audio & Video Media Pipelines](docs/technical/media.md) — AAudio, Opus, jitter buffer, cubic resampler, H.264 NV12
-- [Virtual Devices & Platform Integration](docs/technical/virtual-devices.md) — WASAPI bridge, Media Foundation, DirectShow, repair engine
-- [Settings & State Synchronization](docs/technical/settings.md) — Versioned store (`owlmic.json`), bidirectional sync
-- [Security & Cryptography](docs/technical/security.md) — NIST P-256 ECDH, HKDF-SHA256, AES-256-GCM authenticated encryption
-- [Design Language & UI System](docs/technical/design-language.md) — OLED pure black tokens, Win32 flyout, Jetpack Compose
-- [Building from Source](docs/technical/building.md) — Build steps for Windows, Linux, Android, and Website
-- [Release Process & Versioning](docs/technical/releasing.md) — Milestones, lockstep versions, artifact signing, checksums
-
-### Modular Domain Skills Catalog
-Specialized engineering context rulebooks in [`docs/skills/`](docs/skills/README.md) across three operational priority tiers:
-- **Priority 1 (Core Output, Clean Code & Token Economy — Always Active)**:
-  - [`anti-slop-and-lean-code.md`](docs/skills/anti-slop-and-lean-code.md) — Anti-over-engineering, zero chatty comments, YAGNI
-  - [`token-saving-and-context.md`](docs/skills/token-saving-and-context.md) — Surgical inspection, targeted edits, context hygiene
-  - [`procedures-and-verification.md`](docs/skills/procedures-and-verification.md) — 5-stage task lifecycle, pre-flight verification gates
-- **Priority 2 (Subsystem & Platform Development — Active on Modification)**:
-  - [`desktop-rust.md`](docs/skills/desktop-rust.md) — Rust 2024 desktop server, thread supervision, Tokio bans outside Linux BT
-  - [`windows-backend.md`](docs/skills/windows-backend.md) — WASAPI virtual audio, Media Foundation camera, Direct2D tray
-  - [`linux-backend.md`](docs/skills/linux-backend.md) — PipeWire virtual audio source, v4l2loopback virtual camera, KSNI tray
-  - [`android-kotlin.md`](docs/skills/android-kotlin.md) — Jetpack Compose, foreground service lifecycle, zero-alloc Oboe JNI
-  - [`media-and-dsp.md`](docs/skills/media-and-dsp.md) — 48 kHz audio DSP, adaptive jitter buffers, cubic resampler, H.264 slicing
-  - [`protocol-design-sync.md`](docs/skills/protocol-design-sync.md) — Wire Protocol v3 framing, test vectors lockstep, design tokens
-- **Priority 3 (On-Demand & Specialized Operations — Explicit Call Only)**:
-  - [`git-workflow.md`](docs/skills/git-workflow.md) — Strict read-only agent rule, convenient `git add .` staging, Conventional Commits
-  - [`build-and-bundle.md`](docs/skills/build-and-bundle.md) — Builder procedures, driver caching, centralized `dist/` distribution
-  - [`website.md`](docs/skills/website.md) — React 19, TypeScript, Vite, zero telemetry website
+Browse the complete documentation in [`docs/README.md`](docs/README.md) or see [`CONTRIBUTING.md`](.github/CONTRIBUTING.md) to contribute.
 
 ---
 
-## Repository Structure
-
-```text
-owlmic/
-├── .github/          # CI/CD workflows, issue templates, and CODEOWNERS
-├── android/          # Android Client (Kotlin, Jetpack Compose, CameraX, Oboe/AAudio)
-│   ├── app/          # UI, MainActivity, Foreground Service, Notifier
-│   ├── core/         # Hubs, Link Transporter, Protocol v3, Settings store
-│   └── media/        # Oboe JNI, AAudio, Opus wrapper, CameraX GL pipelines
-├── desktop/          # Desktop Server Workspace (Rust 2024, Windows & Linux)
-│   └── crates/       # 13 modular crates:
-│                     #   owlmic-app      - Tray lifecycle, Win32/Linux event loop
-│                     #   owlmic-devices  - WASAPI & PipeWire audio, VCam feeds, repair
-│                     #   owlmic-hub      - Hub supervisor, mailboxes, restart policies
-│                     #   owlmic-link     - Transporter: ADB reverse, Tether, Wi-Fi, BT
-│                     #   owlmic-linux    - PipeWire source, v4l2loopback, KSNI tray
-│                     #   owlmic-media    - Audio DSP, RNNoise, jitter buffer, H.264/NV12
-│                     #   owlmic-platform - Platform abstractions, paths, single instance
-│                     #   owlmic-proto    - Protocol v3 framing, binary/JSON envelopes
-│                     #   owlmic-session  - TOFU trust, NIST P-256 ECDH, AES-256-GCM
-│                     #   owlmic-settings - Thread-safe owlmic.json store, state sync
-│                     #   owlmic-ui       - Native Win32 GDI/Direct2D tray flyout (<15ms)
-│                     #   owlmic-vcam     - Windows 11 MF virtual camera (owlmic_vcam.dll)
-│                     #   owlmic-windows  - WASAPI loopback, registry property store, COM
-├── docs/             # User guides, technical architecture, and domain skills catalog
-│   ├── user/         # User manuals: installation (Win/Linux/Android), everyday use, FAQ
-│   ├── technical/    # Deep technical specifications: protocols, media, security, build
-│   └── skills/       # 3-tier modular domain skills catalog for AI agents & contributors
-├── scripts/          # Developer menu, core runners, packaging, and Git hooks
-│   ├── core/         # Core scripts: build.py, check.py, verify-repo-invariants.py, setup-hooks.py
-│   ├── packaging/    # Windows Inno Setup installer, Linux packaging, driver cache
-│   │   ├── cache/    # Untracked third-party driver cache (softcam.dll)
-│   │   ├── linux/    # Linux systemd service (owlmic.service) & setup scripts
-│   │   └── windows/  # Windows Inno Setup script (owlmic.iss) & setup-audio-device.ps1
-│   ├── hooks/        # Pre-commit & commit-msg verification hooks
-│   └── menu.py       # Unified interactive developer & release dashboard
-├── shared/           # Single source of truth for assets, design, protocol, and vendor source
-│   ├── assets/       # Canonical visual brand, icons, and fonts
-│   ├── design/       # Tokens, copy, and settings schemas
-│   ├── protocol/     # Protocol v3 wire specification and test vectors
-│   └── vendor/       # Vendored libopus submodule
-├── website/          # React + Vite website (owlmic.app)
-└── dist/             # Centralized build distribution destination (git-ignored)
-```
-
----
-
-## Contributing
-
-Contributions are welcomed! Check out our [Contributing Guide](.github/CONTRIBUTING.md) to set up your environment in 10 minutes.
-See [`AGENTS.md`](AGENTS.md) and [`docs/skills/`](docs/skills/README.md) for domain guidelines.
-
-Join the conversation in [GitHub Discussions](https://github.com/diveshpatil9104/owlmic/discussions).
-
----
-
-## License
-
-Owlmic is licensed under the [MIT License](LICENSE).
-Owlmic incorporates or interfaces with VB-CABLE (VB-Audio), softcam (MIT), RNNoise (BSD-3-Clause), and Opus (BSD-3-Clause). See [`scripts/packaging/windows/THIRD-PARTY-NOTICES.txt`](scripts/packaging/windows/THIRD-PARTY-NOTICES.txt) for license notices.
+<p align="center">
+  Licensed under the <a href="LICENSE">MIT License</a> &middot;
+  Third-party notices (<a href="scripts/packaging/windows/THIRD-PARTY-NOTICES.txt">VB-CABLE, softcam, RNNoise, Opus</a>)
+</p>

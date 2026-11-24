@@ -1,0 +1,101 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 176" width="880" height="176" role="img" aria-label="Owlmic engineering tech stack">
+  <defs>
+    <style>
+      .hdr { font: 600 9px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; fill: #8E8E93; letter-spacing: 0.9px; }
+      .pill-bg { fill: #141416; stroke: #262626; stroke-width: 1; }
+      .tag-hi { font: 600 10.5px ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; fill: #FFFFFF; }
+      .tag-sub { font: 400 9.5px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; fill: #8E8E93; }
+      .dot { fill: #30D158; }
+    </style>
+  </defs>
+
+  <rect x="0.5" y="0.5" width="879" height="175" rx="12" fill="#000000" stroke="#262626" />
+
+  <!-- Tile 1: Desktop Core -->
+  <rect x="10" y="10" width="207" height="156" rx="8" fill="#0A0A0A" stroke="#262626" />
+  <text x="22" y="27" class="hdr">DESKTOP ENGINE</text>
+  <circle cx="204" cy="24" r="2.5" class="dot" />
+  <line x1="10" y1="36" x2="217" y2="36" stroke="#262626" />
+
+  <rect x="19" y="44" width="189" height="23" rx="5" class="pill-bg" />
+  <text x="28" y="59.5" class="tag-hi">Rust 2024</text>
+  <text x="200" y="59.5" text-anchor="end" class="tag-sub">13 crates</text>
+
+  <rect x="19" y="72" width="189" height="23" rx="5" class="pill-bg" />
+  <text x="28" y="87.5" class="tag-hi">Win32 Direct2D</text>
+  <text x="200" y="87.5" text-anchor="end" class="tag-sub">&lt;15ms UI</text>
+
+  <rect x="19" y="100" width="189" height="23" rx="5" class="pill-bg" />
+  <text x="28" y="115.5" class="tag-hi">Media Foundation</text>
+  <text x="200" y="115.5" text-anchor="end" class="tag-sub">VCam DLL</text>
+
+  <rect x="19" y="128" width="189" height="23" rx="5" class="pill-bg" />
+  <text x="28" y="143.5" class="tag-hi">WASAPI · PipeWire</text>
+  <text x="200" y="143.5" text-anchor="end" class="tag-sub">Audio HAL</text>
+
+  <!-- Tile 2: Android Client -->
+  <rect x="227" y="10" width="207" height="156" rx="8" fill="#0A0A0A" stroke="#262626" />
+  <text x="239" y="27" class="hdr">ANDROID CLIENT</text>
+  <circle cx="421" cy="24" r="2.5" class="dot" />
+  <line x1="227" y1="36" x2="434" y2="36" stroke="#262626" />
+
+  <rect x="236" y="44" width="189" height="23" rx="5" class="pill-bg" />
+  <text x="245" y="59.5" class="tag-hi">Kotlin · Compose</text>
+  <text x="417" y="59.5" text-anchor="end" class="tag-sub">OLED #000</text>
+
+  <rect x="236" y="72" width="189" height="23" rx="5" class="pill-bg" />
+  <text x="245" y="87.5" class="tag-hi">Oboe / AAudio</text>
+  <text x="417" y="87.5" text-anchor="end" class="tag-sub">Zero-alloc</text>
+
+  <rect x="236" y="100" width="189" height="23" rx="5" class="pill-bg" />
+  <text x="245" y="115.5" class="tag-hi">CameraX + OpenGL</text>
+  <text x="417" y="115.5" text-anchor="end" class="tag-sub">GL shader</text>
+
+  <rect x="236" y="128" width="189" height="23" rx="5" class="pill-bg" />
+  <text x="245" y="143.5" class="tag-hi">OwlmicService</text>
+  <text x="417" y="143.5" text-anchor="end" class="tag-sub">Foreground</text>
+
+  <!-- Tile 3: Media & DSP -->
+  <rect x="444" y="10" width="207" height="156" rx="8" fill="#0A0A0A" stroke="#262626" />
+  <text x="456" y="27" class="hdr">MEDIA &amp; AUDIO DSP</text>
+  <circle cx="638" cy="24" r="2.5" class="dot" />
+  <line x1="444" y1="36" x2="651" y2="36" stroke="#262626" />
+
+  <rect x="453" y="44" width="189" height="23" rx="5" class="pill-bg" />
+  <text x="462" y="59.5" class="tag-hi">Adaptive Jitter</text>
+  <text x="634" y="59.5" text-anchor="end" class="tag-sub">10–30 ms</text>
+
+  <rect x="453" y="72" width="189" height="23" rx="5" class="pill-bg" />
+  <text x="462" y="87.5" class="tag-hi">Cubic Drift Resampler</text>
+  <text x="634" y="87.5" text-anchor="end" class="tag-sub">±0.2%</text>
+
+  <rect x="453" y="100" width="189" height="23" rx="5" class="pill-bg" />
+  <text x="462" y="115.5" class="tag-hi">RNNoise AI Gate</text>
+  <text x="634" y="115.5" text-anchor="end" class="tag-sub">-20 dBFS</text>
+
+  <rect x="453" y="128" width="189" height="23" rx="5" class="pill-bg" />
+  <text x="462" y="143.5" class="tag-hi">MediaCodec H.264</text>
+  <text x="634" y="143.5" text-anchor="end" class="tag-sub">NV12 ring</text>
+
+  <!-- Tile 4: Protocol & Trust -->
+  <rect x="661" y="10" width="209" height="156" rx="8" fill="#0A0A0A" stroke="#262626" />
+  <text x="673" y="27" class="hdr">PROTOCOL &amp; SECURITY</text>
+  <circle cx="857" cy="24" r="2.5" class="dot" />
+  <line x1="661" y1="36" x2="870" y2="36" stroke="#262626" />
+
+  <rect x="670" y="44" width="191" height="23" rx="5" class="pill-bg" />
+  <text x="679" y="59.5" class="tag-hi">Wire Protocol v3</text>
+  <text x="853" y="59.5" text-anchor="end" class="tag-sub">Binary/JSON</text>
+
+  <rect x="670" y="72" width="191" height="23" rx="5" class="pill-bg" />
+  <text x="679" y="87.5" class="tag-hi">NIST P-256 ECDH</text>
+  <text x="853" y="87.5" text-anchor="end" class="tag-sub">TOFU Trust</text>
+
+  <rect x="670" y="100" width="191" height="23" rx="5" class="pill-bg" />
+  <text x="679" y="115.5" class="tag-hi">AES-256-GCM</text>
+  <text x="853" y="115.5" text-anchor="end" class="tag-sub">64-pkt win</text>
+
+  <rect x="670" y="128" width="191" height="23" rx="5" class="pill-bg" />
+  <text x="679" y="143.5" class="tag-hi">Session Hold</text>
+  <text x="853" y="143.5" text-anchor="end" class="tag-sub">30s failover</text>
+</svg>
