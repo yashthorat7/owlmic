@@ -218,16 +218,16 @@ mod tests {
         assert!(applied(&events).contains(&("general.startWithWindows".into(), "on".into())));
         events.lock().unwrap().clear();
         h.handle(SettingsMsg::Set {
-            id: "camera.mirror".into(),
-            value: "on".into(),
+            id: "camera.framing".into(),
+            value: "fill".into(),
         });
         assert!(applied(&events).is_empty(), "no pairing yet");
         h.handle(SettingsMsg::Session(Some("01".into())));
         h.handle(SettingsMsg::Set {
-            id: "camera.mirror".into(),
-            value: "on".into(),
+            id: "camera.framing".into(),
+            value: "fill".into(),
         });
-        assert!(applied(&events).contains(&("camera.mirror".into(), "on".into())));
+        assert!(applied(&events).contains(&("camera.framing".into(), "fill".into())));
         assert!(
             !events
                 .lock()
@@ -255,6 +255,18 @@ mod tests {
                 .any(|e| matches!(e, SettingsEvent::ToPhone(c) if c[0].version == 1))
         );
         events.lock().unwrap().clear();
+        h.handle(SettingsMsg::Set {
+            id: "camera.mirror".into(),
+            value: "on".into(),
+        });
+        assert!(
+            events
+                .lock()
+                .unwrap()
+                .iter()
+                .any(|e| matches!(e, SettingsEvent::ToPhone(c) if c[0].id == "camera.mirror" && c[0].value == "on"))
+        );
+        events.lock().unwrap().clear();
         let change = |value: &str, version| SettingChange {
             id: "camera.lens".into(),
             value: value.into(),
@@ -262,7 +274,7 @@ mod tests {
         };
         h.handle(SettingsMsg::FromPhone(vec![change("back", 1)]));
         assert!(applied(&events).is_empty(), "a tie goes to the PC");
-        h.handle(SettingsMsg::FromPhone(vec![change("back", 2)]));
+        h.handle(SettingsMsg::FromPhone(vec![change("back", 3)]));
         assert_eq!(
             applied(&events),
             vec![("camera.lens".into(), "back".into())]

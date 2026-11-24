@@ -90,4 +90,24 @@ class SettingsHubTest {
         assertEquals("12", applied.values["mic.volume"])
         hub.close()
     }
+
+    @Test
+    fun pcSnapshotRealignsNonPendingVersionsSoPcFlipAndMirrorApplyImmediately() {
+        val store = store()
+        store.remember("aa", "DESKTOP-A", byteArrayOf(4), ByteArray(32), null)
+        store.saveSettings("aa", mapOf("camera.lens" to Versioned("back", 5)), emptySet())
+        val hub = SettingsHub(store) { events.put(it) }
+        nextOf<SettingsEvent.Values>()
+
+        hub.post(SettingsMsg.Use("aa", connected = true, pcValues = mapOf("camera.lens" to "front", "camera.mirror" to "off")))
+        nextOf<SettingsEvent.Values>()
+        hub.post(SettingsMsg.Remote(listOf(SettingChange("camera.lens", "front", 0), SettingChange("camera.mirror", "off", 0))))
+
+        hub.post(SettingsMsg.Remote(listOf(SettingChange("camera.lens", "back", 1), SettingChange("camera.mirror", "on", 2))))
+        var v = nextOf<SettingsEvent.Values>()
+        while ("camera.lens" !in v.changed) v = nextOf()
+        assertEquals("back", v.values["camera.lens"])
+        assertEquals("on", v.values["camera.mirror"])
+        hub.close()
+    }
 }

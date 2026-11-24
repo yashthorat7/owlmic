@@ -23,7 +23,7 @@ pub fn set_local(book: &mut Book, id: &str, value: &str) -> Option<SettingChange
     if !def.values.contains(&value) {
         return None;
     }
-    let version = book.get(id).map_or(0, |v| v.version) + 1;
+    let version = book.values().map(|v| v.version).max().unwrap_or(0) + 1;
     book.insert(
         id.to_owned(),
         Versioned {

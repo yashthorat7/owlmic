@@ -5,6 +5,7 @@ use crate::exports::LIVE;
 use crate::shared::{FRAME_BYTES, HEIGHT, Mapping, Picker, WIDTH};
 use std::sync::Mutex;
 use std::sync::atomic::Ordering;
+use std::time::{Duration, Instant};
 use windows::Win32::Foundation::E_POINTER;
 use windows::Win32::Media::MediaFoundation::*;
 use windows::Win32::System::Com::StructuredStorage::PROPVARIANT;
@@ -25,10 +26,12 @@ struct Inner {
     /// Dropped at shutdown, which breaks the source and stream reference cycle.
     source: Option<IMFMediaSource>,
     running: bool,
-    allocator: Option<IMFVideoSampleAllocatorEx>,
+    provided_allocator: Option<IMFVideoSampleAllocator>,
+    allocator: Option<IMFVideoSampleAllocator>,
+    media_type: Option<IMFMediaType>,
     /// Frame duration in 100 ns units.
     duration: i64,
-    frame_count: u64,
+    next_frame_at: Option<Instant>,
     mapping: Option<Mapping>,
     picker: Option<Picker>,
 }
@@ -42,9 +45,11 @@ impl Stream {
             inner: Mutex::new(Inner {
                 source: Some(source),
                 running: false,
+                provided_allocator: None,
                 allocator: None,
+                media_type: None,
                 duration: 333_333,
-                frame_count: 0,
+                next_frame_at: None,
                 mapping: None,
                 picker: None,
             }),
@@ -59,25 +64,67 @@ impl Stream {
         self.inner().running
     }
 
+    pub fn set_allocator(&self, allocator: IMFVideoSampleAllocator) -> Result<()> {
+        let mut inner = self.inner();
+        if inner.source.is_none() {
+            return Err(MF_E_SHUTDOWN.into());
+        }
+        if inner.running {
+            return Err(MF_E_INVALIDREQUEST.into());
+        }
+        inner.provided_allocator = Some(allocator);
+        Ok(())
+    }
+
     /// Starts with the media type the app chose on `descriptor`.
     pub fn start(&self, descriptor: &IMFStreamDescriptor, now: &PROPVARIANT) -> Result<()> {
+        self.start_internal(Some(descriptor), now, true)
+    }
+
+    fn start_internal(
+        &self,
+        descriptor: Option<&IMFStreamDescriptor>,
+        now: &PROPVARIANT,
+        send_event: bool,
+    ) -> Result<()> {
         let mut inner = self.inner();
         if inner.source.is_none() {
             return Err(MF_E_SHUTDOWN.into());
         }
         unsafe {
-            let media_type = descriptor.GetMediaTypeHandler()?.GetCurrentMediaType()?;
+            let media_type = match descriptor {
+                Some(d) => {
+                    let mt = d.GetMediaTypeHandler()?.GetCurrentMediaType()?;
+                    inner.media_type = Some(mt.clone());
+                    mt
+                }
+                None => match inner.media_type.clone() {
+                    Some(mt) => mt,
+                    None => self
+                        .descriptor
+                        .GetMediaTypeHandler()?
+                        .GetCurrentMediaType()?,
+                },
+            };
             let rate = media_type.GetUINT64(&MF_MT_FRAME_RATE)?;
             let (num, den) = (
                 (rate >> 32).max(1) as i64,
                 (rate & 0xFFFF_FFFF).max(1) as i64,
             );
             inner.duration = 10_000_000 * den / num;
-            let mut raw = std::ptr::null_mut();
-            MFCreateVideoSampleAllocatorEx(&IMFVideoSampleAllocatorEx::IID, &mut raw)?;
-            let allocator = IMFVideoSampleAllocatorEx::from_raw(raw);
-            allocator.InitializeSampleAllocator(POOL, &media_type)?;
-            inner.allocator = Some(allocator);
+            if !inner.running || inner.allocator.is_none() {
+                let allocator = match inner.provided_allocator.clone() {
+                    Some(alloc) => alloc,
+                    None => {
+                        let mut raw = std::ptr::null_mut();
+                        MFCreateVideoSampleAllocatorEx(&IMFVideoSampleAllocatorEx::IID, &mut raw)?;
+                        IMFVideoSampleAllocator::from_raw(raw)
+                    }
+                };
+                let _ = allocator.UninitializeSampleAllocator();
+                allocator.InitializeSampleAllocator(POOL, &media_type)?;
+                inner.allocator = Some(allocator);
+            }
         }
         if inner.picker.is_none() {
             inner.picker = Some(Picker::new(crate::placeholder::render(WIDTH, HEIGHT).data));
@@ -85,39 +132,60 @@ impl Stream {
         if inner.mapping.is_none() {
             inner.mapping = Mapping::create();
         }
-        inner.frame_count = 0;
+        inner.next_frame_at = None;
         inner.running = true;
-        unsafe {
-            self.queue.QueueEventParamVar(
-                MEStreamStarted.0 as u32,
-                &GUID::zeroed(),
-                HRESULT(0),
-                now,
-            )
+        drop(inner);
+        if send_event {
+            unsafe {
+                self.queue.QueueEventParamVar(
+                    MEStreamStarted.0 as u32,
+                    &GUID::zeroed(),
+                    HRESULT(0),
+                    now,
+                )?;
+            }
         }
+        Ok(())
     }
 
     pub fn stop(&self) -> Result<()> {
+        self.stop_internal(true)
+    }
+
+    fn stop_internal(&self, send_event: bool) -> Result<()> {
         let mut inner = self.inner();
         inner.running = false;
-        inner.allocator = None;
-        let now = PROPVARIANT::default();
-        unsafe {
-            self.queue.QueueEventParamVar(
-                MEStreamStopped.0 as u32,
-                &GUID::zeroed(),
-                HRESULT(0),
-                &now,
-            )
+        inner.next_frame_at = None;
+        if let Some(alloc) = inner.allocator.take() {
+            unsafe {
+                let _ = alloc.UninitializeSampleAllocator();
+            }
         }
+        drop(inner);
+        if send_event {
+            let now = PROPVARIANT::default();
+            unsafe {
+                self.queue.QueueEventParamVar(
+                    MEStreamStopped.0 as u32,
+                    &GUID::zeroed(),
+                    HRESULT(0),
+                    &now,
+                )?;
+            }
+        }
+        Ok(())
     }
 
     pub fn shutdown(&self) {
         let mut inner = self.inner();
         inner.running = false;
+        inner.next_frame_at = None;
         inner.source = None;
         inner.allocator = None;
+        inner.provided_allocator = None;
+        inner.media_type = None;
         inner.mapping = None;
+        drop(inner);
         unsafe {
             let _ = self.queue.Shutdown();
         }
@@ -167,6 +235,22 @@ impl IMFMediaStream_Impl for Stream_Impl {
     }
 
     fn RequestSample(&self, token: Ref<IUnknown>) -> Result<()> {
+        let wait_until = {
+            let inner = self.inner();
+            if inner.source.is_none() {
+                return Err(MF_E_SHUTDOWN.into());
+            }
+            if !inner.running {
+                return Err(MF_E_INVALIDREQUEST.into());
+            }
+            inner.next_frame_at
+        };
+        if let Some(deadline) = wait_until {
+            let now = Instant::now();
+            if now < deadline {
+                std::thread::sleep(deadline - now);
+            }
+        }
         let mut inner = self.inner();
         if inner.source.is_none() {
             return Err(MF_E_SHUTDOWN.into());
@@ -177,42 +261,33 @@ impl IMFMediaStream_Impl for Stream_Impl {
             mapping,
             picker: Some(picker),
             duration,
-            frame_count,
+            next_frame_at,
             ..
         } = &mut *inner
         else {
             return Err(MF_E_INVALIDREQUEST.into());
         };
+        let step = Duration::from_nanos((*duration).max(1) as u64 * 100);
+        let now = Instant::now();
+        *next_frame_at = Some(match *next_frame_at {
+            Some(prev) if prev + step > now => prev + step,
+            _ => now + step,
+        });
         unsafe {
             let sample = allocator.AllocateSample()?;
             let buffer = sample.GetBufferByIndex(0)?;
             let picture = picker.next(mapping.as_ref().map(|m| &m.ring), GetTickCount64());
-            if let Ok(planar) = buffer.cast::<IMF2DBuffer>() {
-                planar.ContiguousCopyFrom(picture)?;
-            } else {
-                let mut data = std::ptr::null_mut();
-                let mut max = 0;
-                buffer.Lock(&mut data, Some(&mut max), None)?;
-                if data.is_null() || (max as usize) < FRAME_BYTES {
-                    let _ = buffer.Unlock();
-                    return Err(E_POINTER.into());
-                }
-                std::ptr::copy_nonoverlapping(picture.as_ptr(), data, FRAME_BYTES);
-                buffer.Unlock()?;
-            }
+            write_nv12(&buffer, picture)?;
             let _ = buffer.SetCurrentLength(FRAME_BYTES as u32);
-            let sample_time = (*frame_count as i64) * *duration;
-            *frame_count += 1;
-            sample.SetSampleTime(sample_time)?;
+            let pts = MFGetSystemTime();
+            sample.SetSampleTime(pts)?;
             sample.SetSampleDuration(*duration)?;
             sample.SetUINT32(&MFSampleExtension_CleanPoint, 1)?;
-            let _ = sample.SetUINT64(
-                &MFSampleExtension_DeviceReferenceSystemTime,
-                MFGetSystemTime() as u64,
-            );
+            let _ = sample.SetUINT64(&MFSampleExtension_DeviceReferenceSystemTime, pts as u64);
             if let Some(token) = token.as_ref() {
                 sample.SetUnknown(&MFSampleExtension_Token, token)?;
             }
+            drop(inner);
             self.queue.QueueEventParamUnk(
                 MEMediaSample.0 as u32,
                 &GUID::zeroed(),
@@ -223,6 +298,51 @@ impl IMFMediaStream_Impl for Stream_Impl {
     }
 }
 
+unsafe fn write_nv12(buffer: &IMFMediaBuffer, picture: &[u8]) -> Result<()> {
+    if let Ok(b2) = buffer.cast::<IMF2DBuffer2>() {
+        let mut scanline0 = std::ptr::null_mut();
+        let mut pitch = 0i32;
+        let mut start = std::ptr::null_mut();
+        let mut len = 0u32;
+        unsafe {
+            b2.Lock2DSize(
+                MF2DBuffer_LockFlags_Write,
+                &mut scanline0,
+                &mut pitch,
+                &mut start,
+                &mut len,
+            )?;
+        }
+        if scanline0.is_null() || pitch.unsigned_abs() < WIDTH as u32 {
+            let _ = unsafe { b2.Unlock2D() };
+            return Err(E_POINTER.into());
+        }
+        let rows = HEIGHT + HEIGHT / 2;
+        for row in 0..rows {
+            unsafe {
+                let dst = scanline0.offset(row as isize * pitch as isize);
+                let src = picture.as_ptr().add(row * WIDTH);
+                std::ptr::copy_nonoverlapping(src, dst, WIDTH);
+            }
+        }
+        return unsafe { b2.Unlock2D() };
+    }
+    if let Ok(planar) = buffer.cast::<IMF2DBuffer>() {
+        return unsafe { planar.ContiguousCopyFrom(picture) };
+    }
+    let mut data = std::ptr::null_mut();
+    let mut max = 0;
+    unsafe {
+        buffer.Lock(&mut data, Some(&mut max), None)?;
+        if data.is_null() || (max as usize) < FRAME_BYTES {
+            let _ = buffer.Unlock();
+            return Err(E_POINTER.into());
+        }
+        std::ptr::copy_nonoverlapping(picture.as_ptr(), data, FRAME_BYTES);
+        buffer.Unlock()
+    }
+}
+
 impl IMFMediaStream2_Impl for Stream_Impl {
     fn SetStreamState(&self, state: MF_STREAM_STATE) -> Result<()> {
         if state == MF_STREAM_STATE_RUNNING {
@@ -230,10 +350,10 @@ impl IMFMediaStream2_Impl for Stream_Impl {
                 return Ok(());
             }
             let now = PROPVARIANT::default();
-            return self.start(&self.descriptor, &now);
+            return self.start_internal(None, &now, false);
         }
         if state == MF_STREAM_STATE_STOPPED {
-            return self.stop();
+            return self.stop_internal(false);
         }
         Err(MF_E_INVALID_STATE_TRANSITION.into())
     }

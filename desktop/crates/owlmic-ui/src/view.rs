@@ -321,9 +321,10 @@ impl PanelState {
     /// Secondary paired phone (never duplicating the device already shown in the primary row).
     pub fn secondary_phone(&self) -> Option<&PhoneEntry> {
         let primary_id = self.active_phone_id().or_else(|| self.first_paired_id());
+        let primary_name = self.primary_phone_name();
         self.phones
             .iter()
-            .find(|p| primary_id.as_deref() != Some(p.id.as_str()))
+            .find(|p| primary_id.as_deref() != Some(p.id.as_str()) && p.name != primary_name)
     }
 
     pub fn connected(&self) -> bool {
@@ -772,5 +773,26 @@ mod tests {
             Some(Action::Cycle("link.wifi"))
         );
         assert_eq!(s.link_at(Target::HelpGitHub), Some(Link::GitHub));
+
+        let mut dup = connected();
+        dup.phones = vec![
+            PhoneEntry {
+                id: "01".into(),
+                name: "Pixel 8".into(),
+                blocked: false,
+            },
+            PhoneEntry {
+                id: "02".into(),
+                name: "Pixel 8".into(),
+                blocked: false,
+            },
+        ];
+        assert!(dup.secondary_phone().is_none());
+        dup.phones.push(PhoneEntry {
+            id: "03".into(),
+            name: "Galaxy S24".into(),
+            blocked: false,
+        });
+        assert_eq!(dup.secondary_phone().map(|p| p.id.as_str()), Some("03"));
     }
 }

@@ -1958,7 +1958,7 @@ impl Panel {
             );
 
             // Mirror button (white fill + black icon when active, translucent black when off)
-            let mirror_on = s.is_on("camera.mirror", true);
+            let mirror_on = s.is_on("camera.mirror", false);
             if mirror_on {
                 self.painter.fill_rounded(l::CAM_MIRROR_BTN, 7.0, WHITE);
                 self.painter
