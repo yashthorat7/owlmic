@@ -1,7 +1,6 @@
 package com.owlmic.ui
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -11,11 +10,9 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
@@ -73,7 +70,7 @@ import com.owlmic.core.R as Copy
  * [turn] is how the phone is held (see Turn.kt): the grid never moves; a change fades the preview's content out, turns
  * the icons, and fades it back in. [onLayoutTurn] hears when the content changes, for the status bar. [onFeature]
  * goes through the activity, which asks for permissions first; [onTethering] opens the system's tethering
- * settings. Settings open by long-pressing a feature tile.
+ * settings.
  */
 @Composable
 fun MainScreen(turn: Int, onLayoutTurn: (Int) -> Unit, onFeature: (Feature) -> Unit, onTethering: () -> Unit) {
@@ -86,7 +83,6 @@ fun MainScreen(turn: Int, onLayoutTurn: (Int) -> Unit, onFeature: (Feature) -> U
 @Composable
 private fun Screen(seq: TurnSequence, onFeature: (Feature) -> Unit, onTethering: () -> Unit) {
     val state by Owlmic.state.collectAsState()
-    var sheet by remember { mutableStateOf<String?>(null) }
     var drawer by remember { mutableStateOf<Drawer?>(null) }
     val toggle = { d: Drawer -> drawer = if (drawer == d) null else d }
 
@@ -94,52 +90,38 @@ private fun Screen(seq: TurnSequence, onFeature: (Feature) -> Unit, onTethering:
     val band = Tokens.Phone.SIDE_BAND_DP.dp
     val sideways = seq.layout.sideways
     val insets = WindowInsets.safeDrawing.union(WindowInsets(top = if (sideways) band else 0.dp, bottom = band))
-    val fade by seq.fade
-    Box(Modifier.fillMaxSize().background(Theme.bg)) {
-        Column(
-            Modifier.fillMaxSize().windowInsetsPadding(insets).background(Theme.seam).padding(Theme.gap),
-            verticalArrangement = Arrangement.spacedBy(Theme.gap),
-        ) {
-            TopBar(seq, state.connection, drawer, onHelp = { toggle(Drawer.HELP) }, onLink = { toggle(Drawer.CONNECTION) })
-            Playground(
-                seq,
-                state,
-                drawer,
-                Modifier.weight(1f).fillMaxWidth(),
-                onStrip = { action ->
-                    when (action) {
-                        StripAction.CHOOSE -> drawer = Drawer.CONNECTION
-                        StripAction.ASK_AGAIN -> Owlmic.post(AppMsg.AskAgain)
-                        StripAction.TETHERING -> onTethering()
-                    }
-                },
-            )
-            Row(Modifier.fillMaxWidth().height(Tokens.Phone.BOTTOM_BAR_DP.dp), horizontalArrangement = Arrangement.spacedBy(Theme.gap)) {
-                FeatureTile(seq.icons, state, Feature.CAMERA, Modifier.weight(1f), onFeature) { sheet = SECTION_CAMERA }
-                FeatureTile(seq.icons, state, Feature.MIC, Modifier.weight(1f), onFeature) { sheet = SECTION_MIC }
-                FeatureTile(seq.icons, state, Feature.SPEAKER, Modifier.weight(1f), onFeature) { sheet = SECTION_SPEAKER }
-            }
+    Column(
+        Modifier.fillMaxSize().background(Theme.bg).windowInsetsPadding(insets).background(Theme.seam).padding(Theme.gap),
+        verticalArrangement = Arrangement.spacedBy(Theme.gap),
+    ) {
+        TopBar(seq, state.connection, drawer, onHelp = { toggle(Drawer.HELP) }, onLink = { toggle(Drawer.CONNECTION) })
+        Playground(
+            seq,
+            state,
+            drawer,
+            Modifier.weight(1f).fillMaxWidth(),
+            onStrip = { action ->
+                when (action) {
+                    StripAction.CHOOSE -> drawer = Drawer.CONNECTION
+                    StripAction.ASK_AGAIN -> Owlmic.post(AppMsg.AskAgain)
+                    StripAction.TETHERING -> onTethering()
+                }
+            },
+        )
+        val handleFeature: (Feature) -> Unit = { f ->
+            drawer = null
+            onFeature(f)
         }
-        AnimatedVisibility(sheet != null, enter = fadeIn(tween(Theme.STATE_MS)), exit = fadeOut(tween(Theme.STATE_MS))) {
-            // The insets (the keyboard's too) stay outside the turn: they belong to the screen, not to the reader.
-            Box(Modifier.fillMaxSize().background(Theme.bg).windowInsetsPadding(insets)) {
-                SettingsSheet(
-                    state,
-                    startAt = sheet ?: SECTION_MIC,
-                    onClose = { sheet = null },
-                    Modifier.fillMaxSize().upright(seq.layout, swap = true).graphicsLayer { alpha = fade },
-                )
-            }
+        Row(Modifier.fillMaxWidth().height(Tokens.Phone.BOTTOM_BAR_DP.dp), horizontalArrangement = Arrangement.spacedBy(Theme.gap)) {
+            FeatureTile(seq.icons, state, Feature.CAMERA, Modifier.weight(1f), handleFeature)
+            FeatureTile(seq.icons, state, Feature.MIC, Modifier.weight(1f), handleFeature)
+            FeatureTile(seq.icons, state, Feature.SPEAKER, Modifier.weight(1f), handleFeature)
         }
     }
-    BackHandler(sheet != null || drawer != null) {
-        if (sheet != null) sheet = null else drawer = null
+    BackHandler(drawer != null) {
+        drawer = null
     }
 }
-
-const val SECTION_MIC = "mic"
-const val SECTION_CAMERA = "camera"
-const val SECTION_SPEAKER = "speaker"
 
 /** A rounded black tile of the grid. Light with a black icon when [on] (an open drawer's tile); darker while pressed. */
 @Composable
@@ -148,7 +130,6 @@ private fun Tile(
     on: Boolean = false,
     label: String? = null,
     onTap: () -> Unit,
-    onLongPress: (() -> Unit)? = null,
     content: @Composable BoxScope.(fg: Color) -> Unit,
 ) {
     val source = remember { MutableInteractionSource() }
@@ -167,12 +148,11 @@ private fun Tile(
         modifier
             .clip(RoundedCornerShape(Theme.radius))
             .background(bg)
-            .combinedClickable(
+            .clickable(
                 interactionSource = source,
                 indication = null,
                 role = Role.Button,
                 onClickLabel = label,
-                onLongClick = onLongPress,
                 onClick = onTap,
             ),
         contentAlignment = Alignment.Center,
@@ -274,7 +254,7 @@ private fun linkLabel(c: Connection): Int = when (c) {
  * to screen readers. Until a PC is connected the icons are dimmed: nothing can start yet.
  */
 @Composable
-private fun FeatureTile(up: Upright, state: AppState, feature: Feature, modifier: Modifier, onFeature: (Feature) -> Unit, onLongPress: () -> Unit) {
+private fun FeatureTile(up: Upright, state: AppState, feature: Feature, modifier: Modifier, onFeature: (Feature) -> Unit) {
     val look = lookOf(state.feature(feature))
     val (name, glyph) = when (feature) {
         Feature.MIC -> Copy.string.feature_mic to if (look.on) Glyph.MIC else Glyph.MIC_OFF
@@ -285,7 +265,7 @@ private fun FeatureTile(up: Upright, state: AppState, feature: Feature, modifier
     val label = stringResource(name)
     val description = listOfNotNull(label, note ?: stringResource(if (look.on) Copy.string.feature_on else Copy.string.feature_off)).joinToString(", ")
     val dim by animateFloatAsState(if (state.connected || look.on) 1f else Tokens.Phone.DIM_ICON_ALPHA, tween(Theme.STATE_MS), label = "dim")
-    Tile(modifier.fillMaxHeight().semantics { contentDescription = description }, label = label, onTap = { onFeature(feature) }, onLongPress = onLongPress) { fg ->
+    Tile(modifier.fillMaxHeight().semantics { contentDescription = description }, label = label, onTap = { onFeature(feature) }) { fg ->
         Icon(glyph, fg, null, Modifier.upright(up).graphicsLayer { alpha = dim }, size = Theme.glyph, stroke = Tokens.Phone.GLYPH_STROKE)
     }
 }

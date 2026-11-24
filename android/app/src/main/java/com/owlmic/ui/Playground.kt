@@ -46,8 +46,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.BiasAlignment
 import androidx.compose.ui.Modifier
@@ -98,8 +98,34 @@ fun Playground(seq: TurnSequence, state: AppState, drawer: Drawer?, modifier: Mo
 
     var micOpen by remember { mutableStateOf(false) }
     var camMenuOpen by remember { mutableStateOf(false) }
-    LaunchedEffect(live, mic) {
-        micOpen = false
+    var camMenuTouches by remember { mutableIntStateOf(0) }
+    val physicalSideways = seq.targetTurn != TURN_NONE
+    var prevPhysicalSideways by remember { mutableStateOf(physicalSideways) }
+    var pendingRatio by remember { mutableStateOf<Pair<String, String>?>(null) }
+    LaunchedEffect(physicalSideways) {
+        if (physicalSideways != prevPhysicalSideways) {
+            prevPhysicalSideways = physicalSideways
+            val current = state.settings["camera.ratio"] ?: "full"
+            val flipped = flipRatioForOrientation(current, physicalSideways)
+            if (flipped != current) {
+                pendingRatio = current to flipped
+                Owlmic.post(AppMsg.Setting("camera.ratio", flipped))
+            }
+        }
+    }
+    val rawRatio = state.settings["camera.ratio"] ?: "full"
+    if (pendingRatio != null && rawRatio != pendingRatio!!.first) {
+        pendingRatio = null
+    }
+    val displayRatio = if (pendingRatio != null && rawRatio == pendingRatio!!.first) pendingRatio!!.second else rawRatio
+
+    LaunchedEffect(live, mic, drawer) {
+        if (drawer != null || !live) camMenuOpen = false
+        if (drawer != null || !mic) micOpen = false
+    }
+    LaunchedEffect(camMenuOpen, camMenuTouches) {
+        if (!camMenuOpen) return@LaunchedEffect
+        delay(Tokens.Phone.CONTROLS_IDLE_MS.toLong())
         camMenuOpen = false
     }
     BackHandler(micOpen || camMenuOpen) {
@@ -108,6 +134,9 @@ fun Playground(seq: TurnSequence, state: AppState, drawer: Drawer?, modifier: Mo
 
     var awake by remember { mutableStateOf(false) }
     var touches by remember { mutableIntStateOf(0) }
+    LaunchedEffect(live) {
+        if (live) touches++
+    }
     LaunchedEffect(touches) {
         if (touches == 0) return@LaunchedEffect
         awake = true
@@ -135,7 +164,7 @@ fun Playground(seq: TurnSequence, state: AppState, drawer: Drawer?, modifier: Mo
         }
         if (camAlpha > 0f) {
             Box(Modifier.fillMaxSize().graphicsLayer { alpha = camAlpha }) {
-                PreviewFrame(state)
+                PreviewFrame(displayRatio, physicalSideways)
                 Frame(Modifier.fillMaxSize())
             }
         }
@@ -143,10 +172,16 @@ fun Playground(seq: TurnSequence, state: AppState, drawer: Drawer?, modifier: Mo
             seq.layout,
             seq.fade,
             state,
+            displayRatio,
             Mode(live, mic, micOpen, camMenuOpen),
             hudAlpha,
             onMicOpen = { micOpen = it },
-            onCamMenuToggle = { camMenuOpen = !camMenuOpen },
+            onCamMenuToggle = {
+                camMenuOpen = !camMenuOpen
+                if (camMenuOpen) camMenuTouches++
+            },
+            onCamMenuClose = { camMenuOpen = false },
+            onCamMenuInteract = { camMenuTouches++ },
             onTouch = { touches++ },
             onStrip = onStrip,
         )
@@ -161,10 +196,13 @@ private fun Content(
     up: Upright,
     fade: State<Float>,
     state: AppState,
+    displayRatio: String,
     mode: Mode,
     hudAlpha: Float,
     onMicOpen: (Boolean) -> Unit,
     onCamMenuToggle: () -> Unit,
+    onCamMenuClose: () -> Unit,
+    onCamMenuInteract: () -> Unit,
     onTouch: () -> Unit,
     onStrip: (StripAction) -> Unit,
 ) {
@@ -217,27 +255,50 @@ private fun Content(
             WaveformDock(state, mode.live, mode.micOpen, maxWidth, onMicOpen)
         }
 
-        // Camera HUD (Format Menu on left, Mirror & Flip on right)
+        // Camera HUD (Ratio menu on left, Mirror & Flip on right)
         if (mode.live) {
+            if (mode.camMenuOpen) {
+                Box(
+                    Modifier
+                        .fillMaxSize()
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                        ) { onCamMenuClose() },
+                )
+            }
             val mirrored = (state.settings["camera.mirrorPreview"] ?: SettingsModel.find("camera.mirrorPreview")?.default) == "on"
-            Row(
+            val maxMenuWidth = maxWidth - 24.dp
+            Box(
                 Modifier
                     .fillMaxWidth()
                     .align(Alignment.TopCenter)
                     .padding(12.dp)
                     .graphicsLayer { alpha = hudAlpha },
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.Top,
             ) {
-                CameraFormatMenu(state, mode.camMenuOpen, onCamMenuToggle)
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    Modifier.align(Alignment.TopEnd),
+                    horizontalArrangement = Arrangement.spacedBy(9.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
                     CamHudButton(Glyph.MIRROR, on = mirrored, label = stringResource(Copy.string.setting_camera_mirror_preview)) {
+                        onCamMenuClose()
                         Owlmic.post(AppMsg.Setting("camera.mirrorPreview", if (mirrored) "off" else "on"))
                     }
                     CamHudButton(Glyph.FLIP, on = false, label = stringResource(Copy.string.phone_flip_camera)) {
+                        onCamMenuClose()
                         Owlmic.post(AppMsg.FlipLens)
                     }
                 }
+                CameraFormatMenu(
+                    ratio = displayRatio,
+                    isOpen = mode.camMenuOpen,
+                    sideways = up.sideways,
+                    maxMenuWidth = maxMenuWidth,
+                    onToggle = onCamMenuToggle,
+                    onInteract = onCamMenuInteract,
+                    modifier = Modifier.align(Alignment.TopStart),
+                )
             }
         }
     }
@@ -245,16 +306,17 @@ private fun Content(
 
 /** The camera preview surface with optical crop border lines matching target aspect ratio. */
 @Composable
-private fun PreviewFrame(state: AppState) {
-    val ratio = state.settings["camera.ratio"] ?: "full"
+private fun PreviewFrame(ratio: String, sideways: Boolean) {
     val targetAr = when (ratio) {
         "16:9" -> 16f / 9f
         "4:3" -> 4f / 3f
+        "2:1" -> 2f
         "1:1" -> 1f
+        "1:2" -> 0.5f
         "3:4" -> 3f / 4f
         "9:16" -> 9f / 16f
         else -> null
-    }
+    }?.let { if (sideways) 1f / it else it }
 
     BoxWithConstraints(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         val cw = maxWidth.value
@@ -290,32 +352,59 @@ private fun PreviewFrame(state: AppState) {
     }
 }
 
-/** Compact expandable format HUD: Resolution, Frame Rate, Aspect Ratio. */
+/** Compact 2x3 expandable Ratio & Orientation HUD (1.5x mobile scale, 3x height when expanded). */
 @Composable
-private fun CameraFormatMenu(state: AppState, isOpen: Boolean, onToggle: () -> Unit) {
-    val quality = state.settings["camera.quality"] ?: "1080p"
-    val fps = state.settings["camera.frameRate"] ?: "30"
-    val ratio = state.settings["camera.ratio"] ?: "full"
-
-    val resLabel = when (quality) {
-        "720p", "HD" -> "HD"
-        "480p" -> "480p"
-        else -> "FHD"
+private fun CameraFormatMenu(
+    ratio: String,
+    isOpen: Boolean,
+    sideways: Boolean,
+    maxMenuWidth: androidx.compose.ui.unit.Dp,
+    onToggle: () -> Unit,
+    onInteract: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var menuWide by remember { mutableStateOf(sideways) }
+    LaunchedEffect(ratio, sideways) {
+        when (ratio) {
+            "16:9", "4:3", "2:1" -> menuWide = true
+            "9:16", "3:4", "1:2" -> menuWide = false
+            "full" -> menuWide = sideways
+        }
+    }
+    val isWide = when (ratio) {
+        "16:9", "4:3", "2:1" -> true
+        "9:16", "3:4", "1:2" -> false
+        else -> menuWide
     }
 
+    val rowH = Tokens.Phone.CAM_EXPAND_HEIGHT_DP.dp
+    val openW = minOf(Tokens.Phone.CAM_EXPAND_OPEN_WIDTH_DP.dp, maxMenuWidth)
     val ease = CubicBezierEasing(0.16f, 1f, 0.3f, 1f)
-    val width by animateDpAsState(if (isOpen) 180.dp else 50.dp, tween(240, easing = ease), label = "camMenuW")
-    val height by animateDpAsState(if (isOpen) 119.dp else 29.dp, tween(240, easing = ease), label = "camMenuH")
-    val shape = RoundedCornerShape(8.dp)
+    val width by animateDpAsState(if (isOpen) openW else Tokens.Phone.CAM_EXPAND_WIDTH_DP.dp, tween(240, easing = ease), label = "camMenuW")
+    val height by animateDpAsState(if (isOpen) rowH * 3 else rowH, tween(240, easing = ease), label = "camMenuH")
+    val iconRot by animateFloatAsState(if (isWide) 90f else 0f, tween(220, easing = ease), label = "camOrientRot")
+    val shape = RoundedCornerShape(12.dp)
     val border = if (isOpen) Color(0x5CFFFFFF) else Color(0x38FFFFFF)
-    val bg = if (isOpen) Color(0xFA000000) else Color(0xE0000000)
+    val bg = if (isOpen) Color(0xF0000000) else Color(0xBF000000)
+
+    val autoLabel = stringResource(Copy.string.value_ratio_auto)
+    val closedLabel = if (ratio == "full" || ratio == "auto") autoLabel else ratio
+
+    val orientClick = {
+        onInteract()
+        val flipped = toggleRatioOrientation(ratio)
+        if (flipped != null) {
+            Owlmic.post(AppMsg.Setting("camera.ratio", flipped))
+        } else {
+            menuWide = !menuWide
+        }
+    }
 
     Box(
-        Modifier
+        modifier
             .size(width, height)
             .clip(shape)
-            .background(bg)
-            .border(1.dp, border, shape),
+            .background(bg),
     ) {
         Crossfade(targetState = isOpen, animationSpec = tween(180), label = "camMenuContent") { open ->
             if (!open) {
@@ -326,146 +415,118 @@ private fun CameraFormatMenu(state: AppState, isOpen: Boolean, onToggle: () -> U
                     contentAlignment = Alignment.Center,
                 ) {
                     BasicText(
-                        resLabel,
-                        style = Theme.pageDetail.copy(color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Medium),
+                        closedLabel,
+                        style = Theme.pageDetail.copy(
+                            color = Color.White,
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Medium,
+                            fontFeatureSettings = "tnum",
+                        ),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
                     )
                 }
             } else {
+                val row2 = if (isWide) listOf("16:9" to "16:9", "4:3" to "4:3") else listOf("9:16" to "9:16", "3:4" to "3:4")
+                val row3 = if (isWide) listOf("2:1" to "2:1", "1:1" to "1:1") else listOf("1:2" to "1:2", "1:1" to "1:1")
                 Column(Modifier.fillMaxSize()) {
-                // Row 1: Resolution (FHD, HD, 480p)
-                Row(Modifier.fillMaxWidth().height(29.dp)) {
-                    val resOptions = listOf("1080p" to "FHD", "720p" to "HD", "480p" to "480p")
-                    resOptions.forEachIndexed { idx, (valKey, label) ->
-                        if (idx > 0) Box(Modifier.width(1.dp).fillMaxHeight().background(Color(0x1AFFFFFF)))
-                        val active = quality == valKey || (valKey == "1080p" && quality == "auto")
+                    Row(Modifier.fillMaxWidth().weight(1f)) {
+                        val autoActive = ratio == "full" || ratio == "auto"
+                        RatioOptionCell(
+                            label = autoLabel,
+                            active = autoActive,
+                            modifier = Modifier.weight(1f).fillMaxHeight(),
+                            onClick = {
+                                onInteract()
+                                if (autoActive) onToggle() else Owlmic.post(AppMsg.Setting("camera.ratio", "full"))
+                            },
+                        )
+                        Box(Modifier.width(1.dp).fillMaxHeight().background(Color(0x1AFFFFFF)))
                         Box(
                             Modifier
                                 .weight(1f)
                                 .fillMaxHeight()
-                                .background(if (active) Color.White else Color.Transparent)
-                                .clickable(role = Role.Button) {
-                                    if (active) onToggle() else Owlmic.post(AppMsg.Setting("camera.quality", valKey))
-                                },
+                                .clickable(
+                                    role = Role.Button,
+                                    onClickLabel = stringResource(if (isWide) Copy.string.value_landscape else Copy.string.value_portrait),
+                                    onClick = orientClick,
+                                ),
                             contentAlignment = Alignment.Center,
                         ) {
-                            BasicText(
-                                label,
-                                style = Theme.pageDetail.copy(
-                                    color = if (active) Color.Black else Color(0xA6FFFFFF),
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Medium,
-                                ),
+                            Icon(
+                                Glyph.PHONE,
+                                Color(0xD9FFFFFF),
+                                null,
+                                Modifier.graphicsLayer { rotationZ = iconRot },
+                                size = 18.dp,
+                                stroke = 2.15f,
                             )
                         }
                     }
-                }
-                Box(Modifier.fillMaxWidth().height(1.dp).background(Color(0x1AFFFFFF)))
-                // Row 2: FPS (60fps, 30fps, 24fps)
-                Row(Modifier.fillMaxWidth().height(29.dp)) {
-                    val fpsOptions = listOf("60" to "60fps", "30" to "30fps", "24" to "24fps")
-                    fpsOptions.forEachIndexed { idx, (valKey, label) ->
-                        if (idx > 0) Box(Modifier.width(1.dp).fillMaxHeight().background(Color(0x1AFFFFFF)))
-                        val active = fps == valKey
-                        Box(
-                            Modifier
-                                .weight(1f)
-                                .fillMaxHeight()
-                                .background(if (active) Color.White else Color.Transparent)
-                                .clickable(role = Role.Button) {
-                                    Owlmic.post(AppMsg.Setting("camera.frameRate", valKey))
-                                },
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            BasicText(
-                                label,
-                                style = Theme.pageDetail.copy(
-                                    color = if (active) Color.Black else Color(0xA6FFFFFF),
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Medium,
-                                ),
-                            )
-                        }
-                    }
-                }
-                Box(Modifier.fillMaxWidth().height(1.dp).background(Color(0x1AFFFFFF)))
-                // Row 3: Ratio (Auto, 16:9, 4:3)
-                Row(Modifier.fillMaxWidth().height(29.dp)) {
-                    val ratioOptions1 = listOf("full" to "Auto", "16:9" to "16:9", "4:3" to "4:3")
-                    ratioOptions1.forEachIndexed { idx, (valKey, label) ->
-                        if (idx > 0) Box(Modifier.width(1.dp).fillMaxHeight().background(Color(0x1AFFFFFF)))
-                        val active = ratio == valKey || (valKey == "full" && ratio == "auto")
-                        Box(
-                            Modifier
-                                .weight(1f)
-                                .fillMaxHeight()
-                                .background(if (active) Color.White else Color.Transparent)
-                                .clickable(role = Role.Button) {
-                                    Owlmic.post(AppMsg.Setting("camera.ratio", valKey))
-                                },
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            BasicText(
-                                label,
-                                style = Theme.pageDetail.copy(
-                                    color = if (active) Color.Black else Color(0xA6FFFFFF),
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Medium,
-                                ),
-                            )
-                        }
-                    }
-                }
-                Box(Modifier.fillMaxWidth().height(1.dp).background(Color(0x1AFFFFFF)))
-                // Row 4: Ratio (1:1, 3:4, 9:16)
-                Row(Modifier.fillMaxWidth().height(29.dp)) {
-                    val ratioOptions2 = listOf("1:1" to "1:1", "3:4" to "3:4", "9:16" to "9:16")
-                    ratioOptions2.forEachIndexed { idx, (valKey, label) ->
-                        if (idx > 0) Box(Modifier.width(1.dp).fillMaxHeight().background(Color(0x1AFFFFFF)))
-                        val active = ratio == valKey
-                        Box(
-                            Modifier
-                                .weight(1f)
-                                .fillMaxHeight()
-                                .background(if (active) Color.White else Color.Transparent)
-                                .clickable(role = Role.Button) {
-                                    Owlmic.post(AppMsg.Setting("camera.ratio", valKey))
-                                },
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            BasicText(
-                                label,
-                                style = Theme.pageDetail.copy(
-                                    color = if (active) Color.Black else Color(0xA6FFFFFF),
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Medium,
-                                ),
-                            )
+                    listOf(row2, row3).forEach { rowItems ->
+                        Box(Modifier.fillMaxWidth().height(1.dp).background(Color(0x1AFFFFFF)))
+                        Row(Modifier.fillMaxWidth().weight(1f)) {
+                            rowItems.forEachIndexed { idx, (valKey, label) ->
+                                if (idx > 0) Box(Modifier.width(1.dp).fillMaxHeight().background(Color(0x1AFFFFFF)))
+                                val active = ratio == valKey
+                                RatioOptionCell(
+                                    label = label,
+                                    active = active,
+                                    modifier = Modifier.weight(1f).fillMaxHeight(),
+                                    onClick = {
+                                        onInteract()
+                                        if (active) onToggle() else Owlmic.post(AppMsg.Setting("camera.ratio", valKey))
+                                    },
+                                )
+                            }
                         }
                     }
                 }
             }
         }
+        Box(Modifier.matchParentSize().border(1.dp, border, shape))
     }
 }
+
+@Composable
+private fun RatioOptionCell(label: String, active: Boolean, modifier: Modifier, onClick: () -> Unit) {
+    Box(
+        modifier
+            .background(if (active) Color.White else Color.Transparent)
+            .clickable(role = Role.Button, onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        BasicText(
+            label,
+            style = Theme.pageDetail.copy(
+                color = if (active) Color.Black else Color(0xA6FFFFFF),
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Medium,
+                fontFeatureSettings = "tnum",
+            ),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
 }
 
-/** Mirror and Flip buttons in Camera HUD. */
+/** Mirror and Flip buttons in Camera HUD (1.5x mobile scale). */
 @Composable
 private fun CamHudButton(glyph: Glyph, on: Boolean = false, label: String, onClick: () -> Unit) {
-    val shape = RoundedCornerShape(8.dp)
-    val bg by animateColorAsState(if (on) Color.White else Color(0xCC000000), tween(Theme.STATE_MS), label = "camBtnBg")
-    val border by animateColorAsState(if (on) Color.White else Color(0x33FFFFFF), tween(Theme.STATE_MS), label = "camBtnBorder")
+    val shape = RoundedCornerShape(12.dp)
+    val bg by animateColorAsState(if (on) Color.White else Color(0xBF000000), tween(Theme.STATE_MS), label = "camBtnBg")
+    val border by animateColorAsState(if (on) Color.White else Color(0x38FFFFFF), tween(Theme.STATE_MS), label = "camBtnBorder")
     val fg by animateColorAsState(if (on) Color.Black else Color.White, tween(Theme.STATE_MS), label = "camBtnFg")
     Box(
         Modifier
-            .size(29.dp)
+            .size(Tokens.Phone.CAM_EXPAND_HEIGHT_DP.dp)
             .clip(shape)
             .background(bg)
             .border(1.dp, border, shape)
             .clickable(role = Role.Button, onClickLabel = label, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
-        Icon(glyph, fg, label, size = 15.dp, stroke = 2f)
+        Icon(glyph, fg, label, size = 22.dp, stroke = 2.15f)
     }
 }
 

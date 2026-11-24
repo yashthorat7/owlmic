@@ -36,6 +36,7 @@
   external: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="2.45" stroke-linecap="butt" stroke-linejoin="round"><path d="M 6.5 17.5 L 17.5 6.5"/><path d="M 8.5 6.5 H 17.5 V 15.5"/></svg>`,
   close: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="2.3" stroke-linecap="butt" stroke-linejoin="round"><path d="M 6.5 6.5 L 17.5 17.5 M 17.5 6.5 L 6.5 17.5"/></svg>`,
   flip: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="2.3" stroke-linecap="butt" stroke-linejoin="round"><path d="M 4 11 V 8.55 A 2.8 2.8 0 0 1 6.8 5.75 H 19.25"/><path d="M 16.5 3 L 19.25 5.75 L 16.5 8.5"/><path d="M 20 13 V 15.45 A 2.8 2.8 0 0 1 17.2 18.25 H 4.75"/><path d="M 7.5 15.5 L 4.75 18.25 L 7.5 21"/></svg>`,
+  phone: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="2.15" stroke-linejoin="round"><rect x="6.5" y="2.5" width="11" height="19" rx="2.5"/><path d="M 10.5 18 L 13.5 18" stroke-linecap="round"/></svg>`,
   unplug: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="2.3" stroke-linecap="butt" stroke-linejoin="round"><path d="M 5.3 8 H 4.5 A 2 2 0 0 0 2.5 10 V 14 A 2 2 0 0 0 4.5 16 H 10"/><path d="M 14 8 H 19.5 A 2 2 0 0 1 21.5 10 V 14 A 2 2 0 0 1 19.5 16 H 18.7"/><path d="M 4 4 L 20 20"/></svg>`,
   'git-branch': `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="2.15" stroke-linecap="butt" stroke-linejoin="round"><path d="M 15 20.5 V 16 Q 15 14.5 16.5 14.5 H 17.25 Q 19.5 14.5 19.5 12.25 V 7.4 L 18.1 3.75 L 15.1 5.4 H 8.9 L 5.9 3.75 L 4.5 7.4 V 12.25 Q 4.5 14.5 6.75 14.5 H 7.5 Q 9 14.5 9 16 V 20.5"/><path d="M 9 18.5 H 6.5 Q 5.25 18.5 5.25 17.25 Q 5.25 16.25 4.25 16.25 H 3.5"/></svg>`,
   };
@@ -93,9 +94,7 @@
     links: ['USB', 'Tethering', 'Wi-Fi', 'Bluetooth'],
     shortLinks: { USB: 'USB', Tethering: 'Tether', 'Wi-Fi': 'Wi-Fi', Bluetooth: 'BT' },
     icons: { USB: 'usb', Tethering: 'cable', 'Wi-Fi': 'wifi', Bluetooth: 'bluetooth', Disconnected: 'globe' },
-    resList: ['FHD', 'HD', '480p'],
-    fpsList: ['60', '30', '24'],
-    ratios: { Auto: 0, '16:9': 16/9, '4:3': 4/3, '1:1': 1, '3:4': 3/4, '9:16': 9/16 },
+    ratios: { Auto: 0, '16:9': 16/9, '4:3': 4/3, '2:1': 2, '1:1': 1, '1:2': 0.5, '3:4': 3/4, '9:16': 9/16 },
     help: [
       { k: 'howto', ic: 'list', t: 'How-to' }, { k: 'privacy', ic: 'shield', t: 'Privacy' },
       { href: 'https://github.com/diveshpatil9104/owlmic', ic: 'star', t: 'Rate' },
@@ -126,7 +125,7 @@
     speaker: false,
     lens: 'Front',
     quality: 'FHD',
-    fps: '30',
+    fps: '60',
     ratio: 'Auto',
     mirror: true,
     nr: 5,
@@ -166,14 +165,29 @@
     `<button ${attr}="${v}" class="${cls} ${sz} flex items-center justify-center tabular-nums text-center whitespace-nowrap cursor-pointer transition-colors font-medium">${fmt(v)}</button>`
   ).join('');
 
-  const ratioKeys = Object.keys(CFG.ratios);
-  $('m-camResRow').innerHTML = buildCamBtns(CFG.resList, 'data-res', 'js-m-res', 'h-[29px] text-[11px]');
-  $('m-camFpsRow').innerHTML = buildCamBtns(CFG.fpsList, 'data-fps', 'js-m-fps', 'h-[29px] text-[11px]', v => `${v}fps`);
-  $('m-camRatioRow').innerHTML = buildCamBtns(ratioKeys, 'data-ratio', 'js-m-ratio', 'h-[29px] text-[11px]');
-
-  $('p-camResRow').innerHTML = buildCamBtns(CFG.resList, 'data-res', 'js-p-res', 'h-[25px] text-[10px]');
-  $('p-camFpsRow').innerHTML = buildCamBtns(CFG.fpsList, 'data-fps', 'js-p-fps', 'h-[25px] text-[10px]', v => `${v}fps`);
-  $('p-camRatioRow').innerHTML = buildCamBtns(ratioKeys, 'data-ratio', 'js-p-ratio', 'h-[25px] text-[10px]');
+  const ratioIsWide = () => {
+    if (state.ratio === '16:9' || state.ratio === '4:3' || state.ratio === '2:1') return true;
+    if (state.ratio === '9:16' || state.ratio === '3:4' || state.ratio === '1:2') return false;
+    return state.phone.isLandscape;
+  };
+  let bindRatioBtns = () => {};
+  const syncRatioMenus = () => {
+    const wide = ratioIsWide();
+    const row1 = wide ? ['16:9', '4:3'] : ['9:16', '3:4'];
+    const row2 = wide ? ['2:1', '1:1'] : ['1:2', '1:1'];
+    [['phone', 'm', 'text-[11px]'], ['pc', 'p', 'text-[10px]']].forEach(([side, pfx, sz]) => {
+      const autoSlot = $(`${pfx}-camAutoSlot`);
+      const r1 = $(`${pfx}-camRatioRow1`);
+      const r2 = $(`${pfx}-camRatioRow2`);
+      const btns1 = r1.querySelectorAll('button');
+      if (!autoSlot.firstElementChild || btns1.length !== 2 || btns1[0].dataset.ratio !== row1[0]) {
+        autoSlot.innerHTML = buildCamBtns(['Auto'], 'data-ratio', `js-${pfx}-ratio`, `${sz} w-full h-full`);
+        r1.innerHTML = buildCamBtns(row1, 'data-ratio', `js-${pfx}-ratio`, `${sz} h-full`);
+        r2.innerHTML = buildCamBtns(row2, 'data-ratio', `js-${pfx}-ratio`, `${sz} h-full`);
+        bindRatioBtns(side, pfx);
+      }
+    });
+  };
 
   $$('.js-audio-slot').forEach(el => {
     const lg = el.dataset.size === 'lg';
@@ -311,9 +325,13 @@
   const scheduleHudDim = (side) => {
     clearHudTimer(side);
     const dev = state[side];
-    if (!state.camera || !dev.camHud || dev.camMenu || (state.mic && dev.dockOpen)) return;
+    if (!state.camera || !dev.camHud || (state.mic && dev.dockOpen)) return;
     hudTimers[side] = setTimeout(() => {
-      if (!dev.camMenu && !(state.mic && dev.dockOpen)) { dev.camHud = false; render(); }
+      if (!(state.mic && dev.dockOpen)) {
+        dev.camMenu = false;
+        dev.camHud = false;
+        render();
+      }
     }, CFG.hudIdleMs);
   };
 
@@ -324,8 +342,9 @@
   const getSensorDims = () => {
     const pgW = $('m-playground').clientWidth || 373;
     const pgH = $('m-playground').clientHeight || 544;
-    const w = state.phone.isLandscape ? pgH : pgW;
-    const h = state.phone.isLandscape ? pgW : pgH;
+    const land = $('deviceMobile').classList.contains('is-landscape');
+    const w = land ? pgH : pgW;
+    const h = land ? pgW : pgH;
     return { w, h, ar: w / h };
   };
 
@@ -540,6 +559,12 @@
     if (open) $('m-addPcInput').focus(); else $('m-addPcInput').value = '';
   };
 
+  const flipRatioForOrient = land => {
+    if (state.ratio === '16:9' || state.ratio === '9:16') state.ratio = land ? '16:9' : '9:16';
+    else if (state.ratio === '4:3' || state.ratio === '3:4') state.ratio = land ? '4:3' : '3:4';
+    else if (state.ratio === '2:1' || state.ratio === '1:2') state.ratio = land ? '2:1' : '1:2';
+  };
+
   const setOrientation = land => {
     clearTimeout(rotTimer);
     state.phone.isLandscape = land;
@@ -549,8 +574,10 @@
     fitPhoneStage();
     render();
     rotTimer = setTimeout(() => {
+      flipRatioForOrient(land);
       $('deviceMobile').classList.toggle('is-landscape', land);
       $('deviceMobile').classList.toggle('is-portrait', !land);
+      render();
       requestAnimationFrame(() => { syncMobilePg(); syncAllCrops(); renderCamerasNow(); });
     }, 230);
   };
@@ -782,14 +809,13 @@
     $('m-camLayer').classList.toggle('pointer-events-none', !state.camera);
 
     const mHudOn = state.phone.camHud || state.phone.camMenu || (state.camera && state.mic && state.phone.dockOpen);
-    $('m-camRes').textContent = state.quality;
-    if ($('m-camFps')) $('m-camFps').textContent = `${state.fps}fps`;
-    if ($('m-camRatio')) $('m-camRatio').textContent = state.ratio;
+    syncRatioMenus();
+    const wideRot = ratioIsWide() ? 'rotate(90deg)' : 'rotate(0deg)';
     $('m-camHud').classList.toggle('is-quiet', !mHudOn);
     $('m-camMenuBox').classList.toggle('is-open', state.phone.camMenu);
+    $('m-camRatioLabel').textContent = state.ratio;
     $('m-btnMirror').classList.toggle('is-on', state.mirror);
-    setOptionActive($$('.js-m-res'), state.quality, 'res');
-    setOptionActive($$('.js-m-fps'), state.fps, 'fps');
+    $('m-camOrientIc').style.transform = wideRot;
     setOptionActive($$('.js-m-ratio'), state.ratio, 'ratio');
 
     renderWaveDock($('m-waveDock'), $('m-micQuick'), state.phone);
@@ -837,14 +863,11 @@
     $('p-camLayer').classList.toggle('pointer-events-none', !state.camera);
 
     const pHudOn = state.pc.camHud || state.pc.camMenu || (state.camera && state.mic && state.pc.dockOpen);
-    $('p-camRes').textContent = state.quality;
-    if ($('p-camFps')) $('p-camFps').textContent = `${state.fps}fps`;
-    if ($('p-camRatio')) $('p-camRatio').textContent = state.ratio;
     $('p-camHud').classList.toggle('is-quiet', !pHudOn);
     $('p-camMenuBox').classList.toggle('is-open', state.pc.camMenu);
+    $('p-camRatioLabel').textContent = state.ratio;
     $('p-btnMirror').classList.toggle('is-on', state.mirror);
-    setOptionActive($$('.js-p-res'), state.quality, 'res');
-    setOptionActive($$('.js-p-fps'), state.fps, 'fps');
+    $('p-camOrientIc').style.transform = wideRot;
     setOptionActive($$('.js-p-ratio'), state.ratio, 'ratio');
 
     renderWaveDock($('p-waveDock'), $('p-micQuick'), state.pc);
@@ -1057,15 +1080,22 @@
       state.pc.trayOverflowOpen = false;
       changed = true;
     }
+    let closedMenuOnDown = false;
     if (state.phone.camMenu && !e.target.closest('#m-camMenuBox')) {
       state.phone.camMenu = false;
       scheduleHudDim('phone');
+      closedMenuOnDown = true;
       changed = true;
     }
     if (state.pc.camMenu && !e.target.closest('#p-camMenuBox')) {
       state.pc.camMenu = false;
       scheduleHudDim('pc');
+      closedMenuOnDown = true;
       changed = true;
+    }
+    if (closedMenuOnDown) {
+      document.documentElement.dataset.closedCamMenu = '1';
+      setTimeout(() => { delete document.documentElement.dataset.closedCamMenu; }, 0);
     }
     if (changed) render();
   });
@@ -1091,41 +1121,39 @@
   };
 
   // Camera HUD & Waveform Controls
+  bindRatioBtns = (side, pfx) => {
+    const dev = state[side];
+    $$(`.js-${pfx}-ratio`).forEach(b => b.onclick = e => {
+      e.stopPropagation();
+      if (state.ratio === b.dataset.ratio) dev.camMenu = false;
+      else state.ratio = b.dataset.ratio;
+      dev.camHud = true;
+      scheduleHudDim(side);
+      render();
+    });
+  };
   const bindCamUi = (side, pfx) => {
     const dev = state[side];
     $(`${pfx}-camLayer`).onclick = e => {
       if (e.target.closest(`#${pfx}-camHud`)) return;
+      if (document.documentElement.dataset.closedCamMenu) return;
       if (dev.camMenu) { dev.camMenu = false; dev.camHud = true; render(); scheduleHudDim(side); }
       else { dev.camHud = !dev.camHud; render(); dev.camHud ? scheduleHudDim(side) : clearHudTimer(side); }
     };
     $(`${pfx}-btnCamMenu`).onclick = () => {
       dev.camHud = true; dev.camMenu = !dev.camMenu;
-      if (dev.camMenu) { dev.dockOpen = false; clearHudTimer(side); } else scheduleHudDim(side);
+      if (dev.camMenu) dev.dockOpen = false;
+      scheduleHudDim(side);
       render();
     };
-    $$(`.js-${pfx}-res`).forEach(b => b.onclick = e => {
+    bindRatioBtns(side, pfx);
+    $(`${pfx}-btnCamOrient`).onclick = e => {
       e.stopPropagation();
-      if (state.quality === b.dataset.res) {
-        dev.camMenu = false;
-        scheduleHudDim(side);
-      } else {
-        state.quality = b.dataset.res;
-      }
+      const nextLand = !state.phone.isLandscape;
       dev.camHud = true;
-      render();
-    });
-    $$(`.js-${pfx}-fps`).forEach(b => b.onclick = e => {
-      e.stopPropagation();
-      state.fps = b.dataset.fps;
-      dev.camHud = true;
-      render();
-    });
-    $$(`.js-${pfx}-ratio`).forEach(b => b.onclick = e => {
-      e.stopPropagation();
-      state.ratio = b.dataset.ratio;
-      dev.camHud = true;
-      render();
-    });
+      scheduleHudDim(side);
+      setOrientation(nextLand);
+    };
     $(`${pfx}-btnMirror`).onclick = () => {
       dev.camHud = true; dev.camMenu = false; state.mirror = !state.mirror; render(); scheduleHudDim(side);
     };

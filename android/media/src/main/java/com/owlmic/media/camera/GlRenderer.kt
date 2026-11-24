@@ -42,6 +42,7 @@ class GlRenderer {
     private var encoderWidth = 0
     private var encoderHeight = 0
     private var preview: EGLSurface = EGL14.EGL_NO_SURFACE
+    private var previewSurfaceRef: Surface? = null
     private var previewWidth = 0
     private var previewHeight = 0
 
@@ -106,25 +107,40 @@ class GlRenderer {
             encoder = EGL14.eglCreateWindowSurface(display, config, surface, intArrayOf(EGL14.EGL_NONE), 0)
             encoderWidth = width
             encoderHeight = height
+            if (encoder != EGL14.EGL_NO_SURFACE) {
+                EGL14.eglMakeCurrent(display, encoder, encoder, context)
+                EGL14.eglSwapInterval(display, 0)
+                EGL14.eglMakeCurrent(display, idle, idle, context)
+            }
         }
     }
 
     /** The preview's surface, or null while it isn't on screen (or the user turned it off). GL thread. */
     fun setPreview(surface: Surface?, width: Int, height: Int) {
+        if (surface != null && surface === previewSurfaceRef && width == previewWidth && height == previewHeight && preview != EGL14.EGL_NO_SURFACE) {
+            return
+        }
         if (preview != EGL14.EGL_NO_SURFACE) {
             EGL14.eglMakeCurrent(display, idle, idle, context)
             EGL14.eglDestroySurface(display, preview)
             preview = EGL14.EGL_NO_SURFACE
         }
+        previewSurfaceRef = null
         // Without a preview its backdrop isn't needed; it is made again, small, when one comes back.
         if (surface == null && backdropWidth > 0) {
             EGL14.eglMakeCurrent(display, idle, idle, context)
             dropBackdrop()
         }
         if (surface != null && surface.isValid) {
+            previewSurfaceRef = surface
             preview = EGL14.eglCreateWindowSurface(display, config, surface, intArrayOf(EGL14.EGL_NONE), 0)
             previewWidth = width
             previewHeight = height
+            if (preview != EGL14.EGL_NO_SURFACE) {
+                EGL14.eglMakeCurrent(display, preview, preview, context)
+                EGL14.eglSwapInterval(display, 0)
+                EGL14.eglMakeCurrent(display, idle, idle, context)
+            }
         }
     }
 

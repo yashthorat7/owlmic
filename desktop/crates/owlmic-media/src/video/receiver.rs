@@ -7,8 +7,8 @@ use std::collections::VecDeque;
 use std::sync::{Condvar, Mutex};
 use std::time::{Duration, Instant};
 
-/// About a quarter second at 30 fps.
-const QUEUE: usize = 8;
+/// About 200 ms at 60 fps.
+const QUEUE: usize = 12;
 /// A frame that has waited this long means the decoder is behind.
 const MAX_AGE: Duration = Duration::from_millis(200);
 
@@ -100,9 +100,8 @@ impl VideoReceiver {
         self.queue.lock().unwrap_or_else(|p| p.into_inner()).clear();
         let mut r = self.reassembler.lock().unwrap_or_else(|p| p.into_inner());
         r.lost_sync();
-        if r.take_keyframe_request(Instant::now()) {
-            (self.request_keyframe)();
-        }
+        r.take_keyframe_request(Instant::now());
+        (self.request_keyframe)();
     }
 }
 

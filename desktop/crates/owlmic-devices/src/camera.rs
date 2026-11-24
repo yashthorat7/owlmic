@@ -146,6 +146,7 @@ fn run(
     let mut has_picture = false;
     let mut last = Instant::now();
     let mut previewed = Instant::now();
+    let mut last_pic_size = (0usize, 0usize);
     let mut errors = 0;
     while !stop.load(Ordering::Acquire) {
         let Some(next) = receiver.next_frame(Duration::from_millis(250)) else {
@@ -155,19 +156,33 @@ fn run(
             }
             continue;
         };
-        match decoder.decode(&next.frame.data) {
+        match decoder.decode(&next.frame.data, next.frame.timestamp_us) {
+            // A newer frame waits behind this one: decode it, but only the newest is shown.
+            Ok(Some(_)) if next.more => errors = 0,
             Ok(Some(picture)) => {
                 errors = 0;
+                preview.set_stream_size(picture.width, picture.height);
                 let (framing, mirror) = shape.get();
                 picture.shape_into(&mut out, framing, mirror);
                 feed.write(&out);
                 has_picture = true;
                 last = Instant::now();
                 if preview.wanted()
-                    && previewed.elapsed() >= Duration::from_millis(preview::EVERY_MS)
+                    && ((picture.width, picture.height) != last_pic_size
+                        || previewed.elapsed() >= Duration::from_millis(preview::EVERY_MS))
                 {
                     previewed = last;
-                    preview.put(|px| out.to_bgra_scaled(preview::WIDTH, preview::HEIGHT, px));
+                    last_pic_size = (picture.width, picture.height);
+                    let (pw, ph) = if picture.width >= picture.height {
+                        let w = preview::WIDTH;
+                        let h = ((w * picture.height) / picture.width).max(1);
+                        (w, h)
+                    } else {
+                        let h = preview::HEIGHT;
+                        let w = ((h * picture.width) / picture.height).max(1);
+                        (w, h)
+                    };
+                    preview.put(pw, ph, |px| picture.to_bgra_scaled(pw, ph, mirror, px));
                 }
             }
             Ok(None) => errors = 0,
@@ -181,5 +196,6 @@ fn run(
             }
         }
     }
+    preview.clear_stats();
     feed.placeholder();
 }

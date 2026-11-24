@@ -1,4 +1,4 @@
-//! The panel window: 312 x 374 at 100% scale above the tray, never in the taskbar, closed by
+//! The panel window: 312 x 312 (1:1) at 100% scale above the tray, never in the taskbar, closed by
 //! Esc or by clicking elsewhere (SYSTEM_DESIGN section 33). Visual layout, palette, and
 //! interaction behavior mirror the PC prototype 1:1.
 
@@ -6,8 +6,8 @@ use super::draw::{Align, Font, Painter};
 use super::tray::{self, Tray};
 use crate::icons;
 use crate::layout::{self as l, CropMode, Drawer, HelpScreen, Rect, Screen, Target, WifiMode};
-use crate::preview::{self, Preview};
-use crate::view::{Action, Connection, Feature, Link, PanelState, indicator};
+use crate::preview::Preview;
+use crate::view::{Action, Connection, Feature, Link, PanelState, indicator, link_icon};
 use owlmic_hub::Publisher;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicIsize, AtomicU32, Ordering};
@@ -176,6 +176,7 @@ struct Panel {
     cam_hud: bool,
     cam_hud_at: Option<Instant>,
     cam_menu_open: bool,
+    cam_menu_wide: Option<bool>,
     mic_quick_open: bool,
     dock_open: bool,
     hover: Option<Target>,
@@ -197,6 +198,7 @@ struct Panel {
     base_pos: (i32, i32),
     is_mouse_over: bool,
     unhover_since: Option<Instant>,
+    anim: UiAnim,
 }
 
 /// Creates the panel and the tray icon and runs the message loop until [`Waker::quit`].
@@ -213,9 +215,11 @@ pub fn run(waker: &Waker, ui: Ui, open: bool) -> Result<()> {
             ..Default::default()
         };
         RegisterClassExW(&class);
+        let init_state = ui.state.read();
+        let anim = UiAnim::settled_for(&init_state, Drawer::None, false, false, false, false);
         let panel = Box::new(Panel {
             hwnd: HWND::default(),
-            state: ui.state.read(),
+            state: init_state,
             ui,
             painter: Painter::new()?,
             tray: None,
@@ -223,6 +227,7 @@ pub fn run(waker: &Waker, ui: Ui, open: bool) -> Result<()> {
             cam_hud: false,
             cam_hud_at: None,
             cam_menu_open: false,
+            cam_menu_wide: None,
             mic_quick_open: false,
             dock_open: false,
             hover: None,
@@ -244,6 +249,7 @@ pub fn run(waker: &Waker, ui: Ui, open: bool) -> Result<()> {
             base_pos: (0, 0),
             is_mouse_over: false,
             unhover_since: None,
+            anim,
         });
         let raw = Box::into_raw(panel);
         let hwnd = CreateWindowExW(
@@ -320,12 +326,241 @@ fn gray(alpha: f32) -> u32 {
     (c << 16) | (c << 8) | c
 }
 
-fn dim_color(rgb: u32, factor: f32) -> u32 {
-    let f = factor.clamp(0.0, 1.0);
-    let r = (((rgb >> 16) & 0xFF) as f32 * f).round() as u32;
-    let g = (((rgb >> 8) & 0xFF) as f32 * f).round() as u32;
-    let b = ((rgb & 0xFF) as f32 * f).round() as u32;
-    (r << 16) | (g << 8) | b
+fn lerp(a: f32, b: f32, t: f32) -> f32 {
+    a + (b - a) * t
+}
+
+fn lerp_rect(a: Rect, b: Rect, t: f32) -> Rect {
+    Rect::new(
+        lerp(a.x, b.x, t),
+        lerp(a.y, b.y, t),
+        lerp(a.w, b.w, t),
+        lerp(a.h, b.h, t),
+    )
+}
+
+fn lerp_color(a: u32, b: u32, t: f32) -> u32 {
+    let t = t.clamp(0.0, 1.0);
+    let mix = |shift: u32| -> u32 {
+        let ca = ((a >> shift) & 0xFF) as f32;
+        let cb = ((b >> shift) & 0xFF) as f32;
+        lerp(ca, cb, t).round().clamp(0.0, 255.0) as u32
+    };
+    (mix(16) << 16) | (mix(8) << 8) | mix(0)
+}
+
+fn cubic_bezier(p1x: f32, p1y: f32, p2x: f32, p2y: f32, x: f32) -> f32 {
+    let x = x.clamp(0.0, 1.0);
+    if x <= 0.0 || x >= 1.0 {
+        return x;
+    }
+    let cx = 3.0 * p1x;
+    let bx = 3.0 * (p2x - p1x) - cx;
+    let ax = 1.0 - cx - bx;
+    let mut t = x;
+    for _ in 0..4 {
+        let xt = ((ax * t + bx) * t + cx) * t - x;
+        let dx = (3.0 * ax * t + 2.0 * bx) * t + cx;
+        if dx.abs() < 1e-5 {
+            break;
+        }
+        t = (t - xt / dx).clamp(0.0, 1.0);
+    }
+    let cy = 3.0 * p1y;
+    let by = 3.0 * (p2y - p1y) - cy;
+    let ay = 1.0 - cy - by;
+    (((ay * t + by) * t + cy) * t).clamp(0.0, 1.0)
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Curve {
+    EaseOut,
+    EaseOutExpo,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct Tween {
+    from: f32,
+    target: f32,
+    started: Instant,
+    dur: Duration,
+    curve: Curve,
+}
+
+impl Tween {
+    fn settled(v: f32, dur_ms: u64, curve: Curve) -> Self {
+        let dur = Duration::from_millis(dur_ms);
+        Self {
+            from: v,
+            target: v,
+            started: Instant::now() - dur - Duration::from_secs(1),
+            dur,
+            curve,
+        }
+    }
+
+    fn set(&mut self, next: f32) {
+        if (self.target - next).abs() > 0.001 {
+            self.from = self.now();
+            self.target = next;
+            self.started = Instant::now();
+        }
+    }
+
+    fn snap(&mut self, v: f32) {
+        self.from = v;
+        self.target = v;
+        self.started = Instant::now() - self.dur - Duration::from_secs(1);
+    }
+
+    fn now(&self) -> f32 {
+        let raw = if self.dur.is_zero() {
+            1.0
+        } else {
+            (self.started.elapsed().as_secs_f32() / self.dur.as_secs_f32()).clamp(0.0, 1.0)
+        };
+        let e = match self.curve {
+            Curve::EaseOut => cubic_bezier(0.22, 1.0, 0.36, 1.0, raw),
+            Curve::EaseOutExpo => cubic_bezier(0.16, 1.0, 0.3, 1.0, raw),
+        };
+        lerp(self.from, self.target, e)
+    }
+}
+
+struct UiAnim {
+    epoch: Instant,
+    drawer_t: Tween,
+    last_drawer: Drawer,
+    help_sub_t: Tween,
+    last_help: HelpScreen,
+    cam_layer_t: Tween,
+    cam_hud_t: Tween,
+    cam_menu_t: Tween,
+    cam_orient_t: Tween,
+    wave_dock_cam_t: Tween,
+    dock_expand_t: Tween,
+    quick_audio_t: Tween,
+    iso_sw_t: Tween,
+    norm_sw_t: Tween,
+    nr_drag_t: Tween,
+    vol_drag_t: Tween,
+    vol_live: f32,
+    btn_on: [Tween; 5],
+    btn_hov: [Tween; 5],
+    wave_bars_h: [f32; WAVE_BARS],
+}
+
+impl UiAnim {
+    fn settled_for(
+        state: &PanelState,
+        drawer: Drawer,
+        cam_hud: bool,
+        cam_menu: bool,
+        mic_quick: bool,
+        dock_open: bool,
+    ) -> Self {
+        let cam_on = matches!(state.camera, Feature::On | Feature::Restarting) && state.connected();
+        let mic_on = matches!(state.mic, Feature::On | Feature::Restarting) && state.connected();
+        let spk_on =
+            matches!(state.speaker, Feature::On | Feature::Restarting) && state.connected();
+        let hud_bright = cam_hud || cam_menu || (cam_on && mic_on && dock_open);
+        let on_flags = [
+            drawer == Drawer::Wifi,
+            cam_on,
+            mic_on,
+            spk_on,
+            matches!(drawer, Drawer::Help(_)),
+        ];
+        let help_screen = match drawer {
+            Drawer::Help(h) => h,
+            _ => HelpScreen::Bento,
+        };
+        let is_help_sub = !matches!(help_screen, HelpScreen::Bento);
+        Self {
+            epoch: Instant::now(),
+            drawer_t: Tween::settled(
+                if drawer != Drawer::None { 1.0 } else { 0.0 },
+                280,
+                Curve::EaseOut,
+            ),
+            last_drawer: if drawer != Drawer::None {
+                drawer
+            } else {
+                Drawer::Wifi
+            },
+            help_sub_t: Tween::settled(if is_help_sub { 1.0 } else { 0.0 }, 220, Curve::EaseOut),
+            last_help: if is_help_sub {
+                help_screen
+            } else {
+                HelpScreen::HowTo
+            },
+            cam_layer_t: Tween::settled(if cam_on { 1.0 } else { 0.0 }, 180, Curve::EaseOut),
+            cam_hud_t: Tween::settled(if hud_bright { 1.0 } else { 0.15 }, 260, Curve::EaseOut),
+            cam_menu_t: Tween::settled(if cam_menu { 1.0 } else { 0.0 }, 240, Curve::EaseOutExpo),
+            cam_orient_t: Tween::settled(
+                if matches!(state.camera_ratio_label(), "16:9" | "4:3" | "2:1") {
+                    1.0
+                } else {
+                    0.0
+                },
+                220,
+                Curve::EaseOutExpo,
+            ),
+            wave_dock_cam_t: Tween::settled(if cam_on { 1.0 } else { 0.0 }, 360, Curve::EaseOut),
+            dock_expand_t: Tween::settled(
+                if cam_on && mic_on && dock_open {
+                    1.0
+                } else {
+                    0.0
+                },
+                340,
+                Curve::EaseOut,
+            ),
+            quick_audio_t: Tween::settled(
+                if !cam_on && mic_on && mic_quick {
+                    1.0
+                } else {
+                    0.0
+                },
+                280,
+                Curve::EaseOut,
+            ),
+            iso_sw_t: Tween::settled(
+                if state.is_on("mic.isolation", true) {
+                    1.0
+                } else {
+                    0.0
+                },
+                220,
+                Curve::EaseOut,
+            ),
+            norm_sw_t: Tween::settled(
+                if state.is_on("mic.autoLevel", true) {
+                    1.0
+                } else {
+                    0.0
+                },
+                220,
+                Curve::EaseOut,
+            ),
+            nr_drag_t: Tween::settled(0.0, 140, Curve::EaseOut),
+            vol_drag_t: Tween::settled(0.0, 140, Curve::EaseOut),
+            vol_live: 0.0,
+            btn_on: on_flags
+                .map(|on| Tween::settled(if on { 1.0 } else { 0.0 }, 140, Curve::EaseOut)),
+            btn_hov: [Tween::settled(0.0, 140, Curve::EaseOut); 5],
+            wave_bars_h: [0.0; WAVE_BARS],
+        }
+    }
+
+    fn elapsed_secs(&self, anim_frame: u64) -> f32 {
+        let live = self.epoch.elapsed().as_secs_f32();
+        if live < 0.002 && anim_frame > 0 {
+            anim_frame as f32 * 0.016
+        } else {
+            live
+        }
+    }
 }
 
 impl Panel {
@@ -348,9 +583,33 @@ impl Panel {
         }
     }
 
+    fn cam_wide(&self) -> bool {
+        match self.state.camera_ratio_label() {
+            "16:9" | "4:3" | "2:1" => true,
+            "9:16" | "3:4" | "1:2" => false,
+            _ => {
+                if let Some(w) = self.cam_menu_wide {
+                    w
+                } else {
+                    let stream = self.ui.preview.stream_size();
+                    let size = if stream.0 > 0 {
+                        stream
+                    } else {
+                        self.ui.preview.size()
+                    };
+                    self.state.camera_wide(size, false)
+                }
+            }
+        }
+    }
+
     fn current_screen(&self) -> Screen {
-        self.state
-            .active_screen(self.drawer, self.cam_menu_open, self.active_quick_audio())
+        self.state.active_screen(
+            self.drawer,
+            self.cam_menu_open,
+            self.active_quick_audio(),
+            self.cam_wide(),
+        )
     }
 
     fn hud_is_bright(&self) -> bool {
@@ -362,6 +621,119 @@ impl Panel {
     fn touch_cam_hud(&mut self) {
         self.cam_hud = true;
         self.cam_hud_at = Some(Instant::now());
+    }
+
+    fn sync_tweens(&mut self) {
+        let cam_on = self.cam_active();
+        let mic_on = self.mic_active();
+        let spk_on = matches!(self.state.speaker, Feature::On | Feature::Restarting)
+            && self.state.connected();
+        let connected = self.state.connected();
+        if self.drawer != Drawer::None {
+            if matches!(self.drawer, Drawer::Help(_)) && self.anim.drawer_t.now() < 0.05 {
+                let is_sub = !matches!(self.drawer, Drawer::Help(HelpScreen::Bento));
+                self.anim.help_sub_t.snap(if is_sub { 1.0 } else { 0.0 });
+            }
+            self.anim.last_drawer = self.drawer;
+        }
+        self.anim.drawer_t.set(if self.drawer != Drawer::None {
+            1.0
+        } else {
+            0.0
+        });
+        if let Drawer::Help(h) = self.drawer {
+            if !matches!(h, HelpScreen::Bento) {
+                self.anim.last_help = h;
+            }
+            self.anim
+                .help_sub_t
+                .set(if !matches!(h, HelpScreen::Bento) {
+                    1.0
+                } else {
+                    0.0
+                });
+        }
+        self.anim.cam_layer_t.set(if cam_on { 1.0 } else { 0.0 });
+        self.anim
+            .cam_hud_t
+            .set(if self.hud_is_bright() { 1.0 } else { 0.15 });
+        self.anim.cam_menu_t.set(if cam_on && self.cam_menu_open {
+            1.0
+        } else {
+            0.0
+        });
+        self.anim
+            .cam_orient_t
+            .set(if self.cam_wide() { 1.0 } else { 0.0 });
+        self.anim
+            .wave_dock_cam_t
+            .set(if cam_on { 1.0 } else { 0.0 });
+        self.anim
+            .dock_expand_t
+            .set(if cam_on && mic_on && self.dock_open {
+                1.0
+            } else {
+                0.0
+            });
+        self.anim
+            .quick_audio_t
+            .set(if !cam_on && mic_on && self.mic_quick_open {
+                1.0
+            } else {
+                0.0
+            });
+        self.anim
+            .iso_sw_t
+            .set(if self.state.is_on("mic.isolation", true) {
+                1.0
+            } else {
+                0.0
+            });
+        self.anim
+            .norm_sw_t
+            .set(if self.state.is_on("mic.autoLevel", true) {
+                1.0
+            } else {
+                0.0
+            });
+        self.anim
+            .nr_drag_t
+            .set(if self.dragging == Some(DragFader::Nr) {
+                1.0
+            } else {
+                0.0
+            });
+        self.anim
+            .vol_drag_t
+            .set(if self.dragging == Some(DragFader::Vol) {
+                1.0
+            } else {
+                0.0
+            });
+
+        let on_flags = [
+            self.drawer == Drawer::Wifi,
+            cam_on,
+            mic_on,
+            spk_on,
+            matches!(self.drawer, Drawer::Help(_)),
+        ];
+        let hov_targets = [
+            (Target::Wifi, true),
+            (Target::Camera, connected),
+            (Target::Mic, connected),
+            (Target::Speaker, connected),
+            (Target::Help, true),
+        ];
+        for i in 0..5 {
+            self.anim.btn_on[i].set(if on_flags[i] { 1.0 } else { 0.0 });
+            let (t, allow) = hov_targets[i];
+            self.anim.btn_hov[i].set(if allow && self.is_hovered(t) {
+                1.0
+            } else {
+                0.0
+            });
+        }
     }
 
     fn message(&mut self, msg: u32, wparam: WPARAM, lparam: LPARAM) -> Option<LRESULT> {
@@ -490,14 +862,15 @@ impl Panel {
                     AnimState::Closed => {}
                 }
 
-                // Auto-dim camera HUD after 4s idle (matching CFG.hudIdleMs = 4000)
-                if self.cam_hud
-                    && !self.cam_menu_open
+                // Auto-close ratio menu and dim camera HUD after 4s idle (matching CFG.hudIdleMs = 4000)
+                if (self.cam_hud || self.cam_menu_open)
                     && !(self.mic_active() && self.dock_open)
                     && self.cam_hud_at.is_some_and(|t| t.elapsed() >= HUD_IDLE)
                 {
+                    self.cam_menu_open = false;
                     self.cam_hud = false;
                     self.cam_hud_at = None;
+                    self.sync_tweens();
                 }
                 if self.visible {
                     self.invalidate();
@@ -564,6 +937,7 @@ impl Panel {
                 self.is_mouse_over = false;
                 self.unhover_since = Some(Instant::now());
                 self.hover = None;
+                self.sync_tweens();
                 self.invalidate();
             }
             WM_LBUTTONUP => {
@@ -573,6 +947,7 @@ impl Panel {
                     unsafe {
                         let _ = ReleaseCapture();
                     }
+                    self.sync_tweens();
                     self.invalidate();
                 } else {
                     self.click(x, y);
@@ -617,7 +992,13 @@ impl Panel {
         if was_conn && !now_conn {
             self.last_connected_at = Some(Instant::now());
         }
-        if !was_conn && now_conn {
+        let link_changed = match (&self.state.connection, &new.connection) {
+            (Connection::Connected { link: a, .. }, Connection::Connected { link: b, .. }) => {
+                a != b
+            }
+            _ => false,
+        };
+        if (!was_conn && now_conn) || link_changed {
             self.sync_flash_at = Some(Instant::now());
         }
         if !now_conn {
@@ -632,6 +1013,8 @@ impl Panel {
             self.cam_hud_at = None;
             self.cam_menu_open = false;
             self.dock_open = false;
+        } else if !matches!(self.state.camera, Feature::On | Feature::Restarting) {
+            self.touch_cam_hud();
         }
         if !matches!(new.mic, Feature::On | Feature::Restarting) {
             self.mic_quick_open = false;
@@ -639,6 +1022,7 @@ impl Panel {
         }
 
         self.state = new;
+        self.sync_tweens();
         let tip = self.state.tooltip();
         if let Some(t) = self.tray.as_mut() {
             t.set_tip(&tip);
@@ -751,6 +1135,7 @@ impl Panel {
         }
         self.visible = true;
         self.ui.preview.set_wanted(true);
+        self.sync_tweens();
         self.invalidate();
     }
 
@@ -787,6 +1172,7 @@ impl Panel {
         self.unhover_since = None;
         self.hidden_at = Some(Instant::now());
         self.shown_at = None;
+        self.anim = UiAnim::settled_for(&self.state, Drawer::None, false, false, false, false);
         self.ui.preview.set_wanted(false);
     }
 
@@ -878,6 +1264,7 @@ impl Panel {
                         SetCapture(self.hwnd);
                     }
                     self.apply_fader_drag(DragFader::Nr, x);
+                    self.sync_tweens();
                     self.invalidate();
                 }
                 Target::VolFader(_) => {
@@ -886,6 +1273,7 @@ impl Panel {
                         SetCapture(self.hwnd);
                     }
                     self.apply_fader_drag(DragFader::Vol, x);
+                    self.sync_tweens();
                     self.invalidate();
                 }
                 _ => {}
@@ -900,6 +1288,7 @@ impl Panel {
                 unsafe {
                     let _ = ReleaseCapture();
                 }
+                self.sync_tweens();
             } else {
                 self.apply_fader_drag(which, x);
             }
@@ -916,6 +1305,7 @@ impl Panel {
         }
         if next_hover != self.hover {
             self.hover = next_hover;
+            self.sync_tweens();
             self.invalidate();
         }
     }
@@ -930,6 +1320,7 @@ impl Panel {
             if self.cam_menu_open {
                 self.cam_menu_open = false;
                 self.touch_cam_hud();
+                self.sync_tweens();
                 self.invalidate();
             }
             return;
@@ -941,6 +1332,8 @@ impl Panel {
                 } else {
                     self.drawer = Drawer::Wifi;
                     self.cam_menu_open = false;
+                    self.mic_quick_open = false;
+                    self.dock_open = false;
                 }
             }
             Target::Help => {
@@ -949,6 +1342,8 @@ impl Panel {
                 } else {
                     self.drawer = Drawer::Help(HelpScreen::Bento);
                     self.cam_menu_open = false;
+                    self.mic_quick_open = false;
+                    self.dock_open = false;
                 }
             }
             Target::Camera | Target::Mic | Target::Speaker => {
@@ -972,13 +1367,11 @@ impl Panel {
                 self.drawer = Drawer::Help(HelpScreen::Privacy);
             }
             Target::HelpReleases => {
-                open_url(
-                    "[https://github.com/diveshpatil9104/owlmic/releases](https://github.com/diveshpatil9104/owlmic/releases)",
-                );
+                open_url("https://github.com/diveshpatil9104/owlmic/releases");
             }
             Target::HelpCredit(idx) => {
                 if let Some(&(_, user)) = CREDITS.get(idx) {
-                    open_url(&format!("[https://github.com/](https://github.com/){user}"));
+                    open_url(&format!("https://github.com/{user}"));
                 }
             }
             Target::CamCanvas => {
@@ -997,23 +1390,45 @@ impl Panel {
                 self.touch_cam_hud();
                 if self.cam_menu_open {
                     self.dock_open = false;
+                    self.cam_menu_wide = match self.state.camera_ratio_label() {
+                        "16:9" | "4:3" | "2:1" => Some(true),
+                        "9:16" | "3:4" | "1:2" => Some(false),
+                        "Auto" => None,
+                        _ => self.cam_menu_wide,
+                    };
                 }
             }
-            Target::Quality(q) => {
-                // Prototype behavior: clicking already-selected quality closes menu;
-                // clicking a different quality keeps menu open.
-                if self.state.camera_quality_label() == q {
+            Target::Ratio(r) => {
+                self.cam_menu_wide = match r {
+                    "16:9" | "4:3" | "2:1" => Some(true),
+                    "9:16" | "3:4" | "1:2" => Some(false),
+                    "Auto" => None,
+                    _ => self.cam_menu_wide,
+                };
+                self.touch_cam_hud();
+                if self.state.camera_ratio_label() == r {
                     self.cam_menu_open = false;
                 } else if let Some(action) = self.state.click(target) {
                     (self.ui.on_action)(action);
                 }
-                self.touch_cam_hud();
             }
-            Target::Fps(_) | Target::Ratio(_) => {
-                // Prototype keeps dropdown open when changing FPS or Aspect Ratio.
+            Target::CamOrient => {
                 self.touch_cam_hud();
-                if let Some(action) = self.state.click(target) {
-                    (self.ui.on_action)(action);
+                let ratio = self.state.camera_ratio_label();
+                let next = match ratio {
+                    "16:9" => Some("9:16"),
+                    "9:16" => Some("16:9"),
+                    "4:3" => Some("3:4"),
+                    "3:4" => Some("4:3"),
+                    "2:1" => Some("1:2"),
+                    "1:2" => Some("2:1"),
+                    _ => None,
+                };
+                if let Some(next_ratio) = next {
+                    self.cam_menu_wide = Some(matches!(next_ratio, "16:9" | "4:3" | "2:1"));
+                    (self.ui.on_action)(Action::Set("camera.ratio", next_ratio.to_owned()));
+                } else {
+                    self.cam_menu_wide = Some(!self.cam_wide());
                 }
             }
             Target::Mirror | Target::Flip => {
@@ -1060,6 +1475,7 @@ impl Panel {
                 }
             }
         }
+        self.sync_tweens();
         self.invalidate();
     }
 
@@ -1078,26 +1494,61 @@ impl Panel {
     fn paint_frame(&mut self) {
         // #727272 base shows through the 1 px outer perimeter, 1 px gaps, and 12 px tile corners
         self.painter.clear(BENTO_BG);
-        let screen = self.current_screen();
-        match screen {
-            Screen::DrawerWifi(mode) => {
-                self.draw_drawer_wifi(mode);
-                self.draw_bottom_dock();
-            }
-            Screen::DrawerHelp(h) => {
-                self.draw_drawer_help(h);
-                self.draw_bottom_dock();
-            }
-            Screen::Main {
+        let dt = self.anim.drawer_t.now();
+        let active_drawer = if self.drawer != Drawer::None {
+            Some(self.drawer)
+        } else if dt > 0.01 {
+            Some(self.anim.last_drawer)
+        } else {
+            None
+        };
+
+        if dt < 0.999 || active_drawer.is_none() {
+            let cam_on = self.cam_active();
+            let mic_on = self.mic_active();
+            self.draw_main(
                 cam_on,
                 mic_on,
-                cam_menu,
-                quick_audio,
-            } => {
-                self.draw_main(cam_on, mic_on, cam_menu, quick_audio);
-                self.draw_bottom_dock();
+                self.cam_menu_open,
+                self.active_quick_audio(),
+            );
+        }
+
+        if let Some(d) = active_drawer {
+            let fade = (dt / 0.75).clamp(0.0, 1.0);
+            let dy = 18.0 * (1.0 - dt);
+            let drawer_clip = self
+                .painter
+                .push_rounded_clip(l::PLAYGROUND, l::TILE_RADIUS);
+            if !drawer_clip {
+                self.painter.clip(l::PLAYGROUND);
+            }
+            let pushed = self.painter.push_layer(l::PLAYGROUND, fade);
+            if dy.abs() > 0.05 {
+                self.painter.set_offset(0.0, dy);
+            }
+            match d {
+                Drawer::Wifi => {
+                    let mode = match self.state.active_screen(Drawer::Wifi, false, false, false) {
+                        Screen::DrawerWifi(m) => m,
+                        _ => WifiMode::Offline,
+                    };
+                    self.draw_drawer_wifi(mode);
+                }
+                Drawer::Help(h) => self.draw_drawer_help(h),
+                Drawer::None => {}
+            }
+            if dy.abs() > 0.05 {
+                self.painter.reset_transform();
+            }
+            self.painter.pop_layer(pushed);
+            if drawer_clip {
+                self.painter.pop_layer(true);
+            } else {
+                self.painter.unclip();
             }
         }
+        self.draw_bottom_dock();
     }
 
     fn draw_playground_base(&mut self) {
@@ -1106,23 +1557,18 @@ impl Panel {
     }
 
     /// Draws the 25-bar pure-white waveform matching scripts.js / styles.css exact dimensions
-    /// and cosine envelope motion.
-    fn draw_waveform_bars(&mut self, center_x: f32, center_y: f32, docked: bool) {
-        let bar_w = if docked { 3.0 } else { 4.0 };
-        let gap = if docked { 3.5 } else { 4.5 };
-        let min_h = if docked { 3.0 } else { 4.0 };
-        let max_h = if docked { 20.0 } else { 60.0 };
+    /// and cosine envelope motion, morphing smoothly as `docked_t` changes 0..1.
+    fn draw_waveform_bars(&mut self, center_x: f32, center_y: f32, docked_t: f32) {
+        let bar_w = lerp(4.0, 3.0, docked_t);
+        let gap = lerp(4.5, 3.5, docked_t);
+        let min_h = lerp(4.0, 3.0, docked_t);
+        let max_h = lerp(60.0, 18.0, docked_t);
         let total_w = WAVE_BARS as f32 * bar_w + (WAVE_BARS - 1) as f32 * gap;
         let start_x = center_x - total_w / 2.0;
 
         let raw_level = f32::from_bits(self.ui.meter.load(Ordering::Relaxed));
-        let loud = {
-            const WAVE_THRESHOLD: f32 = 0.24;
-            const WAVE_GAIN: f32 = 1.2;
-            let v = ((raw_level - WAVE_THRESHOLD) / (1.0 - WAVE_THRESHOLD)).clamp(0.0, 1.0);
-            (v * v * (1.4 - 0.4 * v) * WAVE_GAIN).min(1.0)
-        };
-        let wt = self.anim_frame as f32 * 0.055;
+        let loud = wave_level(raw_level);
+        let wt = self.anim.elapsed_secs(self.anim_frame) * 3.3;
         let mid = (WAVE_BARS as f32 - 1.0) / 2.0;
 
         for i in 0..WAVE_BARS {
@@ -1135,7 +1581,14 @@ impl Panel {
                 / 1.75;
             let fraction = (loud * 0.95 + (mot + 1.0) * 0.14 * (0.2 + loud)) * env;
             let norm_h = fraction.clamp(0.08, 1.0);
-            let h = min_h + (max_h - min_h) * norm_h;
+            let target_h = min_h + (max_h - min_h) * norm_h;
+            let prev_h = self.anim.wave_bars_h[i];
+            let h = if prev_h <= 0.0 || !self.visible {
+                target_h
+            } else {
+                lerp(prev_h, target_h, 0.42)
+            };
+            self.anim.wave_bars_h[i] = h;
             let x = start_x + i as f32 * (bar_w + gap);
             let y = center_y - h / 2.0;
             self.painter
@@ -1143,32 +1596,25 @@ impl Panel {
         }
     }
 
-    fn draw_owl_switch(&mut self, rect: Rect, on: bool, dimmed: bool) {
+    fn draw_owl_switch(&mut self, rect: Rect, on_t: f32, dimmed: bool) {
         let p = &mut self.painter;
+        let t = on_t.clamp(0.0, 1.0);
         let r = rect.h / 2.0;
-        let (bg, border, knob, knob_x) = if on {
-            (
-                if dimmed { WHITE_36 } else { WHITE },
-                if dimmed { WHITE_36 } else { WHITE },
-                BLACK,
-                rect.x + rect.w - 3.0 - 12.0,
-            )
-        } else {
-            (
-                BLACK,
-                if dimmed { WHITE_14 } else { WHITE_28 },
-                if dimmed { WHITE_20 } else { WHITE_45 },
-                rect.x + 3.0,
-            )
-        };
+        let on_fill = if dimmed { WHITE_36 } else { WHITE };
+        let off_border = if dimmed { WHITE_14 } else { WHITE_28 };
+        let off_knob = if dimmed { WHITE_20 } else { WHITE_45 };
+        let bg = lerp_color(BLACK, on_fill, t);
+        let border = lerp_color(off_border, on_fill, t);
+        let knob = lerp_color(off_knob, BLACK, t);
+        let knob_x = lerp(rect.x + 3.0, rect.x + rect.w - 3.0 - 12.0, t);
         p.fill_rounded(rect, r, bg);
         p.stroke_rounded(rect, r, border, 1.0);
         p.circle(knob_x + 6.0, rect.y + rect.h / 2.0, 6.0, knob);
     }
 
-    fn draw_hardware_fader(&mut self, rect: Rect, value: f32, live: Option<f32>, active: bool) {
+    fn draw_hardware_fader(&mut self, rect: Rect, value: f32, live: Option<f32>, expand_t: f32) {
         let p = &mut self.painter;
-        let track_h = if active { 9.0 } else { 7.0 };
+        let track_h = lerp(7.0, 9.0, expand_t);
         let track_y = rect.y + (rect.h - track_h) / 2.0;
         let track = Rect::new(rect.x, track_y, rect.w, track_h);
         p.fill_rounded(track, track_h / 2.0, WHITE_14);
@@ -1176,17 +1622,25 @@ impl Panel {
         if let Some(lvl) = live {
             let lw = (rect.w * lvl.clamp(0.0, 1.0)).max(0.0);
             if lw > 1.0 {
-                p.fill_rounded(Rect::new(rect.x, track_y, lw, track_h), 3.0, WHITE_28);
+                p.fill_rounded(
+                    Rect::new(rect.x, track_y, lw, track_h),
+                    track_h / 2.0,
+                    WHITE_28,
+                );
             }
         }
 
         let fill_w = (rect.w * value.clamp(0.0, 1.0)).max(0.0);
         if fill_w > 1.0 {
-            p.fill_rounded(Rect::new(rect.x, track_y, fill_w, track_h), 3.0, WHITE);
+            p.fill_rounded(
+                Rect::new(rect.x, track_y, fill_w, track_h),
+                track_h / 2.0,
+                WHITE,
+            );
         }
 
         // White vertical cap with 1.5 px black halo (matching .fader-cap box-shadow)
-        let cap_h = if active { 16.0 } else { 13.0 };
+        let cap_h = lerp(13.0, 16.0, expand_t);
         let cap_x = (rect.x + fill_w).clamp(rect.x + 1.5, rect.right() - 1.5);
         let cap_y = rect.y + (rect.h - cap_h) / 2.0;
         p.fill_rounded(
@@ -1200,34 +1654,36 @@ impl Panel {
     fn draw_audio_controls(&mut self, panel: Rect) {
         let s = self.state.clone();
         let ac = l::audio_controls(panel);
-        let iso_on = s.is_on("mic.isolation", true);
-        let norm_on = s.is_on("mic.autoLevel", true);
         let nr_val = s.mic_nr_value();
         let vol_val = s.mic_volume_percent();
         let norm_muted = vol_val <= 0.0;
+        let iso_t = self.anim.iso_sw_t.now();
+        let norm_t = self.anim.norm_sw_t.now();
+        let nr_exp = self.anim.nr_drag_t.now();
+        let vol_exp = self.anim.vol_drag_t.now();
 
         self.painter.text(
-            "Voice isolation",
+            crate::messages::SETTING_MIC_ISOLATION,
             ac.iso_label,
             Font::Body,
             WHITE,
             Align::Left,
             false,
         );
-        self.draw_owl_switch(ac.iso_switch, iso_on, false);
+        self.draw_owl_switch(ac.iso_switch, iso_t, false);
 
         self.painter.text(
-            "Normalization",
+            crate::messages::SETTING_MIC_NORMALIZATION,
             ac.norm_label,
             Font::Body,
             if norm_muted { WHITE_36 } else { WHITE },
             Align::Left,
             false,
         );
-        self.draw_owl_switch(ac.norm_switch, norm_on, norm_muted);
+        self.draw_owl_switch(ac.norm_switch, norm_t, norm_muted);
 
         self.painter.text(
-            "Noise reduction",
+            crate::messages::SETTING_MIC_NOISE_REDUCTION,
             ac.nr_label,
             Font::Body,
             WHITE,
@@ -1242,15 +1698,10 @@ impl Panel {
             Align::Right,
             false,
         );
-        self.draw_hardware_fader(
-            ac.nr_fader,
-            nr_val / 10.0,
-            None,
-            self.dragging == Some(DragFader::Nr),
-        );
+        self.draw_hardware_fader(ac.nr_fader, nr_val / 10.0, None, nr_exp);
 
         self.painter.text(
-            "Volume",
+            crate::messages::SETTING_MIC_VOLUME,
             ac.vol_label,
             Font::Body,
             WHITE,
@@ -1272,31 +1723,57 @@ impl Panel {
             false,
         );
         let vf = vol_val / 100.0;
-        let raw_level = f32::from_bits(self.ui.meter.load(Ordering::Relaxed));
-        self.draw_hardware_fader(
-            ac.vol_fader,
-            vf,
-            Some(raw_level),
-            self.dragging == Some(DragFader::Vol),
-        );
+        let raw_level = if norm_muted {
+            0.0
+        } else {
+            wave_level(f32::from_bits(self.ui.meter.load(Ordering::Relaxed)))
+        };
+        self.anim.vol_live = lerp(self.anim.vol_live, raw_level, 0.35);
+        self.draw_hardware_fader(ac.vol_fader, vf, Some(self.anim.vol_live), vol_exp);
     }
 
-    fn draw_main(&mut self, cam_on: bool, mic_on: bool, cam_menu: bool, quick_audio: bool) {
+    fn draw_main(&mut self, cam_on: bool, mic_on: bool, _cam_menu: bool, _quick_audio: bool) {
         let s = self.state.clone();
         self.draw_playground_base();
         let c = l::PLAYGROUND;
         let (mid_x, mid_y) = (c.x + c.w / 2.0, c.y + c.h / 2.0);
+        let cam_a = self.anim.cam_layer_t.now();
+        let hud_mul = self.anim.cam_hud_t.now();
+        let menu_t = self.anim.cam_menu_t.now();
+        let cam_dock_t = self.anim.wave_dock_cam_t.now();
+        let dock_exp_t = self.anim.dock_expand_t.now();
+        let quick_t = self.anim.quick_audio_t.now();
 
-        if cam_on {
-            // Optical crop frame matching selected aspect ratio
+        if cam_a < 0.999 {
+            self.painter.dots_grid(c.inset(12.0), 18.0, 1.0, 0x161616);
+            if !mic_on {
+                let wm_alpha = if s.connected() { 0.07 } else { 0.07 * 0.45 };
+                self.painter.watermark(mid_x, mid_y, 152.0, wm_alpha);
+            }
+        }
+
+        if cam_on || cam_a > 0.01 {
+            let cam_clip = self
+                .painter
+                .push_rounded_clip(l::PLAYGROUND, l::TILE_RADIUS);
+            if !cam_clip {
+                self.painter.clip(l::PLAYGROUND);
+            }
+            let pushed = self.painter.push_layer(l::PLAYGROUND, cam_a);
+            if cam_a < 0.999 {
+                self.draw_playground_base();
+            }
+
             let ratio_lbl = s.camera_ratio_label();
-            let (cam_rect, crop_mode) = l::cam_crop_rect(ratio_lbl);
+            let (pw, ph) = self.ui.preview.size();
+            let (cam_rect, crop_mode) = l::cam_crop_rect_for_stream(ratio_lbl, pw, ph);
 
-            if self.ui.preview.seq() > 0 {
+            if self.ui.preview.seq() > 0 && pw > 0 && ph > 0 {
                 let seq = self.ui.preview.seq();
                 let preview = self.ui.preview.clone();
+                let ambient = (crop_mode != CropMode::None).then_some(l::PLAYGROUND);
                 self.painter
-                    .picture(cam_rect, preview::WIDTH, preview::HEIGHT, seq, |copy| {
+                    .picture(cam_rect, ambient, pw, ph, seq, |copy| {
                         preview.read(|px| copy(px))
                     });
             }
@@ -1342,378 +1819,341 @@ impl Panel {
                 CropMode::None => {}
             }
 
-            // Camera HUD (dims to 15% when quiet, matching .cam-hud.is-quiet)
-            let hud_mul = if self.hud_is_bright() { 1.0 } else { 0.18 };
+            // Camera HUD controls (group-dimmed cleanly via layer opacity so backgrounds stay translucent)
+            let hud_layer = self.painter.push_layer(l::PLAYGROUND, hud_mul);
 
-            if cam_menu {
-                self.painter.fill_rounded(l::CAM_EXPAND_MENU, 7.0, BLACK);
-
-                let cur_q = s.camera_quality_label();
-                let cur_fps = s.camera_fps_label();
-                let cur_ratio = s.camera_ratio_label();
-
-                let row0 = ["FHD", "HD", "480p"];
-                let row1 = ["60", "30", "24"];
-                let row2 = ["Auto", "16:9", "4:3"];
-                let row3 = ["1:1", "3:4", "9:16"];
-
-                for (col, &val) in row0.iter().enumerate() {
-                    let r = l::cam_option_rect(0, col);
-                    let sel = cur_q == val;
-                    let hov = self.is_hovered(Target::Quality(val));
-                    if sel {
-                        self.painter.fill(r, WHITE);
-                    } else if hov {
-                        self.painter.fill(r, ROW_HOVER);
-                    }
-                    self.painter.text(
-                        val,
-                        r,
-                        Font::Caption,
-                        if sel {
-                            BLACK
-                        } else if hov {
-                            WHITE
-                        } else {
-                            WHITE_65
-                        },
-                        Align::Center,
-                        false,
-                    );
-                }
-                for (col, &val) in row1.iter().enumerate() {
-                    let r = l::cam_option_rect(1, col);
-                    let sel = cur_fps == val;
-                    let hov = self.is_hovered(Target::Fps(val));
-                    if sel {
-                        self.painter.fill(r, WHITE);
-                    } else if hov {
-                        self.painter.fill(r, ROW_HOVER);
-                    }
-                    let lbl = format!("{val}fps");
-                    self.painter.text(
-                        &lbl,
-                        r,
-                        Font::Caption,
-                        if sel {
-                            BLACK
-                        } else if hov {
-                            WHITE
-                        } else {
-                            WHITE_65
-                        },
-                        Align::Center,
-                        false,
-                    );
-                }
-                for (col, &val) in row2.iter().enumerate() {
-                    let r = l::cam_option_rect(2, col);
-                    let sel = cur_ratio == val;
-                    let hov = self.is_hovered(Target::Ratio(val));
-                    if sel {
-                        self.painter.fill(r, WHITE);
-                    } else if hov {
-                        self.painter.fill(r, ROW_HOVER);
-                    }
-                    self.painter.text(
-                        val,
-                        r,
-                        Font::Caption,
-                        if sel {
-                            BLACK
-                        } else if hov {
-                            WHITE
-                        } else {
-                            WHITE_65
-                        },
-                        Align::Center,
-                        false,
-                    );
-                }
-                for (col, &val) in row3.iter().enumerate() {
-                    let r = l::cam_option_rect(3, col);
-                    let sel = cur_ratio == val;
-                    let hov = self.is_hovered(Target::Ratio(val));
-                    if sel {
-                        self.painter.fill(r, WHITE);
-                    } else if hov {
-                        self.painter.fill(r, ROW_HOVER);
-                    }
-                    self.painter.text(
-                        val,
-                        r,
-                        Font::Caption,
-                        if sel {
-                            BLACK
-                        } else if hov {
-                            WHITE
-                        } else {
-                            WHITE_65
-                        },
-                        Align::Center,
-                        false,
-                    );
-                }
-
-                // Internal 1 px grid dividers (white/10)
-                for row in 1..4 {
-                    let y = l::CAM_EXPAND_MENU.y + 1.0 + row as f32 * 25.0;
-                    self.painter.line(
-                        l::CAM_EXPAND_MENU.x + 1.0,
-                        y,
-                        l::CAM_EXPAND_MENU.right() - 1.0,
-                        y,
-                        WHITE_10,
-                        1.0,
-                    );
-                }
-                for &vx in &[l::CAM_EXPAND_MENU.x + 52.0, l::CAM_EXPAND_MENU.x + 104.0] {
-                    self.painter.line(
-                        vx,
-                        l::CAM_EXPAND_MENU.y + 1.0,
-                        vx,
-                        l::CAM_EXPAND_MENU.bottom() - 1.0,
-                        WHITE_10,
-                        1.0,
-                    );
-                }
-                self.painter
-                    .stroke_rounded(l::CAM_EXPAND_MENU, 7.0, WHITE_36, 1.0);
-            } else {
-                let bg = if self.is_hovered(Target::CamMenu) && self.hud_is_bright() {
+            let menu_rect = lerp_rect(l::CAM_MENU_BTN, l::CAM_EXPAND_MENU, menu_t);
+            let menu_radius = lerp(7.0, 10.0, menu_t);
+            let menu_bg =
+                if menu_t < 0.05 && self.is_hovered(Target::CamMenu) && self.hud_is_bright() {
                     BTN_HOVER
                 } else {
                     BLACK
                 };
-                self.painter.fill_rounded(l::CAM_MENU_BTN, 7.0, bg);
-                self.painter.stroke_rounded(
-                    l::CAM_MENU_BTN,
-                    7.0,
-                    dim_color(WHITE_22, hud_mul),
-                    1.0,
-                );
+            let menu_clip = self.painter.push_rounded_clip(menu_rect, menu_radius);
+            if !menu_clip {
+                self.painter.clip(menu_rect);
+            }
+            self.painter.fill_rounded_alpha(
+                menu_rect,
+                menu_radius,
+                menu_bg,
+                lerp(0.72, 0.94, menu_t),
+            );
+
+            let cur_ratio = s.camera_ratio_label();
+            if menu_t > 0.05 {
+                let grid_alpha = ((menu_t - 0.16) / 0.84).clamp(0.0, 1.0);
+                if grid_alpha > 0.01 {
+                    let grid_layer = self.painter.push_layer(l::CAM_EXPAND_MENU, grid_alpha);
+                    let cam_wide = self.cam_wide();
+                    let ratio_cells = if cam_wide {
+                        [
+                            (0, 0, "Auto"),
+                            (1, 0, "16:9"),
+                            (1, 1, "4:3"),
+                            (2, 0, "2:1"),
+                            (2, 1, "1:1"),
+                        ]
+                    } else {
+                        [
+                            (0, 0, "Auto"),
+                            (1, 0, "9:16"),
+                            (1, 1, "3:4"),
+                            (2, 0, "1:2"),
+                            (2, 1, "1:1"),
+                        ]
+                    };
+                    for (row, col, val) in ratio_cells {
+                        let r = l::cam_option_rect(row, col);
+                        let target = Target::Ratio(val);
+                        let sel = cur_ratio == val;
+                        let hov = menu_t > 0.9 && self.is_hovered(target);
+                        if sel {
+                            self.painter.fill(r, WHITE);
+                        } else if hov {
+                            self.painter.fill(r, ROW_HOVER);
+                        }
+                        self.painter.text(
+                            val,
+                            r,
+                            Font::Caption,
+                            if sel {
+                                BLACK
+                            } else if hov {
+                                WHITE
+                            } else {
+                                WHITE_65
+                            },
+                            Align::Center,
+                            false,
+                        );
+                    }
+
+                    // Row 0 Col 1: Rotating phone symbol
+                    let hov_o = menu_t > 0.9 && self.is_hovered(Target::CamOrient);
+                    if hov_o {
+                        self.painter.fill(l::CAM_ORIENT_BTN, ROW_HOVER);
+                    }
+                    let orient_fg = if hov_o { WHITE } else { WHITE_65 };
+                    let cx = l::CAM_ORIENT_BTN.x + l::CAM_ORIENT_BTN.w * 0.5;
+                    let cy = l::CAM_ORIENT_BTN.y + l::CAM_ORIENT_BTN.h * 0.5;
+                    self.painter.icon_rotated(
+                        icons::PHONE,
+                        cx,
+                        cy,
+                        13.0,
+                        orient_fg,
+                        self.anim.cam_orient_t.now() * 90.0,
+                    );
+
+                    let col_x = l::CAM_EXPAND_MENU.x + l::CAM_EXPAND_MENU.w * 0.5;
+                    self.painter.line(
+                        col_x,
+                        l::CAM_EXPAND_MENU.y + 1.0,
+                        col_x,
+                        l::CAM_EXPAND_MENU.bottom() - 1.0,
+                        WHITE_10,
+                        1.0,
+                    );
+                    for row in 1..=2 {
+                        let div_y =
+                            l::CAM_EXPAND_MENU.y + row as f32 * (l::CAM_EXPAND_MENU.h / 3.0);
+                        self.painter.line(
+                            l::CAM_EXPAND_MENU.x + 1.0,
+                            div_y,
+                            l::CAM_EXPAND_MENU.right() - 1.0,
+                            div_y,
+                            WHITE_10,
+                            1.0,
+                        );
+                    }
+                    self.painter.pop_layer(grid_layer);
+                }
+            }
+
+            let closed_alpha = (1.0 - menu_t * 2.0).clamp(0.0, 1.0);
+            if closed_alpha > 0.01 {
+                let closed_layer = self.painter.push_layer(l::CAM_MENU_BTN, closed_alpha);
                 self.painter.text(
-                    s.camera_quality_label(),
+                    cur_ratio,
                     l::CAM_MENU_BTN,
                     Font::Caption,
-                    dim_color(WHITE, hud_mul),
+                    WHITE,
                     Align::Center,
                     false,
                 );
+                self.painter.pop_layer(closed_layer);
             }
-
-            // Mirror button (white fill + black icon when active, matching .cam-btn.is-on)
-            let mirror_on = s.is_on("camera.mirror", true);
-            let (mir_bg, mir_bd, mir_fg) = if mirror_on {
-                (dim_color(WHITE, hud_mul), dim_color(WHITE, hud_mul), BLACK)
+            if menu_clip {
+                self.painter.pop_layer(true);
             } else {
-                (
-                    BLACK,
-                    dim_color(WHITE_20, hud_mul),
-                    dim_color(WHITE, hud_mul),
-                )
-            };
-            self.painter.fill_rounded(l::CAM_MIRROR_BTN, 7.0, mir_bg);
-            self.painter
-                .stroke_rounded(l::CAM_MIRROR_BTN, 7.0, mir_bd, 1.0);
+                self.painter.unclip();
+            }
+            self.painter.stroke_rounded(
+                menu_rect,
+                menu_radius,
+                lerp_color(WHITE_22, WHITE_36, menu_t),
+                1.0,
+            );
+
+            // Mirror button (white fill + black icon when active, translucent black when off)
+            let mirror_on = s.is_on("camera.mirror", true);
+            if mirror_on {
+                self.painter.fill_rounded(l::CAM_MIRROR_BTN, 7.0, WHITE);
+                self.painter
+                    .stroke_rounded(l::CAM_MIRROR_BTN, 7.0, WHITE, 1.0);
+            } else {
+                let bg = if self.is_hovered(Target::Mirror) && self.hud_is_bright() {
+                    BTN_HOVER
+                } else {
+                    BLACK
+                };
+                self.painter
+                    .fill_rounded_alpha(l::CAM_MIRROR_BTN, 7.0, bg, 0.72);
+                self.painter
+                    .stroke_rounded(l::CAM_MIRROR_BTN, 7.0, WHITE_20, 1.0);
+            }
             self.painter.icon(
                 icons::MIRROR,
                 l::CAM_MIRROR_BTN.x + l::CAM_MIRROR_BTN.w / 2.0,
                 l::CAM_MIRROR_BTN.y + l::CAM_MIRROR_BTN.h / 2.0,
                 13.0,
-                mir_fg,
+                if mirror_on { BLACK } else { WHITE },
             );
 
             // Flip lens button
-            self.painter.fill_rounded(l::CAM_FLIP_BTN, 7.0, BLACK);
+            let flip_bg = if self.is_hovered(Target::Flip) && self.hud_is_bright() {
+                BTN_HOVER
+            } else {
+                BLACK
+            };
             self.painter
-                .stroke_rounded(l::CAM_FLIP_BTN, 7.0, dim_color(WHITE_20, hud_mul), 1.0);
+                .fill_rounded_alpha(l::CAM_FLIP_BTN, 7.0, flip_bg, 0.72);
+            self.painter
+                .stroke_rounded(l::CAM_FLIP_BTN, 7.0, WHITE_20, 1.0);
             self.painter.icon(
                 icons::FLIP,
                 l::CAM_FLIP_BTN.x + l::CAM_FLIP_BTN.w / 2.0,
                 l::CAM_FLIP_BTN.y + l::CAM_FLIP_BTN.h / 2.0,
                 13.0,
-                dim_color(WHITE, hud_mul),
+                WHITE,
             );
 
-            // Camera + Mic floating waveform dock (collapses to 204x42, expands to 286x198)
-            if mic_on {
-                if quick_audio {
-                    let dock = l::WAVE_DOCK_EXPANDED;
-                    self.painter.fill_rounded(dock, 10.0, BLACK);
-                    self.draw_audio_controls(l::WAVE_DOCK_EXPANDED_SETTINGS);
-                    self.painter.line(
-                        dock.x,
-                        l::WAVE_DOCK_EXPANDED_HEADER.y,
-                        dock.right(),
-                        l::WAVE_DOCK_EXPANDED_HEADER.y,
-                        WHITE_15,
-                        1.0,
-                    );
-                    self.draw_waveform_bars(
-                        l::WAVE_DOCK_EXPANDED_HEADER.x + l::WAVE_DOCK_EXPANDED_HEADER.w / 2.0,
-                        l::WAVE_DOCK_EXPANDED_HEADER.y + l::WAVE_DOCK_EXPANDED_HEADER.h / 2.0,
-                        true,
-                    );
-                    self.painter.stroke_rounded(dock, 10.0, WHITE_32, 1.0);
-                } else {
-                    let dock = l::WAVE_DOCK_DOCKED;
-                    self.painter.fill_rounded(dock, dock.h / 2.0, BLACK);
-                    self.draw_waveform_bars(dock.x + dock.w / 2.0, dock.y + dock.h / 2.0, true);
-                    self.painter
-                        .stroke_rounded(dock, dock.h / 2.0, WHITE_28, 1.0);
-                }
-            }
-        } else if mic_on {
-            // Mic-only: subtle dots grid + floating 25-bar waveform directly on black
-            // (no card box, no border, no watermark, no text label)
-            self.painter.dots_grid(c.inset(12.0), 18.0, 1.0, 0x161616);
+            self.painter.pop_layer(hud_layer);
 
-            let wave_rect = if quick_audio {
-                l::WAVE_DOCK_LIFTED
+            self.painter.pop_layer(pushed);
+            if cam_clip {
+                self.painter.pop_layer(true);
             } else {
-                l::WAVE_DOCK_CENTERED
-            };
-            self.draw_waveform_bars(
-                wave_rect.x + wave_rect.w / 2.0,
-                wave_rect.y + wave_rect.h / 2.0,
-                false,
-            );
+                self.painter.unclip();
+            }
+        }
 
-            // Bottom-anchored Quick Audio panel
-            if quick_audio {
+        if mic_on {
+            // Mic-only Quick Audio bottom slide panel
+            if quick_t > 0.01 && cam_dock_t < 0.99 {
                 let qp = l::AUDIO_QUICK_PANEL;
+                let fade = (quick_t / 0.75).clamp(0.0, 1.0) * (1.0 - cam_dock_t);
+                let dy = qp.h * (1.0 - quick_t);
+                self.painter.clip(l::PLAYGROUND);
+                let pushed = self.painter.push_layer(l::PLAYGROUND, fade);
+                if dy.abs() > 0.05 {
+                    self.painter.set_offset(0.0, dy);
+                }
                 self.painter.fill_rounded(qp, l::TILE_RADIUS, BLACK);
                 self.painter
                     .fill(Rect::new(qp.x, qp.y, qp.w, l::TILE_RADIUS), BLACK);
                 self.painter
                     .line(qp.x, qp.y, qp.right(), qp.y, WHITE_15, 1.0);
                 self.draw_audio_controls(qp);
+                if dy.abs() > 0.05 {
+                    self.painter.reset_transform();
+                }
+                self.painter.pop_layer(pushed);
+                self.painter.unclip();
             }
-        } else {
-            // Standby (also when only Speaker is active — no extra visuals)
-            self.painter.dots_grid(c.inset(12.0), 18.0, 1.0, 0x161616);
-            let wm_alpha = if s.connected() { 0.07 } else { 0.07 * 0.45 };
-            self.painter.watermark(mid_x, mid_y, 152.0, wm_alpha);
+
+            // Unified morphing Waveform Dock
+            let centered_rect = lerp_rect(l::WAVE_DOCK_CENTERED, l::WAVE_DOCK_LIFTED, quick_t);
+            let docked_rect = lerp_rect(l::WAVE_DOCK_DOCKED, l::WAVE_DOCK_EXPANDED, dock_exp_t);
+            let dock = lerp_rect(centered_rect, docked_rect, cam_dock_t);
+            let wave_cy = lerp(
+                centered_rect.y + centered_rect.h / 2.0,
+                l::WAVE_DOCK_DOCKED.y + l::WAVE_DOCK_DOCKED.h / 2.0,
+                cam_dock_t,
+            );
+
+            if cam_dock_t > 0.01 {
+                self.painter.clip(dock);
+                self.painter
+                    .fill_rounded_alpha(dock, 10.0, BLACK, cam_dock_t);
+
+                if dock_exp_t > 0.05 {
+                    let ctrl_alpha = ((dock_exp_t - 0.15) / 0.85).clamp(0.0, 1.0) * cam_dock_t;
+                    if ctrl_alpha > 0.01 {
+                        let settings_r =
+                            Rect::new(dock.x, dock.y, dock.w, l::WAVE_DOCK_EXPANDED_SETTINGS.h);
+                        let pushed = self.painter.push_layer(dock, ctrl_alpha);
+                        self.draw_audio_controls(settings_r);
+                        let hdr_y = dock.bottom() - l::WAVE_DOCK_EXPANDED_HEADER.h;
+                        self.painter
+                            .line(dock.x, hdr_y, dock.right(), hdr_y, WHITE_15, 1.0);
+                        self.painter.pop_layer(pushed);
+                    }
+                }
+
+                self.draw_waveform_bars(dock.x + dock.w / 2.0, wave_cy, cam_dock_t);
+                let bd = lerp_color(WHITE_28, WHITE_32, dock_exp_t);
+                self.painter
+                    .stroke_rounded_alpha(dock, 10.0, bd, cam_dock_t, 1.0);
+                self.painter.unclip();
+            } else {
+                self.draw_waveform_bars(dock.x + dock.w / 2.0, wave_cy, 0.0);
+            }
         }
+    }
+
+    fn draw_bottom_tile(
+        &mut self,
+        idx: usize,
+        icon: crate::glyph::Icon,
+        on_t: f32,
+        hov_t: f32,
+        off_fg: u32,
+    ) {
+        let rect = l::bottom(idx);
+        let bg = lerp_color(
+            lerp_color(BLACK, BTN_HOVER, hov_t),
+            lerp_color(WHITE, BTN_ON_HOVER, hov_t),
+            on_t,
+        );
+        let fg = lerp_color(lerp_color(off_fg, WHITE, hov_t), BLACK, on_t);
+        self.painter.fill_rounded(rect, l::TILE_RADIUS, bg);
+        self.painter.icon(
+            icon,
+            rect.x + rect.w / 2.0,
+            rect.y + rect.h / 2.0,
+            DOCK_ICON,
+            fg,
+        );
     }
 
     fn draw_bottom_dock(&mut self) {
         let s = self.state.clone();
         let connected = s.connected();
-        let pulsing = !connected || matches!(s.connection, Connection::Approval { .. });
-        let pulse_t = ((self.anim_frame as f32 * 0.095).sin() + 1.0) * 0.5; // ~1.1s cycle
+        let is_fully_connected = matches!(s.connection, Connection::Connected { .. });
+        let secs = self.anim.elapsed_secs(self.anim_frame);
+        let pulse_t = 0.5 + 0.5 * (secs * std::f32::consts::TAU / 1.1).sin();
 
-        // b0: Wi-Fi / Connection drawer toggle
-        let b0 = l::bottom(0);
-        let wifi_on = self.drawer == Drawer::Wifi;
-        let wifi_hov = self.is_hovered(Target::Wifi);
-        let b0_bg = if wifi_on {
-            if wifi_hov { BTN_ON_HOVER } else { WHITE }
-        } else if wifi_hov {
-            BTN_HOVER
-        } else {
-            BLACK
-        };
-        self.painter.fill_rounded(b0, l::TILE_RADIUS, b0_bg);
+        // b0: Connection drawer toggle (globe + 1.1s pulseFade until fully connected)
         let ind = indicator(&s.connection);
-        let b0_fg = if wifi_on {
-            BLACK
-        } else if pulsing {
+        let b0_off_fg = if !is_fully_connected {
             gray(0.35 + 0.65 * pulse_t)
-        } else if wifi_hov {
-            WHITE
         } else {
             WHITE_78
         };
-        self.painter.icon(
-            ind.icon,
-            b0.x + b0.w / 2.0,
-            b0.y + b0.h / 2.0,
-            DOCK_ICON,
-            b0_fg,
-        );
+        let b0_on = self.anim.btn_on[0].now();
+        let b0_hov = if is_fully_connected || self.drawer == Drawer::Wifi {
+            self.anim.btn_hov[0].now()
+        } else {
+            0.0
+        };
+        self.draw_bottom_tile(0, ind.icon, b0_on, b0_hov, b0_off_fg);
 
         // b1: Camera, b2: Mic, b3: Speaker
         let media = [
             (
                 1,
-                Target::Camera,
                 matches!(s.camera, Feature::On | Feature::Restarting) && connected,
                 icons::CAMERA,
                 icons::CAMERA_OFF,
             ),
             (
                 2,
-                Target::Mic,
                 matches!(s.mic, Feature::On | Feature::Restarting) && connected,
                 icons::MIC,
                 icons::MIC_OFF,
             ),
             (
                 3,
-                Target::Speaker,
                 matches!(s.speaker, Feature::On | Feature::Restarting) && connected,
                 icons::SPEAKER,
                 icons::SPEAKER_OFF,
             ),
         ];
 
-        for (idx, target, on, ic_on, ic_off) in media {
-            let rect = l::bottom(idx);
-            let hov = connected && self.is_hovered(target);
-            let bg = if on {
-                if hov { BTN_ON_HOVER } else { WHITE }
-            } else if hov {
-                BTN_HOVER
-            } else {
-                BLACK
-            };
-            let fg = if on {
-                BLACK
-            } else if !connected {
-                WHITE_28
-            } else if hov {
-                WHITE
-            } else {
-                WHITE_78
-            };
-            self.painter.fill_rounded(rect, l::TILE_RADIUS, bg);
-            self.painter.icon(
-                if on { ic_on } else { ic_off },
-                rect.x + rect.w / 2.0,
-                rect.y + rect.h / 2.0,
-                DOCK_ICON,
-                fg,
-            );
+        for (idx, on, ic_on, ic_off) in media {
+            let off_fg = if !connected { WHITE_28 } else { WHITE_78 };
+            let on_t = self.anim.btn_on[idx].now();
+            let hov_t = self.anim.btn_hov[idx].now();
+            self.draw_bottom_tile(idx, if on { ic_on } else { ic_off }, on_t, hov_t, off_fg);
         }
 
         // b4: Help drawer toggle
-        let b4 = l::bottom(4);
-        let help_on = matches!(self.drawer, Drawer::Help(_));
-        let help_hov = self.is_hovered(Target::Help);
-        let b4_bg = if help_on {
-            if help_hov { BTN_ON_HOVER } else { WHITE }
-        } else if help_hov {
-            BTN_HOVER
-        } else {
-            BLACK
-        };
-        let b4_fg = if help_on {
-            BLACK
-        } else if help_hov {
-            WHITE
-        } else {
-            WHITE_78
-        };
-        self.painter.fill_rounded(b4, l::TILE_RADIUS, b4_bg);
-        self.painter.icon(
-            icons::HELP,
-            b4.x + b4.w / 2.0,
-            b4.y + b4.h / 2.0,
-            DOCK_ICON,
-            b4_fg,
-        );
+        let b4_on = self.anim.btn_on[4].now();
+        let b4_hov = self.anim.btn_hov[4].now();
+        self.draw_bottom_tile(4, icons::HELP, b4_on, b4_hov, WHITE_78);
     }
 
     fn format_last_connected(&self) -> Option<String> {
@@ -1781,17 +2221,34 @@ impl Panel {
         // 2. Primary device row
         let prim = l::CONN_PRIMARY_ROW;
         let ind = indicator(&s.connection);
+        let is_pairing_or_connecting = mode == WifiMode::Pairing
+            || matches!(
+                s.connection,
+                Connection::Connecting { .. } | Connection::Reconnecting { .. }
+            );
         let show_empty = s.phones.is_empty()
             && !s.connected()
-            && !matches!(s.connection, Connection::Approval { .. });
+            && !matches!(
+                s.connection,
+                Connection::Approval { .. } | Connection::Connecting { .. }
+            );
 
-        let pulse_t = ((self.anim_frame as f32 * 0.095).sin() + 1.0) * 0.5;
-        let row_ic_color = match mode {
-            WifiMode::Connected => WHITE,
-            WifiMode::Pairing => gray(0.35 + 0.55 * pulse_t),
-            _ => WHITE_25,
+        let secs = self.anim.elapsed_secs(self.anim_frame);
+        let pulse_t = 0.5 + 0.5 * (secs * std::f32::consts::TAU / 1.1).sin();
+        let row_ic_color = if mode == WifiMode::Connected {
+            WHITE
+        } else if is_pairing_or_connecting {
+            gray(0.35 + 0.55 * pulse_t)
+        } else {
+            WHITE_25
         };
-        let row_icon = if show_empty { icons::UNPLUG } else { ind.icon };
+        let row_icon = match &s.connection {
+            Connection::Connected { link, .. }
+            | Connection::Approval { link, .. }
+            | Connection::Connecting { link }
+            | Connection::Reconnecting { link, .. } => link_icon(*link),
+            Connection::NotConnected => icons::GLOBE,
+        };
         self.painter.icon(
             row_icon,
             prim.x + 14.0 + 9.0,
@@ -1802,9 +2259,9 @@ impl Panel {
 
         let (name, name_color, subtitle, sub_color) = if show_empty {
             (
-                "No phone connected",
+                crate::messages::PC_NO_PHONE,
                 WHITE_50,
-                "Open Owlmic on your phone".to_owned(),
+                crate::messages::PC_OPEN_PHONE.to_owned(),
                 WHITE_35,
             )
         } else {
@@ -1813,15 +2270,25 @@ impl Panel {
                 WifiMode::Connected | WifiMode::Pairing => WHITE,
                 _ => WHITE_50,
             };
-            let (subtitle, sub_color) = match mode {
-                WifiMode::Pairing => ("Wants to pair".to_owned(), WHITE_70),
-                WifiMode::Connected => (ind.label.to_owned(), WHITE_50),
-                WifiMode::Blocked => ("Blocked".to_owned(), WHITE_35),
-                WifiMode::Forget | WifiMode::Offline => (
-                    self.format_last_connected()
-                        .unwrap_or_else(|| "Offline".to_owned()),
-                    WHITE_35,
-                ),
+            let (subtitle, sub_color) = match &s.connection {
+                Connection::Connecting { .. } => {
+                    (crate::messages::LINK_CONNECTING.to_owned(), WHITE_70)
+                }
+                Connection::Reconnecting { .. } => {
+                    (crate::messages::STATUS_RECONNECTING.to_owned(), WHITE_70)
+                }
+                _ => match mode {
+                    WifiMode::Pairing => {
+                        (crate::messages::STATUS_WANTS_TO_PAIR.to_owned(), WHITE_70)
+                    }
+                    WifiMode::Connected => (ind.label.to_owned(), WHITE_50),
+                    WifiMode::Blocked => (crate::messages::PC_BLOCKED.to_owned(), WHITE_35),
+                    WifiMode::Forget | WifiMode::Offline => (
+                        self.format_last_connected()
+                            .unwrap_or_else(|| crate::messages::STATUS_OFFLINE.to_owned()),
+                        WHITE_35,
+                    ),
+                },
             };
             (name, name_color, subtitle, sub_color)
         };
@@ -1952,8 +2419,7 @@ impl Panel {
         );
 
         // 1 px sync beam sweep along bottom edge of primary row during pairing/connecting
-        let is_sweeping =
-            mode == WifiMode::Pairing || matches!(s.connection, Connection::Connecting { .. });
+        let is_sweeping = is_pairing_or_connecting;
         if let Some(t) = self.sync_flash_at {
             if t.elapsed() < SYNC_FLASH {
                 let fade = 1.0 - (t.elapsed().as_secs_f32() / SYNC_FLASH.as_secs_f32());
@@ -1965,8 +2431,11 @@ impl Panel {
                     gray(fade * 0.95),
                     1.0,
                 );
+            } else {
+                self.sync_flash_at = None;
             }
-        } else if is_sweeping {
+        }
+        if self.sync_flash_at.is_none() && is_sweeping {
             self.draw_sync_beam(prim);
         }
 
@@ -2052,27 +2521,18 @@ impl Panel {
             },
             1.0,
         );
-        let rot_180 = self.refresh_at.is_some_and(|t| {
-            let el = t.elapsed();
-            el >= Duration::from_millis(210) && el < Duration::from_millis(420)
+        let spin_angle = self.refresh_at.map_or(0.0, |t| {
+            let p = (t.elapsed().as_secs_f32() / 0.420).clamp(0.0, 1.0);
+            cubic_bezier(0.22, 1.0, 0.36, 1.0, p) * 360.0
         });
-        if rot_180 {
-            self.painter.icon_rotated_180(
-                icons::REFRESH,
-                ref_btn.x + ref_btn.w / 2.0,
-                ref_btn.y + ref_btn.h / 2.0,
-                15.0,
-                if is_spinning { WHITE } else { WHITE_80 },
-            );
-        } else {
-            self.painter.icon(
-                icons::REFRESH,
-                ref_btn.x + ref_btn.w / 2.0,
-                ref_btn.y + ref_btn.h / 2.0,
-                15.0,
-                if is_spinning { WHITE } else { WHITE_80 },
-            );
-        }
+        self.painter.icon_rotated(
+            icons::REFRESH,
+            ref_btn.x + ref_btn.w / 2.0,
+            ref_btn.y + ref_btn.h / 2.0,
+            15.0,
+            if is_spinning { WHITE } else { WHITE_80 },
+            spin_angle,
+        );
 
         let transports: [(usize, &'static str, crate::glyph::Icon); 4] = [
             (0, "link.usbDebugging", icons::USB),
@@ -2103,7 +2563,7 @@ impl Panel {
 
     /// Dual soft 1 px horizontal glide along the bottom edge of the pairing row.
     fn draw_sync_beam(&mut self, row: Rect) {
-        let cycle = (self.anim_frame % 126) as f32 / 126.0;
+        let cycle = (self.anim.elapsed_secs(self.anim_frame) / 2.1).fract();
         let pulses = [
             (cycle / 0.58, 0.50, 0.95),
             ((cycle - 0.32) / 0.60, 0.35, 0.72),
@@ -2162,18 +2622,62 @@ impl Panel {
     }
 
     fn draw_drawer_help(&mut self, screen: HelpScreen) {
-        let s = self.state.clone();
         self.draw_playground_base();
+        let sub_t = self.anim.help_sub_t.now();
+        let sub_screen = if !matches!(screen, HelpScreen::Bento) {
+            screen
+        } else {
+            self.anim.last_help
+        };
 
+        if sub_t < 0.99 {
+            let pushed = self.painter.push_layer(l::PLAYGROUND, 1.0 - sub_t);
+            self.draw_help_page(HelpScreen::Bento);
+            self.painter.pop_layer(pushed);
+        }
+        if sub_t > 0.01 {
+            let pushed = self.painter.push_layer(l::PLAYGROUND, sub_t);
+            self.draw_help_page(sub_screen);
+            self.painter.pop_layer(pushed);
+        }
+    }
+
+    fn draw_help_page(&mut self, screen: HelpScreen) {
+        let s = self.state.clone();
         match screen {
             HelpScreen::Bento => {
                 let items: [(usize, Target, &'static str, crate::glyph::Icon); 6] = [
-                    (0, Target::HelpHowTo, "How-to", icons::LIST),
-                    (1, Target::HelpPrivacy, "Privacy", icons::SHIELD),
-                    (2, Target::HelpRate, "Rate", icons::STAR),
-                    (3, Target::HelpGitHub, "GitHub", icons::GITHUB),
-                    (4, Target::HelpDonate, "Donate", icons::COFFEE),
-                    (5, Target::HelpCredits, "Credits", icons::USERS),
+                    (
+                        0,
+                        Target::HelpHowTo,
+                        crate::messages::UI_HOW_TO,
+                        icons::LIST,
+                    ),
+                    (
+                        1,
+                        Target::HelpPrivacy,
+                        crate::messages::UI_PRIVACY,
+                        icons::SHIELD,
+                    ),
+                    (2, Target::HelpRate, crate::messages::UI_RATE, icons::STAR),
+                    (
+                        3,
+                        Target::HelpGitHub,
+                        crate::messages::UI_GITHUB,
+                        icons::GITHUB,
+                    ),
+                    (
+                        4,
+                        Target::HelpDonate,
+                        crate::messages::UI_DONATE,
+                        icons::COFFEE,
+                    ),
+                    (
+                        5,
+                        Target::HelpCredits,
+                        crate::messages::UI_CREDITS,
+                        icons::USERS,
+                    ),
                 ];
                 for (idx, target, label, ic) in items {
                     let tile = l::help_bento_tile(idx);
@@ -2211,26 +2715,26 @@ impl Panel {
                 );
             }
             HelpScreen::HowTo => {
-                self.draw_help_sub_header("How-to");
+                self.draw_help_sub_header(crate::messages::UI_HOW_TO);
 
                 let steps: [(i32, f32, &'static str, &'static str); 3] = [
                     (
                         1,
-                        56.0,
-                        "Get the Android App",
-                        "Install and open Owlmic on your phone",
+                        54.0,
+                        crate::messages::PC_STEP_DOWNLOAD,
+                        crate::messages::PC_STEP_DOWNLOAD_DETAIL,
                     ),
                     (
                         2,
-                        120.0,
-                        "Pair with this PC",
-                        "Plug in USB or join the same Wi-Fi, or copy this PC's IP from Connections",
+                        112.0,
+                        crate::messages::PC_STEP_CONNECT,
+                        crate::messages::PC_STEP_CONNECT_DETAIL,
                     ),
                     (
                         3,
-                        196.0,
-                        "Pick Owlmic in Windows apps",
-                        "Select Owlmic Camera or Mic in Discord, OBS, Meet, or Zoom",
+                        174.0,
+                        crate::messages::PC_STEP_STREAM,
+                        crate::messages::PC_STEP_STREAM_DETAIL,
                     ),
                 ];
 
@@ -2261,28 +2765,32 @@ impl Panel {
 
                     let title_x = badge.right() + 12.0;
                     let text_w = l::PLAYGROUND.right() - 16.0 - title_x;
-                    let title_str = if idx == 1 {
-                        "Get the Android App ↗"
-                    } else {
-                        title
-                    };
                     self.painter.text(
-                        title_str,
+                        title,
                         Rect::new(title_x, y, text_w, 18.0),
                         Font::Body,
                         WHITE,
                         Align::Left,
                         false,
                     );
-                    if idx == 1 && self.is_hovered(Target::HelpReleases) {
-                        self.painter.line(
-                            title_x,
-                            y + 17.0,
+                    if idx == 1 {
+                        self.painter.icon(
+                            icons::EXTERNAL,
                             title_x + 132.0,
-                            y + 17.0,
+                            y + 9.0,
+                            12.0,
                             WHITE_70,
-                            1.0,
                         );
+                        if self.is_hovered(Target::HelpReleases) {
+                            self.painter.line(
+                                title_x,
+                                y + 17.0,
+                                title_x + 122.0,
+                                y + 17.0,
+                                WHITE_70,
+                                1.0,
+                            );
+                        }
                     }
                     self.painter.text(
                         desc,
@@ -2295,7 +2803,7 @@ impl Panel {
                 }
             }
             HelpScreen::Privacy => {
-                self.draw_help_sub_header("Privacy");
+                self.draw_help_sub_header(crate::messages::UI_PRIVACY);
                 self.painter.text(
                     "Owlmic receives camera, microphone, and speaker streams strictly over your local USB or Wi-Fi network. Zero media or telemetry leaves your local network.",
                     Rect::new(
@@ -2311,7 +2819,7 @@ impl Panel {
                 );
             }
             HelpScreen::Credits => {
-                self.draw_help_sub_header("Credits");
+                self.draw_help_sub_header(crate::messages::UI_CREDITS);
                 for (idx, (name, user)) in CREDITS.iter().enumerate() {
                     let row = l::help_credit_row(idx);
                     if self.is_hovered(Target::HelpCredit(idx)) {
@@ -2348,20 +2856,19 @@ impl Panel {
                     self.painter.fill(gh_row, ROW_HOVER);
                 }
                 self.painter.text(
-                    "GitHub",
+                    crate::messages::UI_GITHUB,
                     Rect::new(gh_row.x + 14.0, gh_row.y, 140.0, gh_row.h),
                     Font::Body,
                     WHITE,
                     Align::Left,
                     false,
                 );
-                self.painter.text(
-                    "↗",
-                    Rect::new(gh_row.right() - 30.0, gh_row.y, 16.0, gh_row.h),
-                    Font::Caption,
+                self.painter.icon(
+                    icons::EXTERNAL,
+                    gh_row.right() - 22.0,
+                    gh_row.y + gh_row.h / 2.0,
+                    12.0,
                     WHITE_55,
-                    Align::Right,
-                    false,
                 );
             }
         }
@@ -2423,6 +2930,14 @@ fn open(link: Link) {
     if let Some(t) = target {
         open_url(&t);
     }
+}
+
+fn wave_level(raw_level: f32) -> f32 {
+    const WAVE_THRESHOLD: f32 = 0.08;
+    const WAVE_EXPONENT: f32 = 0.7;
+    const WAVE_GAIN: f32 = 1.5;
+    let v = ((raw_level - WAVE_THRESHOLD) / (1.0 - WAVE_THRESHOLD)).clamp(0.0, 1.0);
+    (v.powf(WAVE_EXPONENT) * WAVE_GAIN).min(1.0)
 }
 
 #[cfg(test)]
@@ -2853,6 +3368,8 @@ mod tests {
 
             for (file_name, st, drawer, cam_hud, cam_menu, mic_quick, dock_open) in states {
                 let arc_st = Arc::new(st);
+                let anim =
+                    UiAnim::settled_for(&arc_st, drawer, cam_hud, cam_menu, mic_quick, dock_open);
                 let mut panel = Panel {
                     hwnd: HWND::default(),
                     ui: Ui {
@@ -2868,6 +3385,7 @@ mod tests {
                     cam_hud,
                     cam_hud_at: None,
                     cam_menu_open: cam_menu,
+                    cam_menu_wide: None,
                     mic_quick_open: mic_quick,
                     dock_open,
                     hover: None,
@@ -2889,6 +3407,7 @@ mod tests {
                     base_pos: (0, 0),
                     is_mouse_over: true,
                     unhover_since: None,
+                    anim,
                 };
 
                 let screen_dc = GetDC(None);
@@ -2956,5 +3475,45 @@ mod tests {
                 let _ = DestroyWindow(hwnd);
             }
         }
+    }
+
+    #[test]
+    fn wave_level_matches_android_sensitivity_curve() {
+        assert_eq!(wave_level(0.08), 0.0);
+        assert!((wave_level(0.16) - 0.27).abs() < 0.02);
+        assert!((wave_level(0.25) - 0.46).abs() < 0.02);
+        assert!((wave_level(0.50) - 0.86).abs() < 0.02);
+        assert_eq!(wave_level(0.65), 1.0);
+        assert_eq!(wave_level(1.0), 1.0);
+    }
+
+    #[test]
+    fn animation_tweens_settle_and_progress_smoothly() {
+        let mut tw = Tween::settled(0.0, 240, Curve::EaseOutExpo);
+        assert!((tw.now() - 0.0).abs() < 1e-4);
+        tw.set(1.0);
+        std::thread::sleep(Duration::from_millis(25));
+        let mid = tw.now();
+        assert!(mid > 0.0 && mid <= 1.0);
+        tw.snap(0.25);
+        assert!((tw.now() - 0.25).abs() < 1e-4);
+
+        let st = PanelState {
+            connection: Connection::Connected {
+                phone: "Pixel 8".into(),
+                link: 3,
+                weak: false,
+            },
+            camera: Feature::On,
+            mic: Feature::On,
+            paired: true,
+            ..Default::default()
+        };
+        let anim = UiAnim::settled_for(&st, Drawer::Wifi, false, true, false, true);
+        assert!((anim.drawer_t.now() - 1.0).abs() < 1e-4);
+        assert!((anim.cam_layer_t.now() - 1.0).abs() < 1e-4);
+        assert!((anim.cam_menu_t.now() - 1.0).abs() < 1e-4);
+        assert!((anim.dock_expand_t.now() - 1.0).abs() < 1e-4);
+        assert!((anim.cam_hud_t.now() - 1.0).abs() < 1e-4);
     }
 }

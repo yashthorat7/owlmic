@@ -23,6 +23,8 @@ interface MediaCarrier : Closeable {
 /** UDP 7655 on USB tethering and Wi-Fi. [network] is the Wi-Fi network when the PC is on it. */
 class UdpCarrier(host: InetAddress, port: Int, network: Network?, private val onReceive: (ByteArray, Int) -> Unit) : MediaCarrier {
     private val socket = DatagramSocket().apply {
+        sendBufferSize = 512 * 1024
+        receiveBufferSize = 256 * 1024
         network?.bindSocket(this)
         connect(host, port)
         soTimeout = 1_000
@@ -67,7 +69,7 @@ class UdpCarrier(host: InetAddress, port: Int, network: Network?, private val on
  * full the oldest packet goes: fresh media is worth more than old.
  */
 private class WriterQueue(name: String, private val write: (ByteArray) -> Unit, private val onError: () -> Unit) {
-    private val queue = ArrayBlockingQueue<ByteArray>(128)
+    private val queue = ArrayBlockingQueue<ByteArray>(512)
 
     @Volatile var open = true
 
@@ -94,6 +96,8 @@ private class WriterQueue(name: String, private val write: (ByteArray) -> Unit, 
 class TunnelCarrier(port: Int, private val onReceive: (ByteArray, Int) -> Unit, onClosed: () -> Unit) : MediaCarrier {
     private val socket = Socket().apply {
         tcpNoDelay = true
+        sendBufferSize = 512 * 1024
+        receiveBufferSize = 512 * 1024
         connect(InetSocketAddress(InetAddress.getLoopbackAddress(), port), 2_000)
         soTimeout = 5_000
     }

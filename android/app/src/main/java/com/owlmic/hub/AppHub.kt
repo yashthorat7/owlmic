@@ -250,11 +250,14 @@ class AppHub(private val app: Application, private val onState: (AppState) -> Un
             if (!state.connected || state.feature(f).isOn) return
             when (f) {
                 Feature.MIC -> {
+                    micPausedByPc = false
+                    micPausedByUser = false
                     set(f, FeatureView(FeaturePhase.STARTING))
                     startMic()
                     if (state.speaker.isOn) startSpeaker()
                 }
                 Feature.CAMERA -> {
+                    cameraPausedByPc = false
                     if (linkKind == LinkKind.BLUETOOTH) {
                         set(f, FeatureView(FeaturePhase.OFF, FeatureProblem.NO_BLUETOOTH))
                         return
@@ -263,6 +266,7 @@ class AppHub(private val app: Application, private val onState: (AppState) -> Un
                     media.post(MediaMsg.Camera(cameraConfig()))
                 }
                 Feature.SPEAKER -> {
+                    speakerPausedByPc = false
                     set(f, FeatureView(FeaturePhase.STARTING))
                     startSpeaker()
                     if (state.mic.isOn) startMic()
@@ -346,7 +350,7 @@ class AppHub(private val app: Application, private val onState: (AppState) -> Un
 
     private fun cameraConfig(): CameraConfig {
         val s = state.settings
-        val fps = s["camera.frameRate"]?.toIntOrNull() ?: 24
+        val fps = s["camera.frameRate"]?.toIntOrNull() ?: 60
         return CameraConfig(
             lens = if ((s["camera.lens"] ?: SettingsModel.find("camera.lens")?.default) == "back") Lens.BACK else Lens.FRONT,
             plan = VideoPlan.of(s["camera.quality"] ?: "auto", fps, linkKind ?: LinkKind.WIFI),
@@ -503,11 +507,12 @@ class AppHub(private val app: Application, private val onState: (AppState) -> Un
         when (m) {
             is State -> {
                 when (m.mic) {
-                    FeatureState.ON -> if (!state.mic.isOn) {
-                        if (micPausedByPc) {
-                            micPausedByPc = false
+                    FeatureState.ON -> {
+                        micPausedByPc = false
+                        micPausedByUser = false
+                        if (state.mic.phase == FeaturePhase.PAUSED) {
                             applyMicPause()
-                        } else {
+                        } else if (!state.mic.isOn) {
                             setFeature(Feature.MIC, true)
                         }
                     }
@@ -520,12 +525,12 @@ class AppHub(private val app: Application, private val onState: (AppState) -> Un
                     }
                 }
                 when (m.camera) {
-                    FeatureState.ON -> if (!state.camera.isOn) {
-                        if (cameraPausedByPc) {
-                            cameraPausedByPc = false
+                    FeatureState.ON -> {
+                        cameraPausedByPc = false
+                        if (state.camera.phase == FeaturePhase.PAUSED) {
                             media.post(MediaMsg.CameraPaused(false))
                             set(Feature.CAMERA, FeatureView(FeaturePhase.ON))
-                        } else {
+                        } else if (!state.camera.isOn) {
                             setFeature(Feature.CAMERA, true)
                         }
                     }
@@ -539,11 +544,11 @@ class AppHub(private val app: Application, private val onState: (AppState) -> Un
                     }
                 }
                 when (m.speaker) {
-                    FeatureState.ON -> if (!state.speaker.isOn) {
-                        if (speakerPausedByPc) {
-                            speakerPausedByPc = false
+                    FeatureState.ON -> {
+                        speakerPausedByPc = false
+                        if (state.speaker.phase == FeaturePhase.PAUSED) {
                             set(Feature.SPEAKER, FeatureView(FeaturePhase.ON))
-                        } else {
+                        } else if (!state.speaker.isOn) {
                             setFeature(Feature.SPEAKER, true)
                         }
                     }
@@ -558,17 +563,33 @@ class AppHub(private val app: Application, private val onState: (AppState) -> Un
                 sendState()
             }
             is SettingsMessage -> settings.post(SettingsMsg.Remote(m.changes))
-            is StreamStart -> if (m.stream == Stream.SPEAKER) {
-                speakerFormat = SpeakerFormat(
-                    codec = m.codec,
-                    channels = m.params.optInt("channels", 2),
-                    frameMs = m.params.optInt("frameMs", 10),
-                )
-                if (state.speaker.phase != FeaturePhase.OFF) startSpeaker()
+            is StreamStart -> when (m.stream) {
+                Stream.SPEAKER -> {
+                    speakerFormat = SpeakerFormat(
+                        codec = m.codec,
+                        channels = m.params.optInt("channels", 2),
+                        frameMs = m.params.optInt("frameMs", 10),
+                    )
+                    if (state.speaker.phase != FeaturePhase.OFF) startSpeaker()
+                }
+                Stream.CAMERA -> if (state.camera.phase != FeaturePhase.OFF && !state.camera.isOn) {
+                    setFeature(Feature.CAMERA, true)
+                }
+                Stream.MIC -> if (state.mic.phase != FeaturePhase.OFF && !state.mic.isOn) {
+                    setFeature(Feature.MIC, true)
+                }
             }
-            is StreamStop -> if (m.stream == Stream.SPEAKER) {
-                speakerFormat = null
-                media.post(MediaMsg.Speaker(null, false, true))
+            is StreamStop -> when (m.stream) {
+                Stream.SPEAKER -> {
+                    speakerFormat = null
+                    media.post(MediaMsg.Speaker(null, false, true))
+                }
+                Stream.CAMERA -> if (state.camera.isOn) {
+                    setFeature(Feature.CAMERA, false)
+                }
+                Stream.MIC -> if (state.mic.isOn) {
+                    setFeature(Feature.MIC, false)
+                }
             }
             KeyframeRequest -> media.post(MediaMsg.Keyframe)
             is Report -> {

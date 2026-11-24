@@ -108,23 +108,28 @@
                   <div id="m-camBox" data-crop="none" class="cam-frame flex items-center justify-center"><canvas id="m-camCanvas" class="w-full h-full block"></canvas></div>
 
                   <div id="m-camHud" class="cam-hud is-quiet absolute top-3 left-3 right-3 z-[8] flex items-start justify-between pointer-events-none">
-                    <!-- Compact Single Button Expandable Dropdown: Res | FPS | Ratio -->
+                    <!-- Compact Single Button Expandable Dropdown: 2x3 Ratio & Orientation -->
                     <div id="m-camMenuBox" class="cam-expand pointer-events-auto">
-                      <button id="m-btnCamMenu" class="cam-closed-btn h-[29px] tabular-nums text-[11px] font-medium text-white cursor-pointer" aria-label="Camera format settings">
-                        <span id="m-camRes" class="whitespace-nowrap font-medium">FHD</span>
+                      <button id="m-btnCamMenu" class="cam-closed-btn tabular-nums text-[11px] font-medium text-white cursor-pointer" aria-label="Camera ratio settings">
+                        <span id="m-camRatioLabel" class="whitespace-nowrap font-medium">Auto</span>
                       </button>
                       <div class="cam-options-grid overflow-hidden">
-                        <div id="m-camResRow" class="grid grid-cols-3 divide-x divide-white/10 border-b border-white/10"></div>
-                        <div id="m-camFpsRow" class="grid grid-cols-3 divide-x divide-white/10 border-b border-white/10"></div>
-                        <div id="m-camRatioRow" class="grid grid-cols-3 divide-x divide-white/10 cam-ratio-grid"></div>
+                        <div class="grid grid-cols-2 divide-x divide-white/10 border-b border-white/10">
+                          <div id="m-camAutoSlot"></div>
+                          <button id="m-btnCamOrient" class="h-full flex items-center justify-center text-white/80 hover:bg-white/5 hover:text-white cursor-pointer transition-colors" aria-label="Toggle orientation">
+                            <img id="m-camOrientIc" src="../../assets/icons/phone.svg" class="cam-orient-ic w-[14px] h-[14px] owl-icon" alt="Orientation" data-icon="phone" />
+                          </button>
+                        </div>
+                        <div id="m-camRatioRow1" class="grid grid-cols-2 divide-x divide-white/10 border-b border-white/10"></div>
+                        <div id="m-camRatioRow2" class="grid grid-cols-2 divide-x divide-white/10"></div>
                       </div>
                     </div>
 
                     <div class="flex items-center gap-1.5 pointer-events-auto">
-                      <button id="m-btnMirror" aria-label="Mirror" class="cam-btn is-on w-[29px] h-[29px] rounded-[8px] border border-white/20 bg-black/80 backdrop-blur-md flex items-center justify-center cursor-pointer">
+                      <button id="m-btnMirror" aria-label="Mirror" class="cam-btn is-on w-[29px] h-[29px] rounded-[8px] border border-white/20 bg-black/75 backdrop-blur-md flex items-center justify-center cursor-pointer">
                         <img src="../../assets/icons/mirror.svg" class="w-[15px] h-[15px] owl-icon" alt="Mirror" data-icon="mirror" />
                       </button>
-                      <button id="m-btnFlip" aria-label="Flip" class="cam-btn w-[29px] h-[29px] rounded-[8px] border border-white/20 bg-black/80 backdrop-blur-md flex items-center justify-center cursor-pointer">
+                      <button id="m-btnFlip" aria-label="Flip" class="cam-btn w-[29px] h-[29px] rounded-[8px] border border-white/20 bg-black/75 backdrop-blur-md flex items-center justify-center cursor-pointer">
                         <img src="../../assets/icons/flip.svg" class="w-[15px] h-[15px] owl-icon" alt="Flip" data-icon="flip" />
                       </button>
                     </div>
@@ -289,13 +294,13 @@
     </div>
   </aside>
 
-  <!-- ===================== BOTTOM-RIGHT: PC FLYOUT (312 x 374) ===================== -->
+  <!-- ===================== BOTTOM-RIGHT: PC FLYOUT (312 x 312) ===================== -->
   <div id="pcFlyoutAnchor" class="pc-flyout-anchor">
-    <div id="pcWindow" class="pc-window w-[312px] h-[374px] rounded-[13px] overflow-hidden shadow-[0_24px_64px_rgba(0,0,0,0.85)] ring-1 ring-white/15">
+    <div id="pcWindow" class="pc-window w-[312px] h-[312px] rounded-[13px] overflow-hidden shadow-[0_24px_64px_rgba(0,0,0,0.85)] ring-1 ring-white/15">
       <div id="p-bento" class="pc-bento is-disconnected w-full h-full flex flex-col bg-[#727272] p-[1px] gap-[1px]">
 
-        <!-- Top Square Playground (310 x 310) -->
-        <section id="p-playground" class="w-full aspect-square bg-black rounded-[12px] relative overflow-hidden shrink-0">
+        <!-- Top Playground (310 x 248) -->
+        <section id="p-playground" class="w-full flex-1 min-h-0 bg-black rounded-[12px] relative overflow-hidden">
           <div class="playground-dots absolute inset-0 pointer-events-none z-[1]"></div>
           <div id="p-watermark" class="p-watermark absolute inset-0 flex items-center justify-center pointer-events-none z-[2]" aria-hidden="true">
             <img src="../../assets/brand/icon.svg" alt="" class="owl-img w-[152px] h-[152px] opacity-[0.07]" data-brand="owl" />
@@ -307,23 +312,28 @@
             <div id="p-camBox" data-crop="none" class="cam-frame flex items-center justify-center"><canvas id="p-camCanvas" class="w-full h-full block"></canvas></div>
 
             <div id="p-camHud" class="cam-hud is-quiet absolute top-2.5 left-2.5 right-2.5 z-[8] flex items-start justify-between pointer-events-none">
-              <!-- Compact Single Button Expandable Dropdown: Res | FPS | Ratio -->
+              <!-- Compact Single Button Expandable Dropdown: 2x3 Ratio & Orientation -->
               <div id="p-camMenuBox" class="cam-expand pointer-events-auto">
-                <button id="p-btnCamMenu" class="cam-closed-btn h-[25px] tabular-nums text-[10px] font-medium text-white cursor-pointer" aria-label="Camera format settings">
-                  <span id="p-camRes" class="whitespace-nowrap font-medium">FHD</span>
+                <button id="p-btnCamMenu" class="cam-closed-btn tabular-nums text-[10px] font-medium text-white cursor-pointer" aria-label="Camera ratio settings">
+                  <span id="p-camRatioLabel" class="whitespace-nowrap font-medium">Auto</span>
                 </button>
                 <div class="cam-options-grid overflow-hidden">
-                  <div id="p-camResRow" class="grid grid-cols-3 divide-x divide-white/10 border-b border-white/10"></div>
-                  <div id="p-camFpsRow" class="grid grid-cols-3 divide-x divide-white/10 border-b border-white/10"></div>
-                  <div id="p-camRatioRow" class="grid grid-cols-3 divide-x divide-white/10 cam-ratio-grid"></div>
+                  <div class="grid grid-cols-2 divide-x divide-white/10 border-b border-white/10">
+                    <div id="p-camAutoSlot"></div>
+                    <button id="p-btnCamOrient" class="h-full flex items-center justify-center text-white/80 hover:bg-white/5 hover:text-white cursor-pointer transition-colors" aria-label="Toggle orientation">
+                      <img id="p-camOrientIc" src="../../assets/icons/phone.svg" class="cam-orient-ic w-[12px] h-[12px] owl-icon" alt="Orientation" data-icon="phone" />
+                    </button>
+                  </div>
+                  <div id="p-camRatioRow1" class="grid grid-cols-2 divide-x divide-white/10 border-b border-white/10"></div>
+                  <div id="p-camRatioRow2" class="grid grid-cols-2 divide-x divide-white/10"></div>
                 </div>
               </div>
 
               <div class="flex items-center gap-1.5 pointer-events-auto">
-                <button id="p-btnMirror" aria-label="Mirror" class="cam-btn is-on w-[25px] h-[25px] rounded-[7px] border border-white/20 bg-black/80 backdrop-blur-md flex items-center justify-center cursor-pointer">
+                <button id="p-btnMirror" aria-label="Mirror" class="cam-btn is-on w-[25px] h-[25px] rounded-[7px] border border-white/20 bg-black/75 backdrop-blur-md flex items-center justify-center cursor-pointer">
                   <img src="../../assets/icons/mirror.svg" class="w-[13px] h-[13px] owl-icon" alt="Mirror" data-icon="mirror" />
                 </button>
-                <button id="p-btnFlip" aria-label="Flip Lens" class="cam-btn w-[25px] h-[25px] rounded-[7px] border border-white/20 bg-black/80 backdrop-blur-md flex items-center justify-center cursor-pointer">
+                <button id="p-btnFlip" aria-label="Flip Lens" class="cam-btn w-[25px] h-[25px] rounded-[7px] border border-white/20 bg-black/75 backdrop-blur-md flex items-center justify-center cursor-pointer">
                   <img src="../../assets/icons/flip.svg" class="w-[13px] h-[13px] owl-icon" alt="Flip" data-icon="flip" />
                 </button>
               </div>
@@ -385,18 +395,18 @@
             <!-- PC Help -->
             <div id="p-drawerHelp" class="hidden w-full h-full flex-col overflow-hidden bg-black">
               <div id="p-helpBento" class="w-full h-full flex flex-col">
-                <div class="flex-1 flex flex-col justify-center p-3.5">
-                  <div id="p-helpGrid" class="grid grid-cols-3 gap-2 w-full max-w-[264px] mx-auto"></div>
+                <div class="flex-1 flex flex-col justify-center p-3">
+                  <div id="p-helpGrid" class="grid grid-cols-3 gap-2 w-full max-w-[248px] mx-auto"></div>
                 </div>
-                <div class="text-center tabular-nums text-[10.5px] text-white/35 pb-2.5">v0.1.0</div>
+                <div class="text-center tabular-nums text-[10.5px] text-white/35 pb-2">v0.1.0</div>
               </div>
               <div id="p-helpHowto" class="hidden w-full h-full flex-col">
                 <div class="h-10 px-3 flex items-center gap-2 border-b border-white/15 shrink-0">
                   <button data-p-help-back class="w-7 h-7 rounded-[7px] flex items-center justify-center hover:bg-white/10 cursor-pointer"><img src="../../assets/icons/arrow.svg" class="w-[16px] h-[16px] owl-img rotate-180" alt="Back" data-icon="arrow" /></button>
                   <span class="text-[12.5px] font-medium">How-to</span>
                 </div>
-                <div class="p-4 overflow-y-auto thin-scroll">
-                  <div class="relative flex flex-col gap-4">
+                <div class="p-3.5 overflow-y-auto thin-scroll">
+                  <div class="relative flex flex-col gap-3">
                     <div class="absolute left-[10.5px] top-3 bottom-3 w-px bg-white/20"></div>
                     <div class="relative z-[1] flex items-start gap-3"><div class="w-[22px] h-[22px] rounded-full bg-black border border-white/40 flex items-center justify-center text-[11px] shrink-0">1</div><div><a href="https://github.com/diveshpatil9104/owlmic/releases" target="_blank" rel="noopener noreferrer" class="text-[12.5px] font-medium inline-flex items-center gap-1.5 hover:underline">Get the Android App <img src="../../assets/icons/external.svg" class="w-3 h-3 owl-img opacity-70" alt="↗" data-icon="external" /></a><p class="text-[11px] text-white/55 mt-0.5">Install and open Owlmic on your phone</p></div></div>
                     <div class="relative z-[1] flex items-start gap-3"><div class="w-[22px] h-[22px] rounded-full bg-black border border-white/40 flex items-center justify-center text-[11px] shrink-0">2</div><div><div class="text-[12.5px] font-medium">Pair with this PC</div><p class="text-[11px] text-white/55 mt-0.5">Plug in USB or join the same Wi-Fi, or copy this PC's IP from Connections</p></div></div>

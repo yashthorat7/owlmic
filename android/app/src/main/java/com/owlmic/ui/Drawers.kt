@@ -125,7 +125,11 @@ private fun ColumnScope.ConnectionDrawer(state: AppState) {
 
     Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).animateContentSize()) {
         if (list.rows.isEmpty()) {
-            BasicText(stringResource(Copy.string.phone_no_pcs), Modifier.padding(20.dp), style = Theme.pageDetail)
+            BasicText(
+                stringResource(Copy.string.phone_no_pcs),
+                Modifier.padding(20.dp),
+                style = Theme.pageDetail.copy(fontSize = 18.sp, lineHeight = 24.sp),
+            )
         }
         list.rows.forEach { row -> PcEntry(state, row, opened == row.key) { toggle(row.key) } }
 
@@ -135,11 +139,10 @@ private fun ColumnScope.ConnectionDrawer(state: AppState) {
                 Modifier
                     .fillMaxWidth()
                     .height(48.dp)
-                    .drawBehind { drawLine(Color(0x1AFFFFFF), Offset(0f, size.height - 1f), Offset(size.width, size.height - 1f), 1f) }
                     .clickable(role = Role.Button, onClick = { showAdd = true }),
                 contentAlignment = Alignment.Center,
             ) {
-                Icon(Glyph.PLUS, Color.White.copy(alpha = 0.40f), stringResource(Copy.string.phone_add_pc), size = 18.dp, stroke = 2.15f)
+                Icon(Glyph.PLUS, Color.White.copy(alpha = 0.40f), stringResource(Copy.string.phone_add_pc), size = 22.dp, stroke = 2.15f)
             }
         } else {
             Row(
@@ -155,14 +158,14 @@ private fun ColumnScope.ConnectionDrawer(state: AppState) {
                     if (addAddressText.isEmpty()) {
                         BasicText(
                             stringResource(Copy.string.phone_address_hint),
-                            style = Theme.pageDetail.copy(color = Color(0x4DFFFFFF), fontSize = 15.sp),
+                            style = Theme.pageDetail.copy(color = Color(0x4DFFFFFF), fontSize = 18.sp, lineHeight = 24.sp),
                         )
                     }
                     BasicTextField(
                         value = addAddressText,
                         onValueChange = { addAddressText = it },
                         modifier = Modifier.fillMaxWidth(),
-                        textStyle = Theme.pageText.copy(color = Color.White, fontSize = 15.sp, fontFeatureSettings = "tnum"),
+                        textStyle = Theme.pageText.copy(color = Color.White, fontSize = 18.sp, lineHeight = 24.sp, fontFeatureSettings = "tnum"),
                         cursorBrush = SolidColor(Color.White),
                         singleLine = true,
                     )
@@ -173,7 +176,7 @@ private fun ColumnScope.ConnectionDrawer(state: AppState) {
                         .clickable(role = Role.Button, onClick = { showAdd = false; addAddressText = "" }),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Icon(Glyph.CLOSE, Color.White.copy(alpha = 0.40f), stringResource(Copy.string.ui_cancel), size = 16.dp, stroke = 2.3f)
+                    Icon(Glyph.CLOSE, Color.White.copy(alpha = 0.40f), stringResource(Copy.string.ui_cancel), size = 19.dp, stroke = 2.3f)
                 }
                 Box(
                     Modifier
@@ -188,7 +191,7 @@ private fun ColumnScope.ConnectionDrawer(state: AppState) {
                         }),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Icon(Glyph.ARROW, Color.White.copy(alpha = 0.70f), stringResource(Copy.string.ui_add), size = 16.dp, stroke = 2f)
+                    Icon(Glyph.ARROW, Color.White.copy(alpha = 0.70f), stringResource(Copy.string.ui_add), size = 19.dp, stroke = 2f)
                 }
             }
         }
@@ -274,34 +277,34 @@ private fun PcEntry(state: AppState, row: PcRow, open: Boolean, onToggle: () -> 
                 linkIc,
                 Color.White,
                 null,
-                Modifier.size(19.dp).graphicsLayer { alpha = if (isPairing) iconAlpha else 1f },
+                Modifier.size(23.dp).graphicsLayer { alpha = if (isPairing) iconAlpha else 1f },
                 stroke = 2f,
             )
             Column(Modifier.weight(1f)) {
-                BasicText(name, style = Theme.pageName.copy(fontSize = 16.5.sp), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                BasicText(name, style = Theme.pageName.copy(fontSize = 19.8.sp, lineHeight = 26.sp), maxLines = 1, overflow = TextOverflow.Ellipsis)
                 row.address?.takeIf { it.isNotEmpty() }?.let { addr ->
                     BasicText(
                         addr,
                         Modifier.padding(top = 2.dp),
-                        style = Theme.pageDetail.copy(color = Color(0x73FFFFFF), fontSize = 14.sp, fontFeatureSettings = "tnum"),
+                        style = Theme.pageDetail.copy(color = Color(0x73FFFFFF), fontSize = 16.8.sp, lineHeight = 22.sp, fontFeatureSettings = "tnum"),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
                 }
             }
             if (isCurrent) {
-                Icon(Glyph.CHECK, Color.White, null, size = 18.dp, stroke = 2.6f)
+                Icon(Glyph.CHECK, Color.White, null, size = 22.dp, stroke = 2.6f)
             } else if (row.canConnect && row.id != null) {
                 TextAction(stringResource(Copy.string.ui_connect)) { Owlmic.post(AppMsg.ChoosePc(row.id)) }
             }
         }
         AnimatedVisibility(open, enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
-            Column(Modifier.fillMaxWidth().padding(start = 49.dp, end = 16.dp, bottom = 14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Column(Modifier.fillMaxWidth().padding(start = 53.dp, end = 16.dp, bottom = 14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                     BasicText(
                         if (row.kind == PcKind.ADDRESS) "" else lastConnected(row),
                         Modifier.weight(1f),
-                        style = Theme.pageDetail.copy(color = Theme.text2, fontSize = 14.sp),
+                        style = Theme.pageDetail.copy(color = Theme.text2, fontSize = 16.8.sp, lineHeight = 22.sp),
                         maxLines = 1,
                     )
                     val id = row.id
@@ -329,7 +332,7 @@ private fun TextAction(text: String, onClick: () -> Unit) {
     BasicText(
         text,
         Modifier.clip(RoundedCornerShape(6.dp)).clickable(role = Role.Button, onClick = onClick).padding(vertical = 8.dp),
-        style = Theme.pageText.copy(fontSize = 15.sp, fontWeight = FontWeight.SemiBold),
+        style = Theme.pageText.copy(fontSize = 18.sp, lineHeight = 24.sp, fontWeight = FontWeight.SemiBold),
     )
 }
 
@@ -348,8 +351,9 @@ private fun Footer(state: AppState) {
     Row(
         Modifier
             .fillMaxWidth()
+            .height(64.dp)
             .drawBehind { drawLine(Color(0x26FFFFFF), Offset(0f, 0.5.dp.toPx()), Offset(size.width, 0.5.dp.toPx()), 1.dp.toPx()) }
-            .padding(horizontal = 10.dp, vertical = 10.dp),
+            .padding(horizontal = 10.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -366,14 +370,14 @@ private fun Footer(state: AppState) {
                     Owlmic.post(AppMsg.Reconnect)
                     scope.launch {
                         spin.snapTo(0f)
-                        spin.animateTo(360f, tween(420))
+                        spin.animateTo(360f, tween(420, easing = CubicBezierEasing(0.22f, 1f, 0.36f, 1f)))
                     }
                 }),
             contentAlignment = Alignment.Center,
         ) {
             Icon(Glyph.REFRESH, Color.White.copy(alpha = 0.80f), stringResource(Copy.string.ui_refresh), Modifier.graphicsLayer { rotationZ = spin.value }, size = Tokens.Phone.LINK_GLYPH_DP.dp, stroke = 2f)
         }
-        Box(Modifier.width(1.dp).height(32.dp).background(Color(0x26FFFFFF)))
+        Box(Modifier.width(1.dp).fillMaxHeight().background(Color(0x26FFFFFF)))
         LINK_SETTINGS.forEach { (link, id) ->
             val on = (state.settings[id] ?: "on") == "on"
             val name = stringResource(linkName(link))

@@ -19,18 +19,43 @@ class VideoPlanTest {
         val p1080 = VideoPlan.of("1080p", 30, LinkKind.USB_DEBUGGING)
         assertEquals(1920 to 1080, outputSize(p1080, Ratio.WIDE))
         assertEquals(1440 to 1080, outputSize(p1080, Ratio.CLASSIC))
+        assertEquals(1920 to 960, outputSize(p1080, Ratio.CINEMA))
         assertEquals(1080 to 1080, outputSize(p1080, Ratio.SQUARE))
+        assertEquals(960 to 1920, outputSize(p1080, Ratio.PORTRAIT_CINEMA))
+        assertEquals(1080 to 1440, outputSize(p1080, Ratio.PORTRAIT_CLASSIC))
         assertEquals(1080 to 1920, outputSize(p1080, Ratio.TALL))
         val p720 = VideoPlan.of("720p", 30, LinkKind.WIFI)
         assertEquals(1280 to 720, outputSize(p720, Ratio.WIDE))
         assertEquals(960 to 720, outputSize(p720, Ratio.CLASSIC))
+        assertEquals(1280 to 640, outputSize(p720, Ratio.CINEMA))
         assertEquals(720 to 720, outputSize(p720, Ratio.SQUARE))
+        assertEquals(640 to 1280, outputSize(p720, Ratio.PORTRAIT_CINEMA))
+        assertEquals(720 to 960, outputSize(p720, Ratio.PORTRAIT_CLASSIC))
         assertEquals(720 to 1280, outputSize(p720, Ratio.TALL))
+    }
+
+    @Test
+    fun presetsKeepTheirShapeEvenWhenPhoneRotates() {
+        val p720 = VideoPlan.of("720p", 30, LinkKind.WIFI)
+        val upright = 720 to 960
+        val sideways = 960 to 720
+        for (frame in listOf(upright, sideways)) {
+            assertEquals(720 to 960, outputSize(p720, Ratio.PORTRAIT_CLASSIC, frame))
+            assertEquals(960 to 720, outputSize(p720, Ratio.CLASSIC, frame))
+            assertEquals(640 to 1280, outputSize(p720, Ratio.PORTRAIT_CINEMA, frame))
+            assertEquals(1280 to 640, outputSize(p720, Ratio.CINEMA, frame))
+            assertEquals(720 to 1280, outputSize(p720, Ratio.TALL, frame))
+            assertEquals(1280 to 720, outputSize(p720, Ratio.WIDE, frame))
+            assertEquals(720 to 720, outputSize(p720, Ratio.SQUARE, frame))
+        }
     }
 
     @Test
     fun ratiosReadFromTheSettingAndTheDefaultIsTheFullFrame() {
         assertEquals(Ratio.CLASSIC, Ratio.of("4:3"))
+        assertEquals(Ratio.CINEMA, Ratio.of("2:1"))
+        assertEquals(Ratio.PORTRAIT_CINEMA, Ratio.of("1:2"))
+        assertEquals(Ratio.PORTRAIT_CLASSIC, Ratio.of("3:4"))
         assertEquals(Ratio.TALL, Ratio.of("9:16"))
         assertEquals(Ratio.FULL, Ratio.of("full"))
         assertEquals(Ratio.FULL, Ratio.of(null))

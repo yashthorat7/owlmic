@@ -68,6 +68,9 @@ class Upright(val turn: Int, val angle: State<Float>) {
  */
 @Stable
 class TurnSequence(start: Int) {
+    var targetTurn by mutableIntStateOf(start)
+        private set
+
     private var iconTurn by mutableIntStateOf(start)
     private val iconAngle = Animatable(uprightAngle(start))
 
@@ -83,6 +86,7 @@ class TurnSequence(start: Int) {
 
     /** Runs the three steps towards [turn]; [onLayout] hears the moment the content changes, while it is faded out. */
     suspend fun follow(turn: Int, onLayout: (Int) -> Unit) {
+        targetTurn = turn
         val fadeMs = Tokens.Phone.TURN_FADE_MS.toInt()
         if (turn == layoutTurn && turn == iconTurn) {
             // The first hold (the app may open sideways), or turned back before anything moved: undo any fade that had
