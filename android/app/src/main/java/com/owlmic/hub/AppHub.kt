@@ -297,6 +297,7 @@ class AppHub(private val app: Application, private val onState: (AppState) -> Un
                 }
                 Feature.SPEAKER -> {
                     speakerPausedByPc = false
+                    speakerFormat = null
                     media.post(MediaMsg.Speaker(null, false, true))
                     // Nothing plays now: the mic leaves the voice path its echo canceller needed.
                     if (running(state.mic)) media.post(MediaMsg.Mic(micConfig()))
@@ -349,10 +350,10 @@ class AppHub(private val app: Application, private val onState: (AppState) -> Un
         link.post(LinkMsg.Send(StreamStart(Stream.MIC, c.codec.wire, params)))
     }
 
-    private fun startSpeaker() {
+    private fun startSpeaker(reset: Boolean = false) {
         val f = speakerFormat ?: return
         // With voice isolation the speaker plays as a call, so the mic's echo canceller hears it.
-        media.post(MediaMsg.Speaker(f, state.mic.isOn && MicConfig.isolates(state.settings), linkKind?.isWireless != false))
+        media.post(MediaMsg.Speaker(f, state.mic.isOn && MicConfig.isolates(state.settings), linkKind?.isWireless != false, reset))
     }
 
     private fun cameraConfig(): CameraConfig {
@@ -559,6 +560,7 @@ class AppHub(private val app: Application, private val onState: (AppState) -> Un
                         speakerPausedByPc = false
                         if (state.speaker.phase == FeaturePhase.PAUSED) {
                             set(Feature.SPEAKER, FeatureView(FeaturePhase.ON))
+                            startSpeaker()
                         } else if (!state.speaker.isOn) {
                             setFeature(Feature.SPEAKER, true)
                         }
@@ -571,7 +573,9 @@ class AppHub(private val app: Application, private val onState: (AppState) -> Un
                         setFeature(Feature.SPEAKER, false)
                     }
                 }
-                sendState()
+                if (wire(state.mic) != m.mic || wire(state.camera) != m.camera || wire(state.speaker) != m.speaker) {
+                    sendState()
+                }
             }
             is SettingsMessage -> settings.post(SettingsMsg.Remote(m.changes))
             is StreamStart -> when (m.stream) {
@@ -581,7 +585,7 @@ class AppHub(private val app: Application, private val onState: (AppState) -> Un
                         channels = m.params.optInt("channels", 2),
                         frameMs = m.params.optInt("frameMs", 10),
                     )
-                    if (state.speaker.phase != FeaturePhase.OFF) startSpeaker()
+                    if (state.speaker.phase != FeaturePhase.OFF) startSpeaker(reset = true)
                 }
                 Stream.CAMERA -> if (state.camera.phase != FeaturePhase.OFF && !state.camera.isOn) {
                     setFeature(Feature.CAMERA, true)
@@ -591,7 +595,7 @@ class AppHub(private val app: Application, private val onState: (AppState) -> Un
                 }
             }
             is StreamStop -> when (m.stream) {
-                Stream.SPEAKER -> {
+                Stream.SPEAKER -> if (!state.speaker.isOn) {
                     speakerFormat = null
                     media.post(MediaMsg.Speaker(null, false, true))
                 }

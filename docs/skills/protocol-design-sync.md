@@ -23,7 +23,7 @@
   - Stream `0`: Carrier Hello
   - Stream `1`: Mic Audio (Phone → PC, PCM 48kHz LE on cable, Opus 48kbps on Wi-Fi, Opus 24kbps on BT)
   - Stream `2`: Camera Video (Phone → PC, H.264 Annex B slices $\le$ 1,200 bytes)
-  - Stream `3`: Speaker Audio (PC → Phone, PCM 48kHz stereo on cable, Opus 128kbps on Wi-Fi, Opus 64kbps on BT)
+  - Stream `3`: Speaker Audio (PC → Phone, compact Opus 48kHz stereo: 96kbps adaptive on cable, 64kbps adaptive on Wi-Fi, 48kbps on BT)
 
 ---
 

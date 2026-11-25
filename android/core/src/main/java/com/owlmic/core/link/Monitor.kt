@@ -72,10 +72,11 @@ class Monitor(private val wireless: Boolean, private val now: () -> Long = Syste
     /** Three missed heartbeats of [heartbeatMs] on wireless, two on cable. A warm standby is pinged half as often. */
     fun dead(heartbeatMs: Long = HEARTBEAT_MS): Boolean = now() - lastHeard > heartbeatMs * if (wireless) MISSED_WIRELESS else MISSED_CABLE
 
-    /** A REPORT when one is due, else null. */
-    fun report(speaker: InboundStats, thermal: Int?): Report? {
+    /** A REPORT when one is due, else null. Sends every 2 s while Speaker is active for fast adaptation. */
+    fun report(speaker: InboundStats, thermal: Int?, fast: Boolean = false): Report? {
         val t = now()
-        if (t - lastReport < REPORT_EVERY_MS) return null
+        val every = if (fast) SPEAKER_REPORT_EVERY_MS else REPORT_EVERY_MS
+        if (t - lastReport < every) return null
         val interval = t - lastReport
         lastReport = t
         val (loss, jitter, kbps) = speaker.take(interval)
@@ -98,6 +99,7 @@ class Monitor(private val wireless: Boolean, private val now: () -> Long = Syste
         const val HEARTBEAT_MS = 1_000L
         const val STANDBY_HEARTBEAT_MS = 2_000L
         const val REPORT_EVERY_MS = 10_000L
+        const val SPEAKER_REPORT_EVERY_MS = 2_000L
         const val MISSED_WIRELESS = 3
         const val MISSED_CABLE = 2
         const val WEAK_RTT_MS = 150

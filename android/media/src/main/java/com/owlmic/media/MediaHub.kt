@@ -37,7 +37,7 @@ sealed interface MediaMsg {
 
     data object Keyframe : MediaMsg
 
-    class Speaker(val format: SpeakerFormat?, val voiceCommunication: Boolean, val wireless: Boolean) : MediaMsg
+    class Speaker(val format: SpeakerFormat?, val voiceCommunication: Boolean, val wireless: Boolean, val reset: Boolean = false) : MediaMsg
 
     data object OutputChanged : MediaMsg
 
@@ -140,9 +140,11 @@ class MediaHub(
                     speaker.stop()
                     speakerFormat = null
                 } else {
-                    if (speakerFormat == null) speaker.start(f, message.voiceCommunication, message.wireless) else {
-                        speaker.setWireless(message.wireless)
-                        if (f != speakerFormat) speaker.configure(f)
+                    if (speakerFormat == null) {
+                        speaker.start(f, message.voiceCommunication, message.wireless)
+                    } else {
+                        val reconfigured = speaker.setWireless(message.wireless)
+                        if (!reconfigured && (message.reset || f != speakerFormat)) speaker.configure(f)
                         speaker.setVoiceCommunication(message.voiceCommunication)
                     }
                     speakerFormat = f

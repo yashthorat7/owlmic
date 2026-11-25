@@ -51,7 +51,7 @@ impl ToStereo48k {
             } else {
                 frame(i as usize)
             };
-            let b = frame((i + 1.0).max(0.0) as usize);
+            let b = frame(((i + 1.0).max(0.0) as usize).min(frames - 1));
             self.out.push(a[0] + (b[0] - a[0]) * t);
             self.out.push(a[1] + (b[1] - a[1]) * t);
             self.phase += step;

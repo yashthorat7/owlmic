@@ -28,7 +28,7 @@ Network Transmission (UDP :7655 / TCP :7653) ───────────�
    - **USB Cable**: Raw uncompressed 16-bit PCM (zero CPU encode overhead, maximum fidelity).
    - **Wi-Fi**: `libopus` at 48 kbps mono with in-band Forward Error Correction (FEC) and Voice/Audio speech profile.
    - **Bluetooth**: `libopus` at 24 kbps mono.
-   - **Speaker Loopback**: Stereo 48 kHz PCM on cable, Opus 128 kbps on Wi-Fi, Opus 64 kbps on BT.
+   - **Speaker Loopback**: Compact stereo 48 kHz Opus across all links (96 kbps 10 ms adaptive 48–96 kbps on cable, 64 kbps 10 ms adaptive 32–96 kbps on Wi-Fi, 48 kbps 20 ms adaptive 24–64 kbps on BT) with real-time Oboe callback output and $\pm 0.4\%$ drift resampling.
 3. **Android Capture Invariants**:
    - Implemented in C++ via Google Oboe (`android/media/src/main/cpp/`).
    - **Zero heap allocations on the audio callback thread**: all sample transfer buffers and ring queues must be pre-allocated during pipeline initialization.

@@ -209,8 +209,11 @@ impl Hub for DeviceHub {
             DeviceMsg::Speaker(on) => {
                 // Unmute before the capture stops, so no sound is lost in between.
                 if !on {
+                    if let Some(q) = self.quiet.as_mut() {
+                        q.release();
+                    }
+                    self.quiet_check_at = None;
                     self.capture = None;
-                    self.set_quiet();
                 } else if self.capture.is_none() {
                     self.capture =
                         SpeakerCapture::start(self.shared.speaker.clone(), self.level.clone());

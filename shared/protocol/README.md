@@ -147,9 +147,9 @@ A sender announces each stream with STREAM_START before its first packet.
 | 1 Mic | Wi-Fi | `{"stream":1,"codec":"opus","sampleRate":48000,"channels":1,"frameMs":10,"noiseSuppressor":true\|false}` | Opus, 48 kbps, in-band FEC |
 | 1 Mic | Bluetooth | `{"stream":1,"codec":"opus","sampleRate":48000,"channels":1,"frameMs":20,"noiseSuppressor":true\|false}` | Opus, 24 kbps |
 | 2 Camera | All but Bluetooth | `{"stream":2,"codec":"h264","width":W,"height":H,"fps":F}` | H.264 Annex B; every keyframe carries SPS and PPS |
-| 3 Speaker | USB debugging, USB tethering | `{"stream":3,"codec":"pcm","sampleRate":48000,"channels":2,"frameMs":10}` | Signed 16-bit little-endian, interleaved stereo |
-| 3 Speaker | Wi-Fi | `{"stream":3,"codec":"opus","sampleRate":48000,"channels":2,"frameMs":10}` | Opus, 128 kbps, in-band FEC |
-| 3 Speaker | Bluetooth | `{"stream":3,"codec":"opus","sampleRate":48000,"channels":2,"frameMs":20}` | Opus, 64 kbps |
+| 3 Speaker | USB debugging, USB tethering | `{"stream":3,"codec":"opus","sampleRate":48000,"channels":2,"frameMs":10}` | Opus, 48–96 kbps adaptive, in-band FEC |
+| 3 Speaker | Wi-Fi | `{"stream":3,"codec":"opus","sampleRate":48000,"channels":2,"frameMs":10}` | Opus, 32–96 kbps adaptive, in-band FEC |
+| 3 Speaker | Bluetooth | `{"stream":3,"codec":"opus","sampleRate":48000,"channels":2,"frameMs":20}` | Opus, 24–64 kbps adaptive |
 
 - The mic's STREAM_START includes `"noiseSuppressor"` (`true` when the phone exposes a platform noise suppressor, `false` otherwise). At default noise reduction (`5`), the PC mixes `75%` RNNoise alongside the phone's suppressor (or `100%` if `noiseSuppressor` is `false`); at `1`–`4` the PC runs `15%`–`60%` RNNoise alone; at `6`–`10` the PC runs `100%` RNNoise plus an adaptive noise gate.
 - The PC asks for a keyframe with KEYFRAME_REQUEST.

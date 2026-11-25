@@ -32,6 +32,7 @@ class OwlmicService : Service() {
     private lateinit var hub: AppHub
     private lateinit var notifier: Notifier
     private lateinit var wifi: WifiLatencyLock
+    private var wakeLock: PowerManager.WakeLock? = null
     private var foreground: Set<Feature>? = null
     private var state = AppState()
 
@@ -47,6 +48,9 @@ class OwlmicService : Service() {
         super.onCreate()
         notifier = Notifier(this)
         wifi = WifiLatencyLock(this)
+        wakeLock = getSystemService(PowerManager::class.java)
+            ?.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "owlmic:stream")
+            ?.apply { setReferenceCounted(false) }
         hub = AppHub(application) { s -> main.post { changed(s) } }
         Owlmic.hub = hub
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) getSystemService(PowerManager::class.java).addThermalStatusListener(mainExecutor, thermalListener)
@@ -87,8 +91,13 @@ class OwlmicService : Service() {
         state = s
         val c = s.connection
         val features = inUse(s)
-        // Wi-Fi power save only costs latency while something streams over it.
+        // Wi-Fi power save and CPU doze only cost latency/dropouts while something streams.
         if (c is Connection.Connected && c.link == LinkKind.WIFI && features.isNotEmpty()) wifi.hold() else wifi.release()
+        if (features.isNotEmpty()) {
+            if (wakeLock?.isHeld == false) wakeLock?.acquire(4 * 60 * 60 * 1000L)
+        } else if (wakeLock?.isHeld == true) {
+            wakeLock?.release()
+        }
         if (features.isEmpty()) {
             leaveForegroundIfIdle()
         } else {
@@ -165,6 +174,7 @@ class OwlmicService : Service() {
         Owlmic.mutableState.value = AppState()
         Owlmic.mutableLevel.value = 0f
         wifi.release()
+        if (wakeLock?.isHeld == true) wakeLock?.release()
         main.removeCallbacksAndMessages(null)
         super.onDestroy()
     }

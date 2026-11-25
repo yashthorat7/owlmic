@@ -31,5 +31,7 @@ internal object Oboe {
 
     @JvmStatic external fun write(handle: Long, input: ShortArray, frames: Int, timeoutMs: Int): Int
 
+    @JvmStatic external fun queuedFrames(handle: Long): Int
+
     @JvmStatic external fun close(handle: Long)
 }

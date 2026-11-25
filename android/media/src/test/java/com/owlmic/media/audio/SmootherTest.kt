@@ -99,4 +99,45 @@ class SmootherTest {
         // Everything before it is lost; the gap is concealed until it plays.
         assertTrue(s.pull() is Pull.Lost)
     }
+
+    @Test
+    fun latePacketsAfterAnUnderrunAreNotReplayed() {
+        pushOnTime(0)
+        pushOnTime(1)
+        assertArrayEquals(frame(0), (s.pull() as Pull.Frame).data)
+        assertArrayEquals(frame(1), (s.pull() as Pull.Frame).data)
+        // 4 pulls past empty drop playing back to false and advance next past 2..5.
+        repeat(3) { assertTrue(s.pull() is Pull.Lost) }
+        assertSame(Pull.Silence, s.pull())
+        // Stale packet 2 arrives late after underrun, followed by fresh 6 and 7.
+        pushOnTime(2)
+        pushOnTime(6)
+        pushOnTime(7)
+        assertArrayEquals(frame(6), (s.pull() as Pull.Frame).data)
+        assertArrayEquals(frame(7), (s.pull() as Pull.Frame).data)
+    }
+
+    @Test
+    fun driftResamplerAdjustsRateSmoothlyAndFadesWithoutClicking() {
+        val r = StereoDriftResampler(2)
+        r.ensurePlaying()
+        val fast = r.stepFor(bufferedMs = 60f, targetMs = 20f, frameMs = 10)
+        assertTrue(fast > 1.0 && fast <= 1.005)
+        r.reset()
+        r.ensurePlaying()
+        val slow = r.stepFor(bufferedMs = 5f, targetMs = 20f, frameMs = 10)
+        assertTrue(slow < 1.0 && slow >= 0.995)
+
+        val input = ShortArray(480 * 2) { 10_000 }
+        val out = ShortArray(500 * 2)
+        val written = r.resample(input, 480, out, fast)
+        assertTrue(written in 475..485)
+        // Fade-in starts near zero on first sample.
+        assertEquals(0, out[0].toInt())
+        val tail = r.fadeOutTail(out)
+        assertEquals(120, tail)
+        assertEquals(0, out[(tail - 1) * 2].toInt())
+        // Subsequent fade-out does not re-emit audio.
+        assertEquals(0, r.fadeOutTail(out))
+    }
 }

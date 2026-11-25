@@ -44,6 +44,7 @@ const OPUS_SET_BITRATE_REQUEST: c_int = 4002;
 const OPUS_SET_COMPLEXITY_REQUEST: c_int = 4010;
 const OPUS_SET_INBAND_FEC_REQUEST: c_int = 4012;
 const OPUS_SET_PACKET_LOSS_PERC_REQUEST: c_int = 4014;
+const OPUS_SET_DTX_REQUEST: c_int = 4016;
 
 pub const RATE: i32 = 48_000;
 
@@ -101,6 +102,7 @@ impl Encoder {
             opus_encoder_ctl(raw, OPUS_SET_COMPLEXITY_REQUEST, 8 as c_int);
             opus_encoder_ctl(raw, OPUS_SET_INBAND_FEC_REQUEST, 1 as c_int);
             opus_encoder_ctl(raw, OPUS_SET_PACKET_LOSS_PERC_REQUEST, 5 as c_int);
+            opus_encoder_ctl(raw, OPUS_SET_DTX_REQUEST, 0 as c_int);
         }
         Some(Self { raw, channels })
     }
@@ -118,6 +120,13 @@ impl Encoder {
             )
         };
         n.max(0) as usize
+    }
+
+    /// Updates target bitrate without resetting encoder state.
+    pub fn set_bitrate(&mut self, bitrate: i32) {
+        unsafe {
+            opus_encoder_ctl(self.raw, OPUS_SET_BITRATE_REQUEST, bitrate as c_int);
+        }
     }
 
     /// Expected loss, from the phone's reports, so FEC grows when Wi-Fi gets worse.
