@@ -6,6 +6,7 @@ import com.owlmic.core.hub.FeaturePhase
 import com.owlmic.core.hub.FeatureProblem
 import com.owlmic.core.hub.FeatureView
 import com.owlmic.core.hub.LinkKind
+import kotlin.math.pow
 
 /**
  * The link tile's icon, always in the grid's ink: the link once connected; the globe until then; the alert when
@@ -140,15 +141,34 @@ val LINK_SETTINGS = listOf(
 )
 
 /**
- * The mic's level as the sound wave shows it: under -50 dBFS it is flat, normal speech reaches well up, loud speech the
- * top. Only the picture: the mic's sound is untouched. Threshold is 0.24f (1.2x the base 0.20f).
+ * The mic's level as the sound wave shows it: under the noise floor threshold it is flat, normal speech reaches the
+ * top. Only the picture: the mic's sound is untouched.
  */
-const val WAVE_THRESHOLD = 0.24f
+const val WAVE_THRESHOLD = 0.08f
 
 fun waveLevel(level: Float): Float {
     val v = ((level - WAVE_THRESHOLD) / (1f - WAVE_THRESHOLD)).coerceIn(0f, 1f)
-    return (v * v * (1.4f - 0.4f * v) * WAVE_GAIN).coerceAtMost(1f)
+    return (v.pow(WAVE_EXPONENT) * WAVE_GAIN).coerceAtMost(1f)
 }
 
-/** The user's second review: the wave a fifth higher than the first round's. */
-private const val WAVE_GAIN = 1.2f
+private const val WAVE_EXPONENT = 0.7f
+private const val WAVE_GAIN = 1.5f
+
+/** Switches directional ratios between landscape (x:y) and portrait (y:x) to match phone orientation. */
+fun flipRatioForOrientation(ratio: String, sideways: Boolean): String = when (ratio) {
+    "16:9", "9:16" -> if (sideways) "16:9" else "9:16"
+    "4:3", "3:4" -> if (sideways) "4:3" else "3:4"
+    "2:1", "1:2" -> if (sideways) "2:1" else "1:2"
+    else -> ratio
+}
+
+/** Flips an explicit directional ratio to its opposite orientation, or null for Auto / 1:1. */
+fun toggleRatioOrientation(ratio: String): String? = when (ratio) {
+    "16:9" -> "9:16"
+    "9:16" -> "16:9"
+    "4:3" -> "3:4"
+    "3:4" -> "4:3"
+    "2:1" -> "1:2"
+    "1:2" -> "2:1"
+    else -> null
+}

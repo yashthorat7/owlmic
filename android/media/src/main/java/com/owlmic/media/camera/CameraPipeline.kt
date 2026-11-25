@@ -70,10 +70,12 @@ class CameraPipeline(
 
     /** The config the camera was bound for: what it captures. */
     private var captured: CameraConfig? = null
+    @Volatile private var capturedFps = 0
 
     /** GL thread: the size the current encoder was made for. */
     private var encoded: Pair<Int, Int>? = null
     @Volatile private var rotation = Surface.ROTATION_0
+    @Volatile private var pendingRot: Int? = null
     @Volatile private var thermal = 0
 
     /** Created and dropped on the main thread; read from others only to post onto its GL thread. */
@@ -98,7 +100,10 @@ class CameraPipeline(
                 val targetRot = targetRotationFor(config?.orientation ?: Orientation.AUTO, next)
                 // CameraX's new rotation reaches the renderer with the frames it applies to; a full frame that turns
                 // from 4:3 to 3:4 gets its new encoder there (see [frameChanged]), so the two never disagree.
-                if (preview?.targetRotation != targetRot) preview?.targetRotation = targetRot
+                if (preview?.targetRotation != targetRot) {
+                    pendingRot = targetRot
+                    preview?.targetRotation = targetRot
+                }
             }
         }
     }
@@ -168,22 +173,39 @@ class CameraPipeline(
         val capture = captured
         if (capture != null && previous?.copy(mirrorPreview = next.mirrorPreview) == next) return
         val needsCamera = previous == null || capture == null || previous.lens != next.lens ||
-            next.plan.shortSide > capture.plan.shortSide || (next.plan.fps > 30) != (capture.plan.fps > 30) ||
+            next.plan.shortSide > capture.plan.shortSide || next.plan.fps != capture.plan.fps ||
             framing(next.ratio) != framing(capture.ratio)
         // A new size or shape needs a new encoder; another lens or orientation only needs a fresh keyframe.
         val needsEncoder = previous == null || previous.plan != next.plan || previous.ratio != next.ratio
+        val targetRot = targetRotationFor(next.orientation, rotation)
+        if (!needsCamera && preview != null && preview?.targetRotation != targetRot) {
+            pendingRot = targetRot
+            preview?.targetRotation = targetRot
+        }
+        val rotInFlight = !needsCamera && pendingRot != null
         r.handler.post {
-            r.fps = thermalFps(next.plan.fps, thermal)
-            if (needsEncoder) newEncoder() else encoder?.requestKeyframe()
+            val effFps = if (!needsCamera && capturedFps in 1 until next.plan.fps) capturedFps else next.plan.fps
+            r.fps = thermalFps(effFps, thermal)
+            if (needsEncoder && !rotInFlight) newEncoder() else if (!needsEncoder) encoder?.requestKeyframe()
             previewSurface?.let { (s, w, h) -> r.setPreview(s, w, h) }
         }
-        val targetRot = targetRotationFor(next.orientation, rotation)
         if (!needsCamera) {
-            preview?.targetRotation = targetRot
+            if (rotInFlight) {
+                r.handler.postDelayed({
+                    if (pendingRot != null) {
+                        pendingRot = null
+                        frameChanged()
+                    }
+                }, 150L)
+            } else {
+                r.handler.post { frameChanged() }
+            }
             return
         }
         // Recorded only once bound: a config arriving before then must bind again, as this one will be stale.
         captured = null
+        capturedFps = 0
+        pendingRot = null
         val ready = ProcessCameraProvider.getInstance(context)
         ready.addListener({
             if (config !== next || lifecycle !== owner) return@addListener
@@ -206,10 +228,11 @@ class CameraPipeline(
                 .setAspectRatioStrategy(aspect)
                 .setResolutionStrategy(ResolutionStrategy(Size(bw, bh), ResolutionStrategy.FALLBACK_RULE_CLOSEST_HIGHER_THEN_LOWER))
                 .build()
-            fun build(highFps: Boolean): Preview = Preview.Builder()
+            val fpsRange = bestFpsRange(cameraInfo, next.plan.fps)
+            fun build(range: Range<Int>?): Preview = Preview.Builder()
                 .setResolutionSelector(selector)
                 .setTargetRotation(targetRot)
-                .apply { if (highFps) setTargetFrameRate(Range(next.plan.fps, next.plan.fps)) }
+                .apply { if (range != null) setTargetFrameRate(range) }
                 .build()
                 .apply {
                     setSurfaceProvider(glExecutor) { request ->
@@ -217,6 +240,7 @@ class CameraPipeline(
                         // The frame's size first: the rotation that comes with this request applies to it.
                         val surface = r.cameraSurface(res.width, res.height)
                         request.setTransformationInfoListener(glExecutor) { info ->
+                            pendingRot = null
                             r.rotation = info.rotationDegrees
                             r.cameraTransform = if (info.hasCameraTransform()) CameraTransform(sensor, front) else null
                             cameraInfo?.let { c -> pictureTurn(info.rotationDegrees) { c.getSensorRotationDegrees(it) } }?.let { r.screenTurn = it }
@@ -225,21 +249,35 @@ class CameraPipeline(
                         request.provideSurface(surface, glExecutor) { }
                     }
                 }
-            val bound = runCatching { build(next.plan.fps > 30).also { provider.bindToLifecycle(owner, camera, it) } }
-                .recoverCatching { build(false).also { provider.bindToLifecycle(owner, camera, it) } }
+            var appliedFps = next.plan.fps
+            val bound = runCatching {
+                build(fpsRange).also {
+                    provider.bindToLifecycle(owner, camera, it)
+                    if (fpsRange != null) appliedFps = minOf(next.plan.fps, fpsRange.upper)
+                }
+            }.recoverCatching {
+                provider.unbindAll()
+                build(null).also { provider.bindToLifecycle(owner, camera, it) }
+            }
             preview = bound.getOrNull()
-            if (bound.isSuccess) captured = next
+            if (bound.isSuccess) {
+                captured = next
+                capturedFps = appliedFps
+                r.handler.post {
+                    r.fps = thermalFps(appliedFps, thermal)
+                    if (encoder != null && appliedFps != next.plan.fps) newEncoder()
+                }
+            }
             onHealth(if (bound.isSuccess) Health.Ok else Health.Failed("no usable camera"))
         }, Executor { main.post(it) })
     }
 
     /**
-     * GL thread: the camera's frame or its rotation changed. A full-frame picture whose shape changed with it (another
-     * lens, the phone turned between 4:3 and 3:4) gets a new encoder before the next frame is drawn.
+     * GL thread: the camera's frame or its rotation changed. Any picture whose output shape changed with it (another
+     * lens, or the phone turned between portrait and landscape) gets a new encoder before the next frame is drawn.
      */
     private fun frameChanged() {
         val c = config ?: return
-        if (c.ratio != Ratio.FULL) return
         val size = outputSize(thermalPlan(c.plan, thermal), c.ratio, renderer?.uprightFrame()) ?: return
         if (encoder == null || size != encoded) newEncoder()
     }
@@ -255,7 +293,8 @@ class CameraPipeline(
         encoder?.release()
         encoder = null
         encoded = null
-        val plan = thermalPlan(c.plan, thermal)
+        val base = thermalPlan(c.plan, thermal)
+        val plan = if (capturedFps in 1 until base.fps) base.copy(fps = capturedFps) else base
         val (w, h) = outputSize(plan, c.ratio, r.uprightFrame()) ?: return
         // A rebuilt encoder keeps the adapted bitrate; a new plan or shape starts its own.
         val start = bitrateFor(plan, w, h)
@@ -308,6 +347,8 @@ class CameraPipeline(
         runCatching { ProcessCameraProvider.getInstance(context).get().unbindAll() }
         preview = null
         captured = null
+        capturedFps = 0
+        pendingRot = null
         owner.destroy()
         lifecycle = null
         orientation.disable()
@@ -328,6 +369,19 @@ class CameraPipeline(
     private fun sensorWide(camera: CameraInfo?): Boolean {
         val area = camera?.let { runCatching { Camera2CameraInfo.from(it).getCameraCharacteristic(CameraCharacteristics.SENSOR_INFO_ACTIVE_ARRAY_SIZE) }.getOrNull() }
         return area != null && sensorIsWide(area.width(), area.height())
+    }
+
+    /** Highest stable AE frame-rate range at or below [requested], preferring tight upper bounds for smooth pacing. */
+    @androidx.annotation.OptIn(markerClass = [ExperimentalCamera2Interop::class])
+    private fun bestFpsRange(camera: CameraInfo?, requested: Int): Range<Int>? {
+        if (requested <= 0) return null
+        val ranges = camera?.let {
+            runCatching { Camera2CameraInfo.from(it).getCameraCharacteristic(CameraCharacteristics.CONTROL_AE_AVAILABLE_TARGET_FPS_RANGES) }.getOrNull()
+        } ?: return null
+        return ranges
+            .filter { it.upper <= requested }
+            .sortedWith(compareByDescending<Range<Int>> { it.upper == requested }.thenByDescending { it.upper }.thenByDescending { it.lower })
+            .firstOrNull()
     }
 
     /** CameraX binds to a lifecycle; the camera's is its own, from start to stop. Main thread. */
@@ -385,8 +439,8 @@ fun targetRotationFor(orientation: Orientation, sensorRotation: Int): Int = when
 /** Which camera binding a ratio needs: the full frame, the 4:3 one or the 16:9 one. Another one means binding again. */
 private fun framing(ratio: Ratio): Int = when (ratio) {
     Ratio.FULL -> 0
-    Ratio.CLASSIC, Ratio.SQUARE -> 1
-    Ratio.WIDE, Ratio.TALL -> 2
+    Ratio.CLASSIC, Ratio.PORTRAIT_CLASSIC, Ratio.SQUARE -> 1
+    Ratio.WIDE, Ratio.TALL, Ratio.CINEMA, Ratio.PORTRAIT_CINEMA -> 2
 }
 
 /** How long the main thread waits for the GL thread to let go of a preview surface that is going. */

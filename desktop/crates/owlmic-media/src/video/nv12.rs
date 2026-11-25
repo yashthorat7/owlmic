@@ -49,54 +49,80 @@ impl Nv12 {
     /// mirrored. Bilinear for brightness, nearest for colour; `dst` is reused.
     pub fn shape_into(&self, dst: &mut Nv12, framing: Framing, mirror: bool) {
         let (dw, dh) = (dst.width, dst.height);
+        let y_len = dw * dh;
         dst.data.resize(Nv12::len_for(dw, dh), 0);
         // The source window that maps onto the output, and the output window it fills.
         let (sx, sy, sw, sh, ox, oy, ow, oh) = place(self.width, self.height, dw, dh, framing);
-        let (y_dst, uv_dst) = dst.data.split_at_mut(dw * dh);
-        y_dst.fill(BLACK_Y);
-        uv_dst.fill(NEUTRAL_UV);
+        if !mirror
+            && (self.width, self.height) == (dw, dh)
+            && sx == 0
+            && sy == 0
+            && ox == 0
+            && oy == 0
+            && sw == dw
+            && sh == dh
+            && ow == dw
+            && oh == dh
+        {
+            let total = Nv12::len_for(dw, dh);
+            dst.data[..total].copy_from_slice(&self.data[..total]);
+            return;
+        }
+        let (y_dst, uv_dst) = dst.data.split_at_mut(y_len);
+        if ow < dw || oh < dh {
+            y_dst.fill(BLACK_Y);
+            uv_dst.fill(NEUTRAL_UV);
+        }
         let src_y = self.y();
-        for oy_i in 0..oh {
-            let fy = (oy_i as f32 + 0.5) * sh as f32 / oh as f32 - 0.5;
-            let y0 = (fy.max(0.0) as usize).min(sh - 1);
-            let y1 = (y0 + 1).min(sh - 1);
-            let wy = ((fy - y0 as f32).clamp(0.0, 1.0) * 256.0) as u32;
-            let row0 = &src_y[(sy + y0) * self.width..];
-            let row1 = &src_y[(sy + y1) * self.width..];
-            let out_row = &mut y_dst[(oy + oy_i) * dw..];
-            for ox_i in 0..ow {
+        let x_lut: Vec<(usize, usize, u32, usize)> = (0..ow)
+            .map(|ox_i| {
                 let fx = (ox_i as f32 + 0.5) * sw as f32 / ow as f32 - 0.5;
                 let x0 = (fx.max(0.0) as usize).min(sw - 1);
                 let x1 = (x0 + 1).min(sw - 1);
                 let wx = ((fx - x0 as f32).clamp(0.0, 1.0) * 256.0) as u32;
-                let (a, b) = (row0[sx + x0] as u32, row0[sx + x1] as u32);
-                let (c, d) = (row1[sx + x0] as u32, row1[sx + x1] as u32);
-                let top = a * (256 - wx) + b * wx;
-                let bottom = c * (256 - wx) + d * wx;
-                let v = (top * (256 - wy) + bottom * wy) >> 16;
                 let dx = if mirror {
                     dw - 1 - (ox + ox_i)
                 } else {
                     ox + ox_i
                 };
-                out_row[dx] = v as u8;
+                (sx + x0, sx + x1, wx, dx)
+            })
+            .collect();
+        for oy_i in 0..oh {
+            let fy = (oy_i as f32 + 0.5) * sh as f32 / oh as f32 - 0.5;
+            let y0 = (fy.max(0.0) as usize).min(sh - 1);
+            let y1 = (y0 + 1).min(sh - 1);
+            let wy = ((fy - y0 as f32).clamp(0.0, 1.0) * 256.0) as u32;
+            let w0 = 256 - wy;
+            let row0 = &src_y[(sy + y0) * self.width..];
+            let row1 = &src_y[(sy + y1) * self.width..];
+            let out_row = &mut y_dst[(oy + oy_i) * dw..];
+            for &(sx0, sx1, wx, dx) in &x_lut {
+                let top = row0[sx0] as u32 * (256 - wx) + row0[sx1] as u32 * wx;
+                let bottom = row1[sx0] as u32 * (256 - wx) + row1[sx1] as u32 * wx;
+                out_row[dx] = ((top * w0 + bottom * wy) >> 16) as u8;
             }
         }
         let src_uv = self.uv();
         let (ow2, oh2, ox2, oy2) = (ow / 2, oh / 2, ox / 2, oy / 2);
-        for j in 0..oh2 {
-            let sj = (sy / 2 + j * (sh / 2) / oh2.max(1)).min(self.height / 2 - 1);
-            for i in 0..ow2 {
+        let uv_x_lut: Vec<(usize, usize)> = (0..ow2)
+            .map(|i| {
                 let si = (sx / 2 + i * (sw / 2) / ow2.max(1)).min(self.width / 2 - 1);
                 let di = if mirror {
                     dw / 2 - 1 - (ox2 + i)
                 } else {
                     ox2 + i
                 };
-                let s = sj * self.width + si * 2;
-                let d = (oy2 + j) * dw + di * 2;
-                uv_dst[d] = src_uv[s];
-                uv_dst[d + 1] = src_uv[s + 1];
+                (si * 2, di * 2)
+            })
+            .collect();
+        for j in 0..oh2 {
+            let sj = (sy / 2 + j * (sh / 2) / oh2.max(1)).min(self.height / 2 - 1);
+            let src_row = sj * self.width;
+            let dst_row = (oy2 + j) * dw;
+            for &(si2, di2) in &uv_x_lut {
+                uv_dst[dst_row + di2] = src_uv[src_row + si2];
+                uv_dst[dst_row + di2 + 1] = src_uv[src_row + si2 + 1];
             }
         }
     }
@@ -121,13 +147,17 @@ impl Nv12 {
         }
     }
 
-    /// A small BGRA copy (nearest pixel), for the panel's preview.
-    pub fn to_bgra_scaled(&self, width: usize, height: usize, out: &mut [u8]) {
+    /// A small BGRA copy (nearest pixel), for the panel's preview, optionally mirrored.
+    pub fn to_bgra_scaled(&self, width: usize, height: usize, mirror: bool, out: &mut [u8]) {
         let (y, uv) = (self.y(), self.uv());
         for row in 0..height {
             let sy = row * self.height / height;
             for col in 0..width {
-                let sx = col * self.width / width;
+                let sx = if mirror {
+                    self.width.saturating_sub(1 + col * self.width / width)
+                } else {
+                    col * self.width / width
+                };
                 let yy = (y[sy * self.width + sx] as i32 - 16).max(0) * 298;
                 let k = (sy / 2) * self.width + (sx / 2) * 2;
                 let (u, v) = (uv[k] as i32 - 128, uv[k + 1] as i32 - 128);
@@ -234,7 +264,7 @@ mod tests {
         let bgra: Vec<u8> = (0..64).flat_map(|_| [40u8, 120, 220, 255]).collect();
         let f = Nv12::from_bgra(8, 8, &bgra);
         let mut small = vec![0u8; 4 * 4 * 4];
-        f.to_bgra_scaled(4, 4, &mut small);
+        f.to_bgra_scaled(4, 4, false, &mut small);
         assert!((small[2] as i32 - 220).abs() <= 3);
         assert_eq!(small[3], 255);
     }

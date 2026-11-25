@@ -127,10 +127,28 @@ class ScreenModelTest {
 
     @Test
     fun theSoundWaveReachesWellUpForNormalSpeechAndTheTopWhenLoud() {
-        assertEquals(0f, waveLevel(0.1f), 0f)
-        // Normal speech (about -26 dBFS, 0.71 on the meter) reaches past the middle, scaled with 1.2x threshold.
-        assertEquals(0.53f, waveLevel(0.71f), 0.02f)
-        assertEquals(1f, waveLevel(0.92f), 0.001f)
+        assertEquals(0f, waveLevel(0.08f), 0f)
+        assertEquals(0.27f, waveLevel(0.16f), 0.02f)
+        assertEquals(0.46f, waveLevel(0.25f), 0.02f)
+        assertEquals(0.86f, waveLevel(0.50f), 0.02f)
+        assertEquals(1f, waveLevel(0.65f), 0.001f)
         assertEquals(1f, waveLevel(1f), 0.001f)
+    }
+
+    @Test
+    fun rotatingThePhoneSwitchesDirectionalRatiosBetweenLandscapeAndPortrait() {
+        assertEquals("16:9", flipRatioForOrientation("9:16", sideways = true))
+        assertEquals("9:16", flipRatioForOrientation("16:9", sideways = false))
+        assertEquals("4:3", flipRatioForOrientation("3:4", sideways = true))
+        assertEquals("3:4", flipRatioForOrientation("4:3", sideways = false))
+        assertEquals("2:1", flipRatioForOrientation("1:2", sideways = true))
+        assertEquals("1:2", flipRatioForOrientation("2:1", sideways = false))
+        assertEquals("full", flipRatioForOrientation("full", sideways = true))
+        assertEquals("1:1", flipRatioForOrientation("1:1", sideways = false))
+
+        assertEquals("1:2", toggleRatioOrientation("2:1"))
+        assertEquals("2:1", toggleRatioOrientation("1:2"))
+        assertNull(toggleRatioOrientation("full"))
+        assertNull(toggleRatioOrientation("1:1"))
     }
 }

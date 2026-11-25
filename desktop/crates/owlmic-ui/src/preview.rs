@@ -6,11 +6,13 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 
 pub const WIDTH: usize = crate::panel::CAMERA_WIDTH_PX as usize;
 pub const HEIGHT: usize = crate::panel::CAMERA_HEIGHT_PX as usize;
-pub const EVERY_MS: u64 = 33;
+pub const EVERY_MS: u64 = 16;
 
 pub struct Preview {
     wanted: AtomicBool,
     seq: AtomicU64,
+    size: AtomicU64,
+    stream_size: AtomicU64,
     /// BGRA, top row first.
     pixels: Mutex<Vec<u8>>,
 }
@@ -20,6 +22,8 @@ impl Default for Preview {
         Self {
             wanted: AtomicBool::new(false),
             seq: AtomicU64::new(0),
+            size: AtomicU64::new(0),
+            stream_size: AtomicU64::new(0),
             pixels: Mutex::new(vec![0; WIDTH * HEIGHT * 4]),
         }
     }
@@ -34,12 +38,37 @@ impl Preview {
         self.wanted.load(Ordering::Relaxed)
     }
 
+    pub fn set_stream_size(&self, width: usize, height: usize) {
+        self.stream_size
+            .store(((width as u64) << 32) | (height as u64), Ordering::Release);
+    }
+
+    pub fn stream_size(&self) -> (usize, usize) {
+        let s = self.stream_size.load(Ordering::Acquire);
+        ((s >> 32) as usize, (s & 0xFFFF_FFFF) as usize)
+    }
+
+    pub fn clear_stats(&self) {
+        self.stream_size.store(0, Ordering::Release);
+    }
+
     /// For the video thread. Skipped rather than waited for while the panel is reading.
-    pub fn put(&self, fill: impl FnOnce(&mut [u8])) {
+    pub fn put(&self, width: usize, height: usize, fill: impl FnOnce(&mut [u8])) {
         if let Ok(mut p) = self.pixels.try_lock() {
-            fill(&mut p);
+            let needed = width * height * 4;
+            if p.len() < needed {
+                p.resize(needed, 0);
+            }
+            fill(&mut p[..needed]);
+            self.size
+                .store(((width as u64) << 32) | (height as u64), Ordering::Release);
             self.seq.fetch_add(1, Ordering::Release);
         }
+    }
+
+    pub fn size(&self) -> (usize, usize) {
+        let s = self.size.load(Ordering::Acquire);
+        ((s >> 32) as usize, (s & 0xFFFF_FFFF) as usize)
     }
 
     pub fn seq(&self) -> u64 {
@@ -59,8 +88,9 @@ mod tests {
     #[test]
     fn each_picture_advances_the_sequence() {
         let p = Preview::default();
-        p.put(|px| px[0] = 7);
+        p.put(320, 240, |px| px[0] = 7);
         assert_eq!(p.seq(), 1);
+        assert_eq!(p.size(), (320, 240));
         assert_eq!(p.read(|px| px[0]), 7);
     }
 }

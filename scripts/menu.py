@@ -54,10 +54,10 @@ def print_banner(version: str):
   Version:       {version}
 
   {YELLOW}[ Build & Package ]{RESET}
-  [1] Release Bundle       -> Full release bundle (all platforms -> dist/release/)
-  [2] Android Client APK   -> APK (dist/android/Owlmic-v{version}.apk)
-  [3] Windows Desktop      -> Installer + Portable (dist/windows/)
-  [4] Linux Desktop        -> Portable Tarball (dist/linux/)
+  [1] Release Bundle       -> Full release bundle (all platforms -> dist/)
+  [2] Android Client APK   -> APK (dist/Owlmic-v{version}.apk)
+  [3] Windows Desktop      -> Installer + Portable (dist/)
+  [4] Linux Desktop        -> Portable Tarball (dist/)
   [5] Clean dist/          -> Reset all build outputs
 
   {YELLOW}[ Verification & Quality ]{RESET}

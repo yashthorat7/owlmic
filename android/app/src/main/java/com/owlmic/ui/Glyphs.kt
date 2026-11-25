@@ -42,6 +42,7 @@ enum class Glyph(val elements: () -> List<GlyphPath>) {
     MIC({ GeneratedGlyphs.MIC }),
     MIC_OFF({ GeneratedGlyphs.MIC_OFF }),
     MIRROR({ GeneratedGlyphs.MIRROR }),
+    PHONE({ GeneratedGlyphs.PHONE }),
     PLUS({ GeneratedGlyphs.PLUS }),
     REFRESH({ GeneratedGlyphs.REFRESH }),
     SHIELD({ GeneratedGlyphs.SHIELD }),

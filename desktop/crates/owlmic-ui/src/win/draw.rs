@@ -11,7 +11,7 @@ use windows::Win32::Graphics::DirectWrite::*;
 use windows::Win32::Graphics::Dxgi::Common::DXGI_FORMAT_B8G8R8A8_UNORM;
 use windows::Win32::UI::WindowsAndMessaging::GetClientRect;
 use windows::core::{BOOL, HSTRING, Result};
-use windows_numerics::Vector2;
+use windows_numerics::{Matrix3x2, Vector2};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Align {
@@ -30,14 +30,18 @@ pub enum Font {
     Code,
 }
 
-fn color(rgb: u32) -> D2D1_COLOR_F {
+fn color_alpha(rgb: u32, alpha: f32) -> D2D1_COLOR_F {
     let c = |shift: u32| ((rgb >> shift) & 0xFF) as f32 / 255.0;
     D2D1_COLOR_F {
         r: c(16),
         g: c(8),
         b: c(0),
-        a: 1.0,
+        a: alpha.clamp(0.0, 1.0),
     }
+}
+
+fn color(rgb: u32) -> D2D1_COLOR_F {
+    color_alpha(rgb, 1.0)
 }
 
 struct Formats {
@@ -59,6 +63,9 @@ pub struct Painter {
     family: HSTRING,
     mono: HSTRING,
     preview: Option<(ID2D1Bitmap, u64)>,
+    preview_ambient: Option<(ID2D1Bitmap, u64)>,
+    layers: Vec<ID2D1Layer>,
+    layer_depth: usize,
     pub scale: f32,
 }
 
@@ -110,6 +117,9 @@ impl Painter {
                 family,
                 mono,
                 preview: None,
+                preview_ambient: None,
+                layers: Vec::new(),
+                layer_depth: 0,
                 scale: 1.0,
             })
         }
@@ -131,10 +141,11 @@ impl Painter {
                 style.size_px * self.scale,
                 &HSTRING::from("en-us"),
             )?;
+            let baseline = (style.line_px + style.size_px * 0.72) * 0.5 * self.scale;
             f.SetLineSpacing(
                 DWRITE_LINE_SPACING_METHOD_UNIFORM,
                 style.line_px * self.scale,
-                style.size_px * self.scale * 0.8,
+                baseline,
             )?;
             Ok(f)
         }
@@ -173,7 +184,11 @@ impl Painter {
             self.brush = unsafe { target.CreateSolidColorBrush(&color(0xFFFFFF), None).ok() };
             self.hwnd_target = Some(target);
             self.preview = None;
+            self.preview_ambient = None;
+            self.layers.clear();
+            self.layer_depth = 0;
         }
+        self.layer_depth = 0;
         if self.formats.as_ref().is_none_or(|f| f.scale != scale) {
             let built = (|| {
                 Ok::<_, windows::core::Error>(Formats {
@@ -218,7 +233,12 @@ impl Painter {
             };
             self.brush = unsafe { dc.CreateSolidColorBrush(&color(0xFFFFFF), None).ok() };
             self.dc_target = Some(dc);
+            self.preview = None;
+            self.preview_ambient = None;
+            self.layers.clear();
+            self.layer_depth = 0;
         }
+        self.layer_depth = 0;
         if self.formats.as_ref().is_none_or(|f| f.scale != scale) {
             let built = (|| {
                 Ok::<_, windows::core::Error>(Formats {
@@ -248,10 +268,14 @@ impl Painter {
             && e.code() == D2DERR_RECREATE_TARGET
         {
             self.hwnd_target = None;
+            self.brush = None;
             self.preview = None;
+            self.preview_ambient = None;
+            self.layers.clear();
         } else if let Some(dc) = &self.dc_target {
             let _ = unsafe { dc.EndDraw(None, None) };
         }
+        self.layer_depth = 0;
     }
 
     fn t(&self) -> &ID2D1RenderTarget {
@@ -263,9 +287,88 @@ impl Painter {
     }
 
     fn brush(&self, rgb: u32) -> &ID2D1SolidColorBrush {
+        self.brush_alpha(rgb, 1.0)
+    }
+
+    fn brush_alpha(&self, rgb: u32, alpha: f32) -> &ID2D1SolidColorBrush {
         let b = self.brush.as_ref().unwrap();
-        unsafe { b.SetColor(&color(rgb)) };
+        unsafe { b.SetColor(&color_alpha(rgb, alpha)) };
         b
+    }
+
+    pub fn set_offset(&self, dx: f32, dy: f32) {
+        let s = self.scale;
+        let m = Matrix3x2::translation(dx * s, dy * s);
+        unsafe { self.t().SetTransform(&m) };
+    }
+
+    pub fn reset_transform(&self) {
+        unsafe { self.t().SetTransform(&Matrix3x2::identity()) };
+    }
+
+    pub fn push_layer(&mut self, r: Rect, opacity: f32) -> bool {
+        if opacity >= 0.999 {
+            return false;
+        }
+        if self.layer_depth >= self.layers.len() {
+            let Ok(layer) = (unsafe { self.t().CreateLayer(None) }) else {
+                return false;
+            };
+            self.layers.push(layer);
+        }
+        let layer = &self.layers[self.layer_depth];
+        self.layer_depth += 1;
+        let params = D2D1_LAYER_PARAMETERS {
+            contentBounds: self.px(r),
+            maskAntialiasMode: D2D1_ANTIALIAS_MODE_PER_PRIMITIVE,
+            maskTransform: Matrix3x2::identity(),
+            opacity: opacity.clamp(0.0, 1.0),
+            layerOptions: D2D1_LAYER_OPTIONS_NONE,
+            ..Default::default()
+        };
+        unsafe { self.t().PushLayer(&params, layer) };
+        true
+    }
+
+    pub fn pop_layer(&mut self, pushed: bool) {
+        if pushed {
+            unsafe { self.t().PopLayer() };
+            self.layer_depth = self.layer_depth.saturating_sub(1);
+        }
+    }
+
+    pub fn push_rounded_clip(&mut self, r: Rect, radius: f32) -> bool {
+        let s = self.scale;
+        let rr = D2D1_ROUNDED_RECT {
+            rect: self.px(r),
+            radiusX: radius * s,
+            radiusY: radius * s,
+        };
+        let Ok(geom) = (unsafe { self.d2d.CreateRoundedRectangleGeometry(&rr) }) else {
+            return false;
+        };
+        if self.layer_depth >= self.layers.len() {
+            let Ok(layer) = (unsafe { self.t().CreateLayer(None) }) else {
+                return false;
+            };
+            self.layers.push(layer);
+        }
+        let layer = &self.layers[self.layer_depth];
+        self.layer_depth += 1;
+        let mut params = D2D1_LAYER_PARAMETERS {
+            contentBounds: self.px(r),
+            geometricMask: std::mem::ManuallyDrop::new(Some(geom.into())),
+            maskAntialiasMode: D2D1_ANTIALIAS_MODE_PER_PRIMITIVE,
+            maskTransform: Matrix3x2::identity(),
+            opacity: 1.0,
+            layerOptions: D2D1_LAYER_OPTIONS_NONE,
+            ..Default::default()
+        };
+        unsafe {
+            self.t().PushLayer(&params, layer);
+            let _ = std::mem::ManuallyDrop::take(&mut params.geometricMask);
+        }
+        true
     }
 
     /// A layout rectangle (100% scale) in physical pixels, its right and bottom edges placed so
@@ -289,16 +392,10 @@ impl Painter {
     }
 
     pub fn fill_rounded(&self, r: Rect, radius: f32, rgb: u32) {
-        let s = self.scale;
-        let rr = D2D1_ROUNDED_RECT {
-            rect: self.px(r),
-            radiusX: radius * s,
-            radiusY: radius * s,
-        };
-        unsafe { self.t().FillRoundedRectangle(&rr, self.brush(rgb)) };
+        self.fill_rounded_alpha(r, radius, rgb, 1.0);
     }
 
-    pub fn stroke_rounded(&self, r: Rect, radius: f32, rgb: u32, width: f32) {
+    pub fn fill_rounded_alpha(&self, r: Rect, radius: f32, rgb: u32, alpha: f32) {
         let s = self.scale;
         let rr = D2D1_ROUNDED_RECT {
             rect: self.px(r),
@@ -307,7 +404,28 @@ impl Painter {
         };
         unsafe {
             self.t()
-                .DrawRoundedRectangle(&rr, self.brush(rgb), width * s, &self.stroke)
+                .FillRoundedRectangle(&rr, self.brush_alpha(rgb, alpha))
+        };
+    }
+
+    pub fn stroke_rounded(&self, r: Rect, radius: f32, rgb: u32, width: f32) {
+        self.stroke_rounded_alpha(r, radius, rgb, 1.0, width);
+    }
+
+    pub fn stroke_rounded_alpha(&self, r: Rect, radius: f32, rgb: u32, alpha: f32, width: f32) {
+        let s = self.scale;
+        let rr = D2D1_ROUNDED_RECT {
+            rect: self.px(r),
+            radiusX: radius * s,
+            radiusY: radius * s,
+        };
+        unsafe {
+            self.t().DrawRoundedRectangle(
+                &rr,
+                self.brush_alpha(rgb, alpha),
+                width * s,
+                &self.stroke,
+            )
         };
     }
 
@@ -493,7 +611,6 @@ impl Painter {
         }
     }
 
-    #[allow(dead_code)]
     pub fn clip(&self, r: Rect) {
         unsafe {
             self.t()
@@ -501,7 +618,6 @@ impl Painter {
         };
     }
 
-    #[allow(dead_code)]
     pub fn unclip(&self) {
         unsafe { self.t().PopAxisAlignedClip() };
     }
@@ -555,6 +671,41 @@ impl Painter {
     /// A Lucide icon rotated 180° (e.g. `arrow.svg` used as a Back button, matching prototype `rotate-180`).
     pub fn icon_rotated_180(&self, icon: Icon, cx: f32, cy: f32, size: f32, rgb: u32) {
         self.icon_impl(icon, cx, cy, size, rgb, true);
+    }
+
+    /// A Lucide icon rotated by arbitrary clockwise `angle_deg` around `(cx, cy)`.
+    pub fn icon_rotated(&self, icon: Icon, cx: f32, cy: f32, size: f32, rgb: u32, angle_deg: f32) {
+        if angle_deg.abs() < 0.01 {
+            self.icon_impl(icon, cx, cy, size, rgb, false);
+            return;
+        }
+        let s = self.scale;
+        let rad = angle_deg.to_radians();
+        let (sin, cos) = rad.sin_cos();
+        let (pcx, pcy) = (cx * s, cy * s);
+        let rot = Matrix3x2 {
+            M11: cos,
+            M12: sin,
+            M21: -sin,
+            M22: cos,
+            M31: pcx * (1.0 - cos) + pcy * sin,
+            M32: pcy * (1.0 - cos) - pcx * sin,
+        };
+        let mut prev = Matrix3x2::identity();
+        unsafe {
+            self.t().GetTransform(&mut prev);
+            let combined = Matrix3x2 {
+                M11: rot.M11 * prev.M11 + rot.M12 * prev.M21,
+                M12: rot.M11 * prev.M12 + rot.M12 * prev.M22,
+                M21: rot.M21 * prev.M11 + rot.M22 * prev.M21,
+                M22: rot.M21 * prev.M12 + rot.M22 * prev.M22,
+                M31: rot.M31 * prev.M11 + rot.M32 * prev.M21 + prev.M31,
+                M32: rot.M31 * prev.M12 + rot.M32 * prev.M22 + prev.M32,
+            };
+            self.t().SetTransform(&combined);
+            self.icon_impl(icon, cx, cy, size, rgb, false);
+            self.t().SetTransform(&prev);
+        }
     }
 
     fn icon_impl(&self, icon: Icon, cx: f32, cy: f32, size: f32, rgb: u32, rot_180: bool) {
@@ -676,49 +827,202 @@ impl Painter {
     }
 
     /// The camera preview (BGRA `w` x `h`), refreshed when `seq` changed.
+    /// When `ambient` is `Some`, draws a blurred zoomed dimmed backdrop inside `ambient` first.
     pub fn picture(
         &mut self,
         r: Rect,
+        ambient: Option<Rect>,
         w: usize,
         h: usize,
         seq: u64,
         pixels: impl FnOnce(&mut dyn FnMut(&[u8])),
     ) {
+        const AMB: usize = 36;
+        if w == 0 || h == 0 {
+            return;
+        }
         let size = D2D_SIZE_U {
             width: w as u32,
             height: h as u32,
         };
         let dest = self.px(r);
+        let amb_dest = ambient.map(|a| self.px(a));
+        if let Some((b, _)) = &self.preview
+            && unsafe { b.GetPixelSize() } != size
+        {
+            self.preview = None;
+        }
+        let props = D2D1_BITMAP_PROPERTIES {
+            pixelFormat: D2D1_PIXEL_FORMAT {
+                format: DXGI_FORMAT_B8G8R8A8_UNORM,
+                alphaMode: D2D1_ALPHA_MODE_IGNORE,
+            },
+            dpiX: 96.0,
+            dpiY: 96.0,
+        };
         if self.preview.is_none() {
-            let props = D2D1_BITMAP_PROPERTIES {
-                pixelFormat: D2D1_PIXEL_FORMAT {
-                    format: DXGI_FORMAT_B8G8R8A8_UNORM,
-                    alphaMode: D2D1_ALPHA_MODE_IGNORE,
-                },
-                dpiX: 96.0,
-                dpiY: 96.0,
-            };
             self.preview =
                 unsafe { self.t().CreateBitmap(size, None, 0, &props).ok() }.map(|b| (b, u64::MAX));
         }
-        let Some((bitmap, shown)) = self.preview.as_mut() else {
+        if ambient.is_some() && self.preview_ambient.is_none() {
+            let amb_size = D2D_SIZE_U {
+                width: AMB as u32,
+                height: AMB as u32,
+            };
+            self.preview_ambient = unsafe { self.t().CreateBitmap(amb_size, None, 0, &props).ok() }
+                .map(|b| (b, u64::MAX));
+        }
+        let need_amb = ambient.is_some()
+            && self
+                .preview_ambient
+                .as_ref()
+                .is_some_and(|(_, shown)| *shown != seq);
+        let need_main = self
+            .preview
+            .as_ref()
+            .is_some_and(|(_, shown)| *shown != seq);
+        if need_main || need_amb {
+            let mut amb_buf = need_amb.then(|| vec![0u8; AMB * AMB * 4]);
+            pixels(&mut |px: &[u8]| {
+                if px.len() < (w * h * 4) {
+                    return;
+                }
+                if need_main && let Some((bitmap, _)) = self.preview.as_ref() {
+                    let len = (w * 4) as u32;
+                    unsafe {
+                        let _ = bitmap.CopyFromMemory(None, px.as_ptr().cast(), len);
+                    }
+                }
+                if let Some(out) = amb_buf.as_mut() {
+                    build_ambient_bgra::<AMB>(px, w, h, out);
+                    if let Some((amb_bmp, _)) = self.preview_ambient.as_ref() {
+                        unsafe {
+                            let _ =
+                                amb_bmp.CopyFromMemory(None, out.as_ptr().cast(), (AMB * 4) as u32);
+                        }
+                    }
+                }
+            });
+            if need_main && let Some((_, shown)) = self.preview.as_mut() {
+                *shown = seq;
+            }
+            if need_amb && let Some((_, shown)) = self.preview_ambient.as_mut() {
+                *shown = seq;
+            }
+        }
+        if let Some(amb_rect) = amb_dest
+            && let Some((amb_bmp, _)) = &self.preview_ambient
+        {
+            let amb_bmp = amb_bmp.clone();
+            unsafe {
+                self.t().DrawBitmap(
+                    &amb_bmp,
+                    Some(&amb_rect),
+                    1.0,
+                    D2D1_BITMAP_INTERPOLATION_MODE_LINEAR,
+                    None,
+                );
+            }
+        }
+        let Some((bitmap, _)) = self.preview.as_ref() else {
             return;
         };
-        if *shown != seq {
-            pixels(&mut |px: &[u8]| unsafe {
-                let _ = bitmap.CopyFromMemory(None, px.as_ptr().cast(), (w * 4) as u32);
-            });
-            *shown = seq;
-        }
         let bitmap = bitmap.clone();
+        let src_ar = w as f32 / h as f32;
+        let dst_ar = r.w / r.h.max(0.001);
+        let src_rect = if (src_ar - dst_ar).abs() < 0.005 {
+            D2D_RECT_F {
+                left: 0.0,
+                top: 0.0,
+                right: w as f32,
+                bottom: h as f32,
+            }
+        } else if src_ar > dst_ar {
+            let sw = (h as f32 * dst_ar).min(w as f32);
+            let sx = (w as f32 - sw) / 2.0;
+            D2D_RECT_F {
+                left: sx,
+                top: 0.0,
+                right: sx + sw,
+                bottom: h as f32,
+            }
+        } else {
+            let sh = (w as f32 / dst_ar).min(h as f32);
+            let sy = (h as f32 - sh) / 2.0;
+            D2D_RECT_F {
+                left: 0.0,
+                top: sy,
+                right: w as f32,
+                bottom: sy + sh,
+            }
+        };
         unsafe {
             self.t().DrawBitmap(
                 &bitmap,
                 Some(&dest),
                 1.0,
                 D2D1_BITMAP_INTERPOLATION_MODE_LINEAR,
-                None,
+                Some(&src_rect),
             )
         };
+    }
+}
+
+/// Downsamples `px` into a blurred, slightly zoomed (1.14x), dimmed (0.46) and boosted-saturation
+/// (1.18) `N x N` BGRA backdrop matching prototype `.cam-amb-canvas`.
+fn build_ambient_bgra<const N: usize>(px: &[u8], w: usize, h: usize, out: &mut [u8]) {
+    let mut a = vec![[0.0f32; 3]; N * N];
+    let mut b = vec![[0.0f32; 3]; N * N];
+    let span = 1.0 / 1.14_f32;
+    let pad = (1.0 - span) * 0.5;
+    for y in 0..N {
+        let sy = (((pad + (y as f32 + 0.5) / N as f32 * span) * h as f32) as usize).min(h - 1);
+        for x in 0..N {
+            let sx = (((pad + (x as f32 + 0.5) / N as f32 * span) * w as f32) as usize).min(w - 1);
+            let idx = (sy * w + sx) * 4;
+            a[y * N + x] = [px[idx] as f32, px[idx + 1] as f32, px[idx + 2] as f32];
+        }
+    }
+    const R: isize = 4;
+    for pass in 0..2 {
+        for y in 0..N {
+            for x in 0..N {
+                let mut sum = [0.0f32; 3];
+                let mut cnt = 0.0f32;
+                for d in -R..=R {
+                    let nx = (x as isize + d).clamp(0, N as isize - 1) as usize;
+                    let c = a[y * N + nx];
+                    sum[0] += c[0];
+                    sum[1] += c[1];
+                    sum[2] += c[2];
+                    cnt += 1.0;
+                }
+                b[y * N + x] = [sum[0] / cnt, sum[1] / cnt, sum[2] / cnt];
+            }
+        }
+        for y in 0..N {
+            for x in 0..N {
+                let mut sum = [0.0f32; 3];
+                let mut cnt = 0.0f32;
+                for d in -R..=R {
+                    let ny = (y as isize + d).clamp(0, N as isize - 1) as usize;
+                    let c = b[ny * N + x];
+                    sum[0] += c[0];
+                    sum[1] += c[1];
+                    sum[2] += c[2];
+                    cnt += 1.0;
+                }
+                a[y * N + x] = [sum[0] / cnt, sum[1] / cnt, sum[2] / cnt];
+            }
+        }
+        let _ = pass;
+    }
+    for (i, c) in a.iter().enumerate() {
+        let lum = 0.114 * c[0] + 0.587 * c[1] + 0.299 * c[2];
+        let o = i * 4;
+        for ch in 0..3 {
+            out[o + ch] = ((lum + (c[ch] - lum) * 1.18) * 0.46).clamp(0.0, 255.0) as u8;
+        }
+        out[o + 3] = 255;
     }
 }

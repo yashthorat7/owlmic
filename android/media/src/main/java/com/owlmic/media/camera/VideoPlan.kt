@@ -37,7 +37,10 @@ enum class Ratio(val value: String, val wide: Int, val tall: Int) {
     FULL("full", 0, 0),
     WIDE("16:9", 16, 9),
     CLASSIC("4:3", 4, 3),
+    CINEMA("2:1", 2, 1),
     SQUARE("1:1", 1, 1),
+    PORTRAIT_CINEMA("1:2", 1, 2),
+    PORTRAIT_CLASSIC("3:4", 3, 4),
     TALL("9:16", 9, 16),
     ;
 
@@ -52,19 +55,23 @@ enum class Ratio(val value: String, val wide: Int, val tall: Int) {
  */
 fun boundFourByThree(ratio: Ratio, sensorWide: Boolean): Boolean = when (ratio) {
     Ratio.FULL -> !sensorWide
-    Ratio.CLASSIC, Ratio.SQUARE -> true
-    Ratio.WIDE, Ratio.TALL -> false
+    Ratio.CLASSIC, Ratio.PORTRAIT_CLASSIC, Ratio.SQUARE -> true
+    Ratio.WIDE, Ratio.TALL, Ratio.CINEMA, Ratio.PORTRAIT_CINEMA -> false
 }
 
 /**
- * The encoded width and height of [plan] in [ratio]: the plan's short side stays, the other follows the ratio. For
- * [Ratio.FULL] it follows [frame], the camera's upright picture (width to height), and is null until that is known.
+ * The encoded width and height of [plan] in [ratio]: the plan's short side stays, the other follows the ratio (or
+ * [plan.longSide] caps 2:1 / 1:2 so encoders stay within 1080p/720p bounds). For [Ratio.FULL] it follows [frame], the
+ * camera's upright picture (width to height), and is null until that is known.
  */
 fun outputSize(plan: VideoPlan, ratio: Ratio, frame: Pair<Int, Int>? = null): Pair<Int, Int>? = when (ratio) {
     Ratio.FULL -> frame?.takeIf { it.first > 0 && it.second > 0 }?.let { fullSize(plan.shortSide, it) }
     Ratio.WIDE -> plan.longSide to plan.shortSide
     Ratio.TALL -> plan.shortSide to plan.longSide
+    Ratio.CINEMA -> plan.longSide to plan.longSide / 2
+    Ratio.PORTRAIT_CINEMA -> plan.longSide / 2 to plan.longSide
     Ratio.CLASSIC -> plan.shortSide * 4 / 3 to plan.shortSide
+    Ratio.PORTRAIT_CLASSIC -> plan.shortSide to plan.shortSide * 4 / 3
     Ratio.SQUARE -> plan.shortSide to plan.shortSide
 }
 

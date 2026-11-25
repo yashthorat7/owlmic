@@ -79,7 +79,7 @@ abstract class GenerateDesign : DefaultTask() {
             if (tag != "path" && tag != "rect") continue
             val rest = if (parts.size > 1) parts[1] else ""
             val attrs = mutableMapOf<String, String>()
-            val attrRegex = Regex("""(\w+)="([^"]*)"""")
+            val attrRegex = Regex("""([\w-]+)="([^"]*)"""")
             for (match in attrRegex.findAll(rest)) {
                 attrs[match.groupValues[1]] = match.groupValues[2]
             }

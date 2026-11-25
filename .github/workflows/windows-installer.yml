@@ -125,7 +125,7 @@ jobs:
             '{0,-40} {1,8:N2} MB' -f $f, ((Get-Item $f).Length / 1MB)
           }
           '{0,-40} {1,8:N2} MB' -f 'scripts\packaging\windows\driver (all files)', ((Get-ChildItem scripts\packaging\windows\driver -Recurse -File | Measure-Object Length -Sum).Sum / 1MB)
-          $setup = Get-Item dist\windows\Owlmic-Setup-*.exe
+          $setup = Get-Item dist\Owlmic-Setup-*.exe
           $size = $setup.Length
           '{0,-40} {1,8:N2} MB' -f $setup.Name, ($size / 1MB)
           if ($size -gt $limit) { throw ("The installer is {0:N2} MB, above the 5 MB budget." -f ($size / 1MB)) }
@@ -134,5 +134,5 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: owlmic-windows
-          path: dist/windows/*.exe
+          path: dist/*.exe
           if-no-files-found: error

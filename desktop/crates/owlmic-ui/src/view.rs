@@ -130,7 +130,7 @@ pub fn link_icon(link: u8) -> Icon {
         LINK_USB_TETHERING => icons::CABLE,
         LINK_WIFI => icons::WIFI,
         LINK_BLUETOOTH => icons::BLUETOOTH,
-        _ => icons::UNPLUG,
+        _ => icons::GLOBE,
     }
 }
 
@@ -146,6 +146,11 @@ pub fn link_name(link: u8) -> &'static str {
 
 /// The connection indicator (SYSTEM_DESIGN section 36). Monochrome matching prototype.
 pub fn indicator(c: &Connection) -> Indicator {
+    let globe = |label| Indicator {
+        color: color::TEXT,
+        icon: icons::GLOBE,
+        label,
+    };
     let ind = |link, label| Indicator {
         color: color::TEXT,
         icon: link_icon(link),
@@ -154,12 +159,12 @@ pub fn indicator(c: &Connection) -> Indicator {
     match c {
         Connection::NotConnected => Indicator {
             color: color::DISABLED,
-            icon: icons::UNPLUG,
+            icon: icons::GLOBE,
             label: m::LINK_NOT_CONNECTED,
         },
-        Connection::Connecting { link } => ind(*link, m::LINK_CONNECTING),
-        Connection::Approval { link, .. } => ind(*link, m::LINK_APPROVAL),
-        Connection::Reconnecting { link, .. } => ind(*link, m::STATUS_RECONNECTING),
+        Connection::Connecting { .. } => globe(m::LINK_CONNECTING),
+        Connection::Approval { .. } => globe(m::LINK_APPROVAL),
+        Connection::Reconnecting { .. } => globe(m::STATUS_RECONNECTING),
         Connection::Connected {
             link, weak: true, ..
         } => ind(*link, m::LINK_WEAK),
@@ -193,31 +198,25 @@ impl PanelState {
         }
     }
 
-    /// Normalizes `"1080p"`/`"FHD"`, `"720p"`/`"HD"`, `"480p"` to prototype labels.
-    pub fn camera_quality_label(&self) -> &'static str {
-        match self.value("camera.quality") {
-            "720p" | "HD" => "HD",
-            "480p" => "480p",
-            _ => "FHD",
-        }
-    }
-
-    pub fn camera_fps_label(&self) -> &'static str {
-        match self.value("camera.frameRate") {
-            "60" => "60",
-            "24" => "24",
-            _ => "30",
-        }
-    }
-
     pub fn camera_ratio_label(&self) -> &'static str {
         match self.value("camera.ratio") {
             "16:9" => "16:9",
             "4:3" => "4:3",
+            "2:1" => "2:1",
             "1:1" => "1:1",
+            "1:2" => "1:2",
             "3:4" => "3:4",
             "9:16" => "9:16",
             _ => "Auto",
+        }
+    }
+
+    pub fn camera_wide(&self, stream_size: (usize, usize), square_wide: bool) -> bool {
+        match self.camera_ratio_label() {
+            "16:9" | "4:3" | "2:1" => true,
+            "9:16" | "3:4" | "1:2" => false,
+            "1:1" => square_wide,
+            _ => stream_size.0 > stream_size.1,
         }
     }
 
@@ -275,6 +274,7 @@ impl PanelState {
         drawer: crate::layout::Drawer,
         cam_menu: bool,
         quick_audio: bool,
+        cam_wide: bool,
     ) -> Screen {
         match drawer {
             crate::layout::Drawer::Wifi => {
@@ -298,6 +298,7 @@ impl PanelState {
                 mic_on: matches!(self.mic, Feature::On | Feature::Restarting) && self.connected(),
                 cam_menu,
                 quick_audio,
+                cam_wide,
             },
         }
     }
@@ -420,15 +421,6 @@ impl PanelState {
             Target::Camera => feature(Which::Camera),
             Target::Mic => feature(Which::Mic),
             Target::Speaker => feature(Which::Speaker),
-            Target::Quality(q) => {
-                let val = match q {
-                    "FHD" | "1080p" => "1080p",
-                    "HD" | "720p" => "720p",
-                    _ => "480p",
-                };
-                Some(Action::Set("camera.quality", val.to_string()))
-            }
-            Target::Fps(f) => Some(Action::Set("camera.frameRate", f.to_string())),
             Target::Ratio(r) => {
                 let val = match r {
                     "Auto" => "full",
@@ -671,16 +663,38 @@ mod tests {
         let s = connected();
         assert!(s.is_on("mic.autoLevel", false));
         assert!(!s.is_on("camera.mirror", true));
-        assert_eq!(s.camera_quality_label(), "FHD");
-        assert_eq!(s.camera_fps_label(), "30");
         assert_eq!(s.camera_ratio_label(), "Auto");
+        assert!(!s.camera_wide((1080, 1920), false));
+        assert!(s.camera_wide((1920, 1080), false));
         assert_eq!(s.mic_nr_value(), 5.0);
         assert_eq!(s.mic_volume_percent(), 80.0);
     }
 
     #[test]
     fn the_indicator_is_monochrome_with_link_icon() {
-        assert_eq!(indicator(&Connection::NotConnected).color, color::DISABLED);
+        let off = indicator(&Connection::NotConnected);
+        assert_eq!((off.color, off.icon), (color::DISABLED, icons::GLOBE));
+        assert_eq!(
+            indicator(&Connection::Connecting { link: LINK_WIFI }).icon,
+            icons::GLOBE
+        );
+        assert_eq!(
+            indicator(&Connection::Approval {
+                phone: "P".into(),
+                code: "123456".into(),
+                link: LINK_USB_DEBUGGING,
+            })
+            .icon,
+            icons::GLOBE
+        );
+        assert_eq!(
+            indicator(&Connection::Reconnecting {
+                phone: "P".into(),
+                link: LINK_WIFI,
+            })
+            .icon,
+            icons::GLOBE
+        );
         let i = indicator(&connected().connection);
         assert_eq!((i.color, i.label), (color::TEXT, m::LINK_WIFI));
         assert_eq!(i.icon, icons::WIFI);

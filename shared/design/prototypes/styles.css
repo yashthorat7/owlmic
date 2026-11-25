@@ -55,7 +55,7 @@ body {
 .cam-hud { transition: opacity 260ms var(--ease); }
 .cam-hud.is-quiet { opacity: 0.15; }
 .cam-expand {
-  background: rgba(0,0,0,.88);
+  background: rgba(0,0,0,.74);
   border: 1px solid rgba(255,255,255,.22);
   border-radius: 8px;
   backdrop-filter: blur(14px);
@@ -68,11 +68,11 @@ body {
   box-sizing: border-box;
 }
 .cam-expand.is-open {
-  background: rgba(0,0,0,.98);
+  background: rgba(0,0,0,.92);
   border-color: rgba(255,255,255,.36);
-  width: 180px;
-  height: 119px;
-  max-height: 119px;
+  width: 108px;
+  height: 87px;
+  max-height: 87px;
 }
 .pc-window .cam-expand {
   width: 44px;
@@ -81,26 +81,33 @@ body {
   border-radius: 7px;
 }
 .pc-window .cam-expand.is-open {
-  width: 156px;
-  height: 103px;
-  max-height: 103px;
+  width: 96px;
+  height: 75px;
+  max-height: 75px;
 }
+
+.pc-cam-stats {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  z-index: 8;
+  transition: bottom 340ms var(--ease), opacity 200ms ease;
+}
+.pc-cam-stats.is-above-dock { bottom: 56px; }
+.pc-cam-stats.is-hidden { opacity: 0; }
 
 .cam-closed-btn {
   position: absolute;
   top: 0;
   left: 0;
   width: 100%;
-  height: 29px;
+  height: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
   color: #FFF;
   transition: opacity 160ms ease, background-color 140ms ease;
   z-index: 2;
-}
-.pc-window .cam-closed-btn {
-  height: 25px;
 }
 .cam-closed-btn:hover { background: rgba(255, 255, 255, 0.08); }
 .cam-expand.is-open .cam-closed-btn {
@@ -109,8 +116,10 @@ body {
 }
 
 .cam-options-grid {
-  display: flex !important;
-  flex-direction: column;
+  display: grid !important;
+  grid-template-rows: repeat(3, 1fr);
+  width: 100%;
+  height: 100%;
   opacity: 0;
   pointer-events: none;
   transition: opacity 180ms ease 40ms;
@@ -119,7 +128,9 @@ body {
   opacity: 1;
   pointer-events: auto;
 }
-.cam-ratio-grid > button:nth-child(n+4) { border-top: 1px solid rgba(255, 255, 255, 0.10); }
+.cam-orient-ic {
+  transition: transform 220ms var(--ease), filter 140ms ease, opacity 140ms ease;
+}
 
 .cam-btn { transition: background-color 140ms ease, border-color 140ms ease, color 140ms ease; }
 .cam-btn.is-on { background: #FFF; color: #000; border-color: #FFF; }
@@ -314,7 +325,7 @@ body {
 
 .pc-window .waveform-dock { border-radius: 10px; }
 .pc-window .waveform-dock.is-centered { width: 248px; }
-.pc-window .waveform-dock.is-centered.is-lifted { top: 23%; }
+.pc-window .waveform-dock.is-centered.is-lifted { top: 20%; }
 .pc-window .waveform-dock.is-docked { width: 204px; }
 .pc-window .waveform-dock.is-docked.is-expanded { width: calc(100% - 24px); }
 .pc-window .waveform-bars { gap: 4.5px; height: 68px; }

@@ -1,4 +1,4 @@
-//! Layout geometry of the 312 x 374 px PC Bento Flyout (matching shared/design/prototypes).
+//! Layout geometry of the 312 x 312 px (1:1) PC Bento Flyout (matching shared/design/prototypes).
 //! Every gap is the 1 px hairline the background shows through.
 
 use crate::panel as p;
@@ -42,7 +42,7 @@ pub const GAP: f32 = 1.0;
 pub const WIDTH: f32 = p::WIDTH_PX;
 pub const HEIGHT: f32 = p::HEIGHT_PX;
 
-/// 310 x 310 square Bento Playground (312 x 312 outer bounds including 1 px padding).
+/// 312 x 250 Bento Playground above the 61 px bottom dock (312 x 312 outer 1:1 flyout).
 pub const PLAYGROUND: Rect = Rect::new(0.0, 0.0, WIDTH, HEIGHT - p::BOTTOM_ROW_PX - GAP);
 pub const CAMERA: Rect = PLAYGROUND;
 
@@ -66,17 +66,32 @@ pub const SPEAKER: Rect = BTN_SPK;
 pub const PHONE: Rect = PLAYGROUND;
 
 // Camera HUD Controls
-pub const CAM_MENU_BTN: Rect = Rect::new(10.0, 10.0, 44.0, 25.0);
-pub const CAM_EXPAND_MENU: Rect = Rect::new(10.0, 10.0, 156.0, 103.0);
+pub const CAM_MENU_BTN: Rect =
+    Rect::new(10.0, 10.0, p::CAM_EXPAND_WIDTH_PX, p::CAM_EXPAND_HEIGHT_PX);
+pub const CAM_EXPAND_MENU: Rect = Rect::new(
+    10.0,
+    10.0,
+    p::CAM_EXPAND_OPEN_WIDTH_PX,
+    p::CAM_EXPAND_HEIGHT_PX * 3.0,
+);
+pub const CAM_ORIENT_BTN: Rect = Rect::new(
+    CAM_EXPAND_MENU.x + CAM_EXPAND_MENU.w / 2.0,
+    CAM_EXPAND_MENU.y,
+    CAM_EXPAND_MENU.w / 2.0,
+    p::CAM_EXPAND_HEIGHT_PX,
+);
 pub const CAM_MIRROR_BTN: Rect = Rect::new(246.0, 10.0, 25.0, 25.0);
 pub const CAM_FLIP_BTN: Rect = Rect::new(277.0, 10.0, 25.0, 25.0);
 
 pub fn cam_option_rect(row: usize, col: usize) -> Rect {
-    let w = CAM_EXPAND_MENU.w / 3.0;
-    let h = 25.0;
-    let y = CAM_EXPAND_MENU.y + 1.0 + row as f32 * h;
-    let x = CAM_EXPAND_MENU.x + col as f32 * w;
-    Rect::new(x, y, w, h)
+    let w = CAM_EXPAND_MENU.w / 2.0;
+    let h = CAM_EXPAND_MENU.h / 3.0;
+    Rect::new(
+        CAM_EXPAND_MENU.x + col as f32 * w,
+        CAM_EXPAND_MENU.y + row as f32 * h,
+        w,
+        h,
+    )
 }
 
 // Waveform Dock Insets
@@ -118,7 +133,7 @@ pub const CONN_FOOTER: Rect = Rect::new(0.0, PLAYGROUND.bottom() - 52.0, WIDTH, 
 pub const CONN_REFRESH_BTN: Rect = Rect::new(8.0, CONN_FOOTER.y + 8.0, 53.0, 36.0);
 
 pub fn conn_transport_btn(i: usize) -> Rect {
-    let x = 67.0 + i as f32 * 59.0;
+    let x = 74.0 + i as f32 * 59.0;
     Rect::new(x, CONN_FOOTER.y + 8.0, 53.0, 36.0)
 }
 
@@ -131,7 +146,7 @@ pub fn help_bento_tile(i: usize) -> Rect {
     let gap = 8.0;
     let total_w = 3.0 * tile_w + 2.0 * gap;
     let start_x = (WIDTH - total_w) / 2.0;
-    let start_y = 50.0;
+    let start_y = 30.0;
     Rect::new(
         start_x + col as f32 * (tile_w + gap),
         start_y + row as f32 * (tile_h + gap),
@@ -155,11 +170,29 @@ pub fn cam_crop_rect(ratio: &str) -> (Rect, CropMode) {
     let target_ar = match ratio {
         "16:9" => 16.0 / 9.0,
         "4:3" => 4.0 / 3.0,
+        "2:1" => 2.0,
         "1:1" => 1.0,
+        "1:2" => 0.5,
         "3:4" => 3.0 / 4.0,
         "9:16" => 9.0 / 16.0,
-        _ => 0.0,
+        _ => 16.0 / 9.0,
     };
+    cam_crop_rect_ar(target_ar)
+}
+
+/// Computes the optical crop rect matching `ratio`, using the stream aspect for `Auto` and keeping
+/// explicit presets true to their selected orientation.
+pub fn cam_crop_rect_for_stream(ratio: &str, pw: usize, ph: usize) -> (Rect, CropMode) {
+    if pw == 0 || ph == 0 {
+        return cam_crop_rect(ratio);
+    }
+    match ratio {
+        "Auto" => cam_crop_rect_ar(pw as f32 / ph as f32),
+        _ => cam_crop_rect(ratio),
+    }
+}
+
+pub fn cam_crop_rect_ar(target_ar: f32) -> (Rect, CropMode) {
     let lw = PLAYGROUND.w;
     let lh = PLAYGROUND.h;
     if target_ar <= 0.0 || (lw / lh - target_ar).abs() < 0.01 {
@@ -176,10 +209,12 @@ pub fn cam_crop_rect(ratio: &str) -> (Rect, CropMode) {
     }
 }
 
-pub const WAVE_DOCK_LIFTED: Rect = Rect::new((WIDTH - 248.0) / 2.0, 38.0, 248.0, 68.0);
-pub const WAVE_DOCK_EXPANDED: Rect = Rect::new(13.0, 101.0, 286.0, 198.0);
-pub const WAVE_DOCK_EXPANDED_SETTINGS: Rect = Rect::new(13.0, 101.0, 286.0, 164.0);
-pub const WAVE_DOCK_EXPANDED_HEADER: Rect = Rect::new(13.0, 265.0, 286.0, 34.0);
+pub const WAVE_DOCK_LIFTED: Rect = Rect::new((WIDTH - 248.0) / 2.0, 16.0, 248.0, 68.0);
+pub const WAVE_DOCK_EXPANDED: Rect =
+    Rect::new(12.0, PLAYGROUND.bottom() - 12.0 - 198.0, 288.0, 198.0);
+pub const WAVE_DOCK_EXPANDED_SETTINGS: Rect = Rect::new(12.0, WAVE_DOCK_EXPANDED.y, 288.0, 164.0);
+pub const WAVE_DOCK_EXPANDED_HEADER: Rect =
+    Rect::new(12.0, WAVE_DOCK_EXPANDED.y + 164.0, 288.0, 34.0);
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct AudioControls {
@@ -219,12 +254,12 @@ pub fn active_audio_panel(cam_active: bool) -> Rect {
 }
 
 pub const CONN_HEADER: Rect = Rect::new(0.0, 0.0, WIDTH, 54.0);
-pub const CONN_FOOTER_DIVIDER_X: f32 = 64.0;
+pub const CONN_FOOTER_DIVIDER_X: f32 = 67.5;
 pub const HELP_HEADER: Rect = Rect::new(0.0, 0.0, WIDTH, 44.0);
 
 pub fn help_credit_row(idx: usize) -> Rect {
-    let row_h = 38.0;
-    let y = HELP_HEADER.bottom() + 6.0 + idx as f32 * row_h;
+    let row_h = 32.0;
+    let y = HELP_HEADER.bottom() + 4.0 + idx as f32 * row_h;
     Rect::new(0.0, y, WIDTH, row_h)
 }
 
@@ -257,9 +292,8 @@ pub enum Target {
 
     // Camera controls
     CamMenu,
-    Quality(&'static str),
-    Fps(&'static str),
     Ratio(&'static str),
+    CamOrient,
     Mirror,
     Flip,
 
@@ -311,6 +345,7 @@ pub enum Screen {
         mic_on: bool,
         cam_menu: bool,
         quick_audio: bool,
+        cam_wide: bool,
     },
     DrawerWifi(WifiMode),
     DrawerHelp(HelpScreen),
@@ -323,6 +358,7 @@ impl Screen {
             mic_on: false,
             cam_menu: false,
             quick_audio: false,
+            cam_wide: false,
         }
     }
 }
@@ -444,32 +480,26 @@ pub fn hit(screen: Screen, x: f32, y: f32) -> Option<Target> {
             mic_on,
             cam_menu,
             quick_audio,
+            cam_wide,
         } => {
             if cam_on {
                 if cam_menu {
-                    let res_opts = ["FHD", "HD", "480p"];
-                    let fps_opts = ["60", "30", "24"];
-                    let row2 = ["Auto", "16:9", "4:3"];
-                    let row3 = ["1:1", "3:4", "9:16"];
-
-                    for (c, &opt) in res_opts.iter().enumerate() {
-                        if cam_option_rect(0, c).contains(x, y) {
-                            return Some(Target::Quality(opt));
-                        }
+                    if cam_option_rect(0, 0).contains(x, y) {
+                        return Some(Target::Ratio("Auto"));
                     }
-                    for (c, &opt) in fps_opts.iter().enumerate() {
-                        if cam_option_rect(1, c).contains(x, y) {
-                            return Some(Target::Fps(opt));
-                        }
+                    if CAM_ORIENT_BTN.contains(x, y) {
+                        return Some(Target::CamOrient);
                     }
-                    for (c, &opt) in row2.iter().enumerate() {
-                        if cam_option_rect(2, c).contains(x, y) {
-                            return Some(Target::Ratio(opt));
-                        }
-                    }
-                    for (c, &opt) in row3.iter().enumerate() {
-                        if cam_option_rect(3, c).contains(x, y) {
-                            return Some(Target::Ratio(opt));
+                    let rows = if cam_wide {
+                        [["16:9", "4:3"], ["2:1", "1:1"]]
+                    } else {
+                        [["9:16", "3:4"], ["1:2", "1:1"]]
+                    };
+                    for (r_idx, row) in rows.iter().enumerate() {
+                        for (c_idx, &opt) in row.iter().enumerate() {
+                            if cam_option_rect(r_idx + 1, c_idx).contains(x, y) {
+                                return Some(Target::Ratio(opt));
+                            }
                         }
                     }
                     if CAM_EXPAND_MENU.contains(x, y) {
@@ -534,8 +564,7 @@ pub fn hit(screen: Screen, x: f32, y: f32) -> Option<Target> {
                         return None;
                     }
                 }
-                if WAVE_DOCK_CENTERED.contains(x, y) || (!quick_audio && PLAYGROUND.contains(x, y))
-                {
+                if WAVE_DOCK_CENTERED.contains(x, y) || PLAYGROUND.contains(x, y) {
                     return Some(Target::WaveDock);
                 }
             }
@@ -577,24 +606,25 @@ mod tests {
     fn the_panel_opens_above_the_tray_inside_the_screen() {
         let work = (0, 0, 1920, 1040);
         assert_eq!(
-            place((1800, 1050, 1824, 1074), work, (312, 374), 12),
-            (1596, 654)
+            place((1800, 1050, 1824, 1074), work, (312, 312), 12),
+            (1596, 716)
         );
         assert_eq!(
-            place((100, 1050, 124, 1074), work, (312, 374), 12),
-            (12, 654)
+            place((100, 1050, 124, 1074), work, (312, 312), 12),
+            (12, 716)
         );
         // Above Windows 11 tray overflow capsule (icon top at 940 px)
         assert_eq!(
-            place((1800, 940, 1824, 964), work, (312, 374), 12),
-            (1596, 554)
+            place((1800, 940, 1824, 964), work, (312, 312), 12),
+            (1596, 616)
         );
         let top = (0, 40, 1920, 1080);
-        assert_eq!(place((1800, 8, 1824, 32), top, (312, 374), 12).1, 52);
+        assert_eq!(place((1800, 8, 1824, 32), top, (312, 312), 12).1, 52);
     }
 
     #[test]
-    fn the_grid_fills_312_by_374_with_1_px_gaps() {
+    fn the_grid_fills_312_by_312_with_1_px_gaps() {
+        assert_eq!(WIDTH, HEIGHT);
         assert_eq!(bottom(4).right(), WIDTH);
         assert_eq!(bottom(0).y, CAMERA.bottom() + 1.0);
         assert_eq!(bottom(0).bottom(), HEIGHT);
@@ -606,12 +636,12 @@ mod tests {
     #[test]
     fn clicks_find_their_tile() {
         let main = Screen::main_screen();
-        assert_eq!(hit(main, 10.0, 340.0), Some(Target::Wifi));
-        assert_eq!(hit(main, 70.0, 340.0), Some(Target::Camera));
-        assert_eq!(hit(main, 150.0, 340.0), Some(Target::Mic));
-        assert_eq!(hit(main, 200.0, 340.0), Some(Target::Speaker));
-        assert_eq!(hit(main, 280.0, 340.0), Some(Target::Help));
-        assert_eq!(hit(main, 150.0, 312.5), None, "the hairline");
+        assert_eq!(hit(main, 10.0, 280.0), Some(Target::Wifi));
+        assert_eq!(hit(main, 70.0, 280.0), Some(Target::Camera));
+        assert_eq!(hit(main, 150.0, 280.0), Some(Target::Mic));
+        assert_eq!(hit(main, 200.0, 280.0), Some(Target::Speaker));
+        assert_eq!(hit(main, 280.0, 280.0), Some(Target::Help));
+        assert_eq!(hit(main, 150.0, 250.5), None, "the hairline");
     }
 
     #[test]
@@ -690,10 +720,50 @@ mod tests {
             mic_on: true,
             cam_menu: false,
             quick_audio: false,
+            cam_wide: false,
         };
         assert_eq!(
             hit(cam_hud_screen, CAM_MENU_BTN.x + 2.0, CAM_MENU_BTN.y + 2.0,),
             Some(Target::CamMenu)
+        );
+        let open_ratio_screen = Screen::Main {
+            cam_on: true,
+            mic_on: false,
+            cam_menu: true,
+            quick_audio: false,
+            cam_wide: false,
+        };
+        assert_eq!(
+            hit(
+                open_ratio_screen,
+                CAM_ORIENT_BTN.x + 10.0,
+                CAM_ORIENT_BTN.y + 5.0
+            ),
+            Some(Target::CamOrient)
+        );
+        assert_eq!(
+            hit(
+                open_ratio_screen,
+                cam_option_rect(0, 0).x + 5.0,
+                cam_option_rect(0, 0).y + 5.0
+            ),
+            Some(Target::Ratio("Auto"))
+        );
+        assert_eq!(
+            hit(
+                open_ratio_screen,
+                cam_option_rect(2, 0).x + 5.0,
+                cam_option_rect(2, 0).y + 5.0
+            ),
+            Some(Target::Ratio("1:2"))
+        );
+        assert_eq!(
+            hit(
+                open_ratio_screen,
+                cam_option_rect(2, 1).x + 5.0,
+                cam_option_rect(2, 1).y + 5.0
+            ),
+            Some(Target::Ratio("1:1"))
         );
         assert_eq!(
             hit(
@@ -715,5 +785,94 @@ mod tests {
             ),
             Some(Target::WaveDock)
         );
+
+        // Connection footer symmetry & expanded wave dock equal 12 px insets
+        assert_eq!(CONN_REFRESH_BTN.x, 8.0);
+        assert_eq!(WIDTH - conn_transport_btn(3).right(), 8.0);
+        assert_eq!(WAVE_DOCK_EXPANDED.x, 12.0);
+        assert_eq!(WAVE_DOCK_EXPANDED.w, WIDTH - 24.0);
+
+        // Lifted waveform / backdrop above quick audio panel dismisses quick audio
+        let mic_quick_screen = Screen::Main {
+            cam_on: false,
+            mic_on: true,
+            cam_menu: false,
+            quick_audio: true,
+            cam_wide: false,
+        };
+        assert_eq!(
+            hit(
+                mic_quick_screen,
+                WAVE_DOCK_LIFTED.x + 2.0,
+                WAVE_DOCK_LIFTED.y + 2.0
+            ),
+            Some(Target::WaveDock)
+        );
+        assert_eq!(
+            hit(
+                mic_quick_screen,
+                AUDIO_QUICK_PANEL.x + 2.0,
+                AUDIO_QUICK_PANEL.y + 2.0
+            ),
+            None
+        );
+    }
+
+    #[test]
+    fn optical_crop_rects_fit_all_aspect_ratios_without_distortion() {
+        let (r16_9, mode16_9) = cam_crop_rect("16:9");
+        assert_eq!(mode16_9, CropMode::Letter);
+        assert!((r16_9.w / r16_9.h - 16.0 / 9.0).abs() < 0.02);
+        assert!(r16_9.w <= PLAYGROUND.w && r16_9.h <= PLAYGROUND.h);
+
+        let (r9_16, mode9_16) = cam_crop_rect("9:16");
+        assert_eq!(mode9_16, CropMode::Pillar);
+        assert!((r9_16.w / r9_16.h - 9.0 / 16.0).abs() < 0.02);
+        assert!(r9_16.w <= PLAYGROUND.w && r9_16.h <= PLAYGROUND.h);
+
+        let (r4_3, mode4_3) = cam_crop_rect("4:3");
+        assert_eq!(mode4_3, CropMode::Letter);
+        assert!((r4_3.w / r4_3.h - 4.0 / 3.0).abs() < 0.02);
+
+        let (r3_4, mode3_4) = cam_crop_rect("3:4");
+        assert_eq!(mode3_4, CropMode::Pillar);
+        assert!((r3_4.w / r3_4.h - 3.0 / 4.0).abs() < 0.02);
+
+        let (r2_1, mode2_1) = cam_crop_rect("2:1");
+        assert_eq!(mode2_1, CropMode::Letter);
+        assert!((r2_1.w / r2_1.h - 2.0).abs() < 0.02);
+
+        let (r1_2, mode1_2) = cam_crop_rect("1:2");
+        assert_eq!(mode1_2, CropMode::Pillar);
+        assert!((r1_2.w / r1_2.h - 0.5).abs() < 0.02);
+
+        let (r1_1, _) = cam_crop_rect("1:1");
+        assert!((r1_1.w - r1_1.h).abs() <= 2.0);
+
+        // Auto uses stream AR
+        let (rauto, _) = cam_crop_rect_ar(720.0 / 1280.0);
+        assert!((rauto.w / rauto.h - 720.0 / 1280.0).abs() < 0.02);
+    }
+
+    #[test]
+    fn auto_follows_stream_while_presets_keep_their_shape() {
+        let (auto_p, mode_p) = cam_crop_rect_for_stream("Auto", 232, 310);
+        assert_eq!(mode_p, CropMode::Pillar);
+        assert!((auto_p.w / auto_p.h - 3.0 / 4.0).abs() < 0.02);
+
+        let (auto_l, mode_l) = cam_crop_rect_for_stream("Auto", 310, 174);
+        assert_eq!(mode_l, CropMode::Letter);
+        assert!((auto_l.w / auto_l.h - 16.0 / 9.0).abs() < 0.02);
+
+        let (p34, m34) = cam_crop_rect_for_stream("3:4", 310, 232);
+        assert_eq!(m34, CropMode::Pillar);
+        assert!((p34.w / p34.h - 3.0 / 4.0).abs() < 0.02);
+
+        let (w169, m169) = cam_crop_rect_for_stream("16:9", 174, 310);
+        assert_eq!(m169, CropMode::Letter);
+        assert!((w169.w / w169.h - 16.0 / 9.0).abs() < 0.02);
+
+        let (sq, _) = cam_crop_rect_for_stream("1:1", 310, 232);
+        assert!((sq.w - sq.h).abs() <= 2.0);
     }
 }

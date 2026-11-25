@@ -10,6 +10,8 @@ use windows::core::{Interface, Result};
 
 pub struct Decoder {
     mft: IMFTransform,
+    /// Reused compressed input sample + backing buffer across frames.
+    in_buf: Option<(IMFSample, IMFMediaBuffer, usize)>,
     /// Reused output sample when the decoder doesn't provide its own.
     out: Option<IMFSample>,
     /// Coded (w, h) and visible (w, h) (macroblock rows/cols are padded to 16).
@@ -22,13 +24,20 @@ impl Decoder {
         unsafe {
             let mft: IMFTransform =
                 CoCreateInstance(&CLSID_MSH264DecoderMFT, None, CLSCTX_INPROC_SERVER)?;
-            mft.GetAttributes()?.SetUINT32(&MF_LOW_LATENCY, 1)?;
+            let _ = mft.GetAttributes().map(|a| a.SetUINT32(&MF_LOW_LATENCY, 1));
+            if let Ok(codec) = mft.cast::<ICodecAPI>() {
+                let mut var = windows::Win32::System::Variant::VARIANT::default();
+                (*var.Anonymous.Anonymous).vt = windows::Win32::System::Variant::VT_UI4;
+                (*var.Anonymous.Anonymous).Anonymous.ulVal = 1;
+                let _ = codec.SetValue(&CODECAPI_AVLowLatencyMode, &var);
+            }
             let input = MFCreateMediaType()?;
             input.SetGUID(&MF_MT_MAJOR_TYPE, &MFMediaType_Video)?;
             input.SetGUID(&MF_MT_SUBTYPE, &MFVideoFormat_H264)?;
             mft.SetInputType(0, &input, 0)?;
             let mut d = Self {
                 mft,
+                in_buf: None,
                 out: None,
                 size: (0, 0, 0, 0),
                 picture: Nv12::black(2, 2),
@@ -54,12 +63,16 @@ impl Decoder {
                 i += 1;
             };
             self.mft.SetOutputType(0, &chosen, 0)?;
-            let packed = chosen.GetUINT64(&MF_MT_FRAME_SIZE).unwrap_or(0);
+            let current = self.mft.GetOutputCurrentType(0).unwrap_or(chosen.clone());
+            let packed = current
+                .GetUINT64(&MF_MT_FRAME_SIZE)
+                .or_else(|_| chosen.GetUINT64(&MF_MT_FRAME_SIZE))
+                .unwrap_or(0);
             let (coded_w, coded_h) = ((packed >> 32) as usize, (packed & 0xFFFF_FFFF) as usize);
             let mut visible_w = coded_w;
             let mut visible_h = coded_h;
             let mut area = MFVideoArea::default();
-            if chosen
+            let has_aperture = current
                 .GetBlob(
                     &MF_MT_MINIMUM_DISPLAY_APERTURE,
                     std::slice::from_raw_parts_mut(
@@ -69,7 +82,17 @@ impl Decoder {
                     None,
                 )
                 .is_ok()
-            {
+                || chosen
+                    .GetBlob(
+                        &MF_MT_MINIMUM_DISPLAY_APERTURE,
+                        std::slice::from_raw_parts_mut(
+                            &mut area as *mut _ as *mut u8,
+                            size_of::<MFVideoArea>(),
+                        ),
+                        None,
+                    )
+                    .is_ok();
+            if has_aperture {
                 if area.Area.cx > 0 {
                     visible_w = (area.Area.cx as usize).min(coded_w);
                 }
@@ -84,7 +107,7 @@ impl Decoder {
             } else {
                 let sample = MFCreateSample()?;
                 sample.AddBuffer(&MFCreateMemoryBuffer(
-                    info.cbSize.max((coded_w * coded_h * 3 / 2) as u32),
+                    info.cbSize.max((coded_w * coded_h * 3 / 2) as u32).max(1),
                 )?)?;
                 Some(sample)
             };
@@ -93,26 +116,33 @@ impl Decoder {
     }
 
     /// One whole frame in; the decoded picture when the decoder has one ready.
-    pub fn decode(&mut self, frame: &[u8]) -> Result<Option<&Nv12>> {
+    pub fn decode(&mut self, frame: &[u8], timestamp_us: u32) -> Result<Option<&Nv12>> {
         unsafe {
-            let buffer = MFCreateMemoryBuffer(frame.len() as u32)?;
+            let need = frame.len();
+            if self.in_buf.as_ref().is_none_or(|(_, _, cap)| *cap < need) {
+                let cap = need.next_power_of_two().max(65_536);
+                let buffer = MFCreateMemoryBuffer(cap as u32)?;
+                let sample = MFCreateSample()?;
+                sample.AddBuffer(&buffer)?;
+                self.in_buf = Some((sample, buffer, cap));
+            }
+            let (sample, buffer, _) = self.in_buf.as_ref().unwrap();
             let mut data = std::ptr::null_mut();
             buffer.Lock(&mut data, None, None)?;
-            std::ptr::copy_nonoverlapping(frame.as_ptr(), data, frame.len());
+            std::ptr::copy_nonoverlapping(frame.as_ptr(), data, need);
             buffer.Unlock()?;
-            buffer.SetCurrentLength(frame.len() as u32)?;
-            let sample = MFCreateSample()?;
-            sample.AddBuffer(&buffer)?;
-            if let Err(e) = self.mft.ProcessInput(0, &sample, 0) {
+            buffer.SetCurrentLength(need as u32)?;
+            let _ = sample.SetSampleTime(timestamp_us as i64 * 10);
+            if let Err(e) = self.mft.ProcessInput(0, sample, 0) {
                 if e.code() != MF_E_NOTACCEPTING {
                     return Err(e);
                 }
                 // A picture is waiting; take it, then the input fits.
-                let got = self.drain()?;
-                self.mft.ProcessInput(0, &sample, 0)?;
-                if got {
-                    return Ok(Some(&self.picture));
-                }
+                let got_prev = self.drain()?;
+                let (sample, _, _) = self.in_buf.as_ref().unwrap();
+                self.mft.ProcessInput(0, sample, 0)?;
+                let got_curr = self.drain()?;
+                return Ok((got_prev || got_curr).then_some(&self.picture));
             }
             Ok(self.drain()?.then_some(&self.picture))
         }
@@ -122,6 +152,13 @@ impl Decoder {
     fn drain(&mut self) -> Result<bool> {
         let mut got = false;
         loop {
+            if let Some(s) = &self.out {
+                unsafe {
+                    if let Ok(b) = s.GetBufferByIndex(0) {
+                        let _ = b.SetCurrentLength(0);
+                    }
+                }
+            }
             let mut output = [MFT_OUTPUT_DATA_BUFFER {
                 dwStreamID: 0,
                 pSample: ManuallyDrop::new(self.out.clone()),
@@ -210,8 +247,177 @@ mod tests {
         let _com = crate::audio::Com::init();
         let mut d = Decoder::new().unwrap();
         assert!(
-            d.decode(&[0, 0, 0, 1, 0x09, 0xF0])
+            d.decode(&[0, 0, 0, 1, 0x09, 0xF0], 0)
                 .is_ok_and(|p| p.is_none())
+        );
+    }
+
+    fn encode_and_decode_frames(
+        d: &mut Decoder,
+        w: u32,
+        h: u32,
+        frames: i64,
+        base_ts_us: u32,
+    ) -> usize {
+        unsafe {
+            let enc: IMFTransform =
+                CoCreateInstance(&CLSID_MSH264EncoderMFT, None, CLSCTX_INPROC_SERVER).unwrap();
+            let out_type = MFCreateMediaType().unwrap();
+            out_type
+                .SetGUID(&MF_MT_MAJOR_TYPE, &MFMediaType_Video)
+                .unwrap();
+            out_type
+                .SetGUID(&MF_MT_SUBTYPE, &MFVideoFormat_H264)
+                .unwrap();
+            out_type.SetUINT32(&MF_MT_AVG_BITRATE, 1_000_000).unwrap();
+            out_type
+                .SetUINT64(&MF_MT_FRAME_SIZE, ((w as u64) << 32) | (h as u64))
+                .unwrap();
+            out_type
+                .SetUINT64(&MF_MT_FRAME_RATE, ((30u64) << 32) | 1)
+                .unwrap();
+            out_type
+                .SetUINT64(&MF_MT_PIXEL_ASPECT_RATIO, ((1u64) << 32) | 1)
+                .unwrap();
+            out_type
+                .SetUINT32(&MF_MT_INTERLACE_MODE, MFVideoInterlace_Progressive.0 as u32)
+                .unwrap();
+            enc.SetOutputType(0, &out_type, 0).unwrap();
+
+            let in_type = MFCreateMediaType().unwrap();
+            in_type
+                .SetGUID(&MF_MT_MAJOR_TYPE, &MFMediaType_Video)
+                .unwrap();
+            in_type
+                .SetGUID(&MF_MT_SUBTYPE, &MFVideoFormat_NV12)
+                .unwrap();
+            in_type
+                .SetUINT64(&MF_MT_FRAME_SIZE, ((w as u64) << 32) | (h as u64))
+                .unwrap();
+            in_type
+                .SetUINT64(&MF_MT_FRAME_RATE, ((30u64) << 32) | 1)
+                .unwrap();
+            in_type
+                .SetUINT64(&MF_MT_PIXEL_ASPECT_RATIO, ((1u64) << 32) | 1)
+                .unwrap();
+            in_type
+                .SetUINT32(&MF_MT_INTERLACE_MODE, MFVideoInterlace_Progressive.0 as u32)
+                .unwrap();
+            enc.SetInputType(0, &in_type, 0).unwrap();
+
+            enc.GetAttributes()
+                .unwrap()
+                .SetUINT32(&MF_LOW_LATENCY, 1)
+                .unwrap();
+            enc.ProcessMessage(MFT_MESSAGE_NOTIFY_BEGIN_STREAMING, 0)
+                .unwrap();
+            enc.ProcessMessage(MFT_MESSAGE_NOTIFY_START_OF_STREAM, 0)
+                .unwrap();
+
+            let nv12_frame = Nv12::black(w as usize, h as usize);
+            let mut decoded_count = 0;
+
+            for f in 0..frames {
+                let in_sample = MFCreateSample().unwrap();
+                let in_buf = MFCreateMemoryBuffer(nv12_frame.data.len() as u32).unwrap();
+                let mut ptr = std::ptr::null_mut();
+                in_buf.Lock(&mut ptr, None, None).unwrap();
+                std::ptr::copy_nonoverlapping(nv12_frame.data.as_ptr(), ptr, nv12_frame.data.len());
+                in_buf.Unlock().unwrap();
+                in_buf
+                    .SetCurrentLength(nv12_frame.data.len() as u32)
+                    .unwrap();
+                in_sample.AddBuffer(&in_buf).unwrap();
+                in_sample.SetSampleTime(f * 333_333).unwrap();
+                in_sample.SetSampleDuration(333_333).unwrap();
+
+                enc.ProcessInput(0, &in_sample, 0).unwrap();
+                let _ = enc.ProcessMessage(MFT_MESSAGE_COMMAND_DRAIN, 0);
+
+                loop {
+                    let out_sample = MFCreateSample().unwrap();
+                    let out_buf = MFCreateMemoryBuffer(256 * 1024).unwrap();
+                    out_sample.AddBuffer(&out_buf).unwrap();
+
+                    let mut out_data = [MFT_OUTPUT_DATA_BUFFER {
+                        dwStreamID: 0,
+                        pSample: ManuallyDrop::new(Some(out_sample)),
+                        dwStatus: 0,
+                        pEvents: ManuallyDrop::new(None),
+                    }];
+                    let mut status = 0;
+                    let res = enc.ProcessOutput(0, &mut out_data, &mut status);
+                    let sample = ManuallyDrop::take(&mut out_data[0].pSample);
+                    drop(ManuallyDrop::take(&mut out_data[0].pEvents));
+
+                    match res {
+                        Ok(()) => {
+                            let s = sample.unwrap();
+                            let b = s.GetBufferByIndex(0).unwrap();
+                            let mut data_ptr = std::ptr::null_mut();
+                            let mut len = 0;
+                            b.Lock(&mut data_ptr, None, Some(&mut len)).unwrap();
+                            let h264_slice = std::slice::from_raw_parts(data_ptr, len as usize);
+                            let dec_res = d.decode(h264_slice, base_ts_us + (f as u32) * 33_333);
+                            b.Unlock().unwrap();
+
+                            if let Ok(Some(pic)) = dec_res
+                                && (pic.width, pic.height) == (w as usize, h as usize)
+                            {
+                                decoded_count += 1;
+                            }
+                        }
+                        Err(e) if e.code() == MF_E_TRANSFORM_NEED_MORE_INPUT => {
+                            break;
+                        }
+                        Err(e) => {
+                            panic!("Encoder ProcessOutput error: {:?}", e);
+                        }
+                    }
+                }
+            }
+            decoded_count
+        }
+    }
+
+    #[test]
+    #[ignore = "needs Media Foundation, which Windows N and Server editions lack"]
+    fn the_decoder_decodes_consecutive_frames() {
+        let _com = crate::audio::Com::init();
+        let mut d = Decoder::new().unwrap();
+        let decoded_count = encode_and_decode_frames(&mut d, 320, 240, 10, 0);
+        assert!(
+            decoded_count >= 8,
+            "Expected at least 8 decoded frames, got {}",
+            decoded_count
+        );
+    }
+
+    #[test]
+    #[ignore = "needs Media Foundation, which Windows N and Server editions lack"]
+    fn the_decoder_decodes_portrait_stream_preserving_dimensions() {
+        let _com = crate::audio::Com::init();
+        let mut d = Decoder::new().unwrap();
+        let decoded_count = encode_and_decode_frames(&mut d, 240, 320, 5, 0);
+        assert!(
+            decoded_count >= 4,
+            "Expected at least 4 decoded portrait frames, got {}",
+            decoded_count
+        );
+    }
+
+    #[test]
+    #[ignore = "needs Media Foundation, which Windows N and Server editions lack"]
+    fn the_decoder_follows_midstream_orientation_switch() {
+        let _com = crate::audio::Com::init();
+        let mut d = Decoder::new().unwrap();
+        let portrait = encode_and_decode_frames(&mut d, 240, 320, 5, 0);
+        assert!(portrait >= 4);
+        let landscape = encode_and_decode_frames(&mut d, 320, 240, 5, 200_000);
+        assert!(
+            landscape >= 4,
+            "Expected at least 4 decoded landscape frames after switch, got {}",
+            landscape
         );
     }
 }

@@ -218,21 +218,54 @@ impl MediaHub {
     }
 
     fn pause(&mut self, feature: Feature, paused: bool) {
-        if self.is_paused(feature) == paused {
+        if self.is_paused(feature) == paused
+            && (paused
+                || (feature == Feature::Mic && self.mic_codec.is_some())
+                || (feature == Feature::Camera && self.camera_on))
+        {
             return;
         }
         self.paused[feature as usize] = paused;
         match feature {
-            Feature::Mic if self.mic_codec.is_some() => {
+            Feature::Mic => {
                 if paused {
-                    self.stop_mic();
-                } else {
+                    if self.mic_codec.is_some() {
+                        self.stop_mic();
+                    }
+                    (self.emit)(MediaEvent::ToPhone(Message::StreamStop(StreamRef {
+                        stream: STREAM_MIC,
+                    })));
+                } else if self.mic_codec.is_some() {
                     self.start_mic();
+                } else {
+                    let mut params = serde_json::Map::new();
+                    params.insert("sampleRate".into(), 48_000.into());
+                    params.insert("channels".into(), 1.into());
+                    (self.emit)(MediaEvent::ToPhone(Message::StreamStart(StreamStart {
+                        stream: STREAM_MIC,
+                        codec: "pcm".into(),
+                        params,
+                    })));
                 }
             }
-            Feature::Camera if self.camera_on => (self.emit)(MediaEvent::Camera(!paused)),
+            Feature::Camera => {
+                if paused {
+                    self.camera_on = false;
+                    (self.emit)(MediaEvent::Camera(false));
+                    (self.emit)(MediaEvent::ToPhone(Message::StreamStop(StreamRef {
+                        stream: STREAM_CAMERA,
+                    })));
+                } else if self.camera_on {
+                    (self.emit)(MediaEvent::Camera(true));
+                } else {
+                    (self.emit)(MediaEvent::ToPhone(Message::StreamStart(StreamStart {
+                        stream: STREAM_CAMERA,
+                        codec: "h264".into(),
+                        params: serde_json::Map::new(),
+                    })));
+                }
+            }
             Feature::Speaker => self.update_speaker(),
-            _ => {}
         }
         let shown = self.shown();
         (self.emit)(MediaEvent::ToPhone(Message::State(shown)));
@@ -282,22 +315,23 @@ impl Hub for MediaHub {
                 // A feature turned off, or resumed on the phone (paused to on), drops the
                 // panel's pause of it.
                 let before = self.phone;
-                for (f, was, now) in [
+                for (f, _was, now) in [
                     (Feature::Mic, before.mic, s.mic),
                     (Feature::Camera, before.camera, s.camera),
                     (Feature::Speaker, before.speaker, s.speaker),
                 ] {
-                    if (now == FeatureState::Off
-                        || (was == FeatureState::Paused && now == FeatureState::On))
-                        && std::mem::take(&mut self.paused[f as usize])
-                        && now == FeatureState::On
-                    {
-                        match f {
-                            Feature::Mic => self.start_mic(),
-                            Feature::Camera if self.camera_on => {
-                                (self.emit)(MediaEvent::Camera(true))
+                    if now == FeatureState::Off {
+                        self.paused[f as usize] = false;
+                    } else if now == FeatureState::On {
+                        let was_paused = std::mem::take(&mut self.paused[f as usize]);
+                        if was_paused {
+                            match f {
+                                Feature::Mic => self.start_mic(),
+                                Feature::Camera if self.camera_on => {
+                                    (self.emit)(MediaEvent::Camera(true));
+                                }
+                                _ => {}
                             }
-                            _ => {}
                         }
                     }
                 }
@@ -407,8 +441,60 @@ mod tests {
         assert!(ev.iter().any(
             |e| matches!(e, MediaEvent::ToPhone(Message::State(s)) if s.mic == FeatureState::Paused)
         ));
+        // Turning mic off clears the pause flag.
+        h.handle(MediaMsg::FromPhone(Message::State(State {
+            mic: FeatureState::Off,
+            camera: FeatureState::On,
+            speaker: FeatureState::Off,
+        })));
+        assert_eq!(h.shown().mic, FeatureState::Off);
+        // Turning mic on now produces On, not Paused.
+        h.handle(MediaMsg::FromPhone(Message::State(State {
+            mic: FeatureState::On,
+            camera: FeatureState::On,
+            speaker: FeatureState::Off,
+        })));
+        assert_eq!(h.shown().mic, FeatureState::On);
         h.handle(MediaMsg::Ended);
         assert!(take(&events).contains(&MediaEvent::Camera(false)));
+    }
+
+    #[test]
+    fn camera_can_be_started_and_stopped_from_pc() {
+        let (mut h, events) = hub();
+        h.handle(MediaMsg::Link(3));
+        assert_eq!(h.shown().camera, FeatureState::Off);
+
+        // PC clicks camera to start it
+        h.handle(MediaMsg::Pause {
+            feature: Feature::Camera,
+            paused: false,
+        });
+        let ev = take(&events);
+        assert!(ev.iter().any(|e| matches!(
+            e,
+            MediaEvent::ToPhone(Message::StreamStart(s)) if s.stream == STREAM_CAMERA
+        )));
+
+        // Phone responds that camera is now ON
+        h.handle(start(STREAM_CAMERA, "h264"));
+        h.handle(MediaMsg::FromPhone(Message::State(State {
+            camera: FeatureState::On,
+            ..State::default()
+        })));
+        assert_eq!(h.shown().camera, FeatureState::On);
+
+        // PC clicks camera to stop/pause it
+        h.handle(MediaMsg::Pause {
+            feature: Feature::Camera,
+            paused: true,
+        });
+        let ev = take(&events);
+        assert!(ev.contains(&MediaEvent::Camera(false)));
+        assert!(ev.iter().any(|e| matches!(
+            e,
+            MediaEvent::ToPhone(Message::StreamStop(s)) if s.stream == STREAM_CAMERA
+        )));
     }
 
     #[test]

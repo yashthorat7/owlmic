@@ -9,7 +9,22 @@ use std::net::UdpSocket;
 /// Binds the media port, or any free port when another program holds it; discovery answers
 /// with the port actually bound.
 pub fn bind(port: u16) -> std::io::Result<UdpSocket> {
-    UdpSocket::bind(("0.0.0.0", port)).or_else(|_| UdpSocket::bind(("0.0.0.0", 0)))
+    let sock = UdpSocket::bind(("0.0.0.0", port)).or_else(|_| UdpSocket::bind(("0.0.0.0", 0)))?;
+    #[cfg(windows)]
+    {
+        use std::os::windows::io::AsRawSocket;
+        use windows::Win32::Networking::WinSock::{SO_RCVBUF, SOCKET, SOL_SOCKET, setsockopt};
+        let size: i32 = 1_048_576;
+        unsafe {
+            let _ = setsockopt(
+                SOCKET(sock.as_raw_socket() as usize),
+                SOL_SOCKET,
+                SO_RCVBUF,
+                Some(&size.to_ne_bytes()),
+            );
+        }
+    }
+    Ok(sock)
 }
 
 /// Receives media until the socket fails. Runs on its own supervised thread.

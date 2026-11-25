@@ -20,10 +20,6 @@ import zipfile
 
 ROOT = Path(__file__).resolve().parent.parent.parent
 DIST = ROOT / "dist"
-DIST_RELEASE = DIST / "release"
-DIST_ANDROID = DIST / "android"
-DIST_WINDOWS = DIST / "windows"
-DIST_LINUX = DIST / "linux"
 PACKAGING_MANIFEST = ROOT / "scripts" / "packaging" / "windows" / "dependencies.json"
 
 SOFTCAM_HASH = "9D635E0AF682A883C3C7D407513D47E59B0883771701B101216820DFCF997F0B"
@@ -103,11 +99,8 @@ def get_version() -> str:
 
 
 def ensure_dirs():
-    """Ensure release directories and driver cache exist."""
-    DIST_RELEASE.mkdir(parents=True, exist_ok=True)
-    DIST_ANDROID.mkdir(parents=True, exist_ok=True)
-    DIST_WINDOWS.mkdir(parents=True, exist_ok=True)
-    DIST_LINUX.mkdir(parents=True, exist_ok=True)
+    """Ensure dist directory and driver cache exist."""
+    DIST.mkdir(parents=True, exist_ok=True)
     (ROOT / "scripts" / "packaging" / "cache").mkdir(parents=True, exist_ok=True)
 
 
@@ -362,7 +355,7 @@ def update_dependency_link(component: str, url: str, expected_hash: str = None, 
 # PLATFORM BUILD IMPLEMENTATIONS
 # =============================================================================
 
-def build_android(version: str, out_dir: Path = DIST_ANDROID) -> Path | None:
+def build_android(version: str, out_dir: Path = DIST) -> Path | None:
     """Build production Android Release APK."""
     print("\n========================================================")
     print("  BUILDING ANDROID CLIENT (RELEASE APK)")
@@ -399,7 +392,7 @@ def build_android(version: str, out_dir: Path = DIST_ANDROID) -> Path | None:
     return dest_apk
 
 
-def build_windows(version: str, out_dir: Path = DIST_WINDOWS, mode: str = "all") -> list[Path]:
+def build_windows(version: str, out_dir: Path = DIST, mode: str = "all") -> list[Path]:
     """Build Windows packages (installer, portable standalone exe, or both)."""
     print("\n========================================================")
     print(f"  BUILDING WINDOWS DESKTOP ({mode.upper()})")
@@ -438,6 +431,11 @@ def build_windows(version: str, out_dir: Path = DIST_WINDOWS, mode: str = "all")
     if mode in ("all", "portable"):
         standalone = out_dir / f"Owlmic-v{version}-windows-x64.exe"
         shutil.copy2(exe, standalone)
+        vcam_dst = out_dir / "owlmic_vcam.dll"
+        shutil.copy2(vcam, vcam_dst)
+        softcam_cache = ROOT / "scripts" / "packaging" / "cache" / "softcam.dll"
+        if softcam_cache.exists():
+            shutil.copy2(softcam_cache, out_dir / "softcam.dll")
         size_mb = standalone.stat().st_size / (1024 * 1024)
         sha = sha256_file(standalone)
         print(f"\n  [SUCCESS] Windows Portable Binary: {standalone}")
@@ -480,7 +478,7 @@ def build_windows(version: str, out_dir: Path = DIST_WINDOWS, mode: str = "all")
     return artifacts
 
 
-def build_linux(version: str, out_dir: Path = DIST_LINUX) -> Path | None:
+def build_linux(version: str, out_dir: Path = DIST) -> Path | None:
     """Build Linux portable package (.tar.gz with systemd unit and setup scripts)."""
     print("\n========================================================")
     print("  BUILDING LINUX PACKAGE")
@@ -541,9 +539,9 @@ def generate_checksums(directory: Path = DIST) -> Path | None:
     directory.mkdir(parents=True, exist_ok=True)
     valid_exts = {".exe", ".apk", ".tar.gz", ".zip"}
     artifacts = []
-    for f in directory.rglob("*"):
-        if f.is_file() and f.suffix in valid_exts and f.name != "SHA256SUMS.txt":
-            rel = f.relative_to(directory).as_posix()
+    for f in directory.iterdir():
+        if f.is_file() and (f.suffix in valid_exts or f.name.endswith(".tar.gz")) and f.name != "SHA256SUMS.txt":
+            rel = f.name
             sha = sha256_file(f)
             artifacts.append((sha, rel, f.stat().st_size / (1024 * 1024)))
 
@@ -565,56 +563,50 @@ def generate_checksums(directory: Path = DIST) -> Path | None:
 
 
 def build_release(version: str) -> bool:
-    """Build everything directly into dist/release/ for GitHub release publishing."""
+    """Build everything directly into dist/ for GitHub release publishing."""
     print("\n########################################################")
     print(f"   STARTING FULL RELEASE BUILD (v{version})")
-    print("   Output Destination: dist/release/")
+    print("   Output Destination: dist/")
     print("########################################################")
     ensure_dirs()
     ok = True
 
     # 1. Android Client Release APK
-    apk = build_android(version, out_dir=DIST_RELEASE)
+    apk = build_android(version, out_dir=DIST)
     ok = (apk is not None) and ok
 
     # 2. Windows Installer & Standalone Executable
-    win_files = build_windows(version, out_dir=DIST_RELEASE, mode="all")
+    win_files = build_windows(version, out_dir=DIST, mode="all")
     ok = (len(win_files) > 0) and ok
 
     # 3. Linux Package
-    linux_pkg = build_linux(version, out_dir=DIST_RELEASE)
+    linux_pkg = build_linux(version, out_dir=DIST)
     ok = (linux_pkg is not None) and ok
 
-    # 4. Generate SHA256SUMS.txt inside dist/release/
-    generate_checksums(directory=DIST_RELEASE)
+    # 4. Generate SHA256SUMS.txt inside dist/
+    generate_checksums(directory=DIST)
 
     print("\n========================================================")
-    print("  [COMPLETE] FULL RELEASE BUNDLE READY IN dist/release/")
+    print("  [COMPLETE] FULL RELEASE BUNDLE READY IN dist/")
     print("========================================================")
-    print("  You can now drag-and-drop the contents of dist/release/ directly to GitHub Releases:")
-    for f in sorted(DIST_RELEASE.iterdir()):
+    print("  You can now drag-and-drop the contents of dist/ directly to GitHub Releases:")
+    for f in sorted(DIST.iterdir()):
         if f.is_file():
             print(f"    - {f.name:<40} ({f.stat().st_size / (1024 * 1024):.2f} MB)")
     return ok
 
 
 def build_all(version: str) -> bool:
-    """Build all platform targets into their respective platform folders."""
-    ensure_dirs()
-    ok = True
-    ok = (build_android(version, out_dir=DIST_ANDROID) is not None) and ok
-    ok = (len(build_windows(version, out_dir=DIST_WINDOWS, mode="all")) > 0) and ok
-    ok = (build_linux(version, out_dir=DIST_LINUX) is not None) and ok
-    generate_checksums(directory=DIST)
-    return ok
+    """Build all platform targets directly into dist/."""
+    return build_release(version)
 
 
 def build_pc(version: str) -> bool:
-    """Build PC Desktop targets only (Windows + Linux)."""
+    """Build PC Desktop targets only (Windows + Linux) directly into dist/."""
     ensure_dirs()
     ok = True
-    ok = (len(build_windows(version, out_dir=DIST_WINDOWS, mode="all")) > 0) and ok
-    ok = (build_linux(version, out_dir=DIST_LINUX) is not None) and ok
+    ok = (len(build_windows(version, out_dir=DIST, mode="all")) > 0) and ok
+    ok = (build_linux(version, out_dir=DIST) is not None) and ok
     generate_checksums(directory=DIST)
     return ok
 
@@ -690,12 +682,12 @@ def interactive_menu():
 ======================================================================
   Host Platform: {host_os} ({platform.machine()})
 
-  [1] Release Build      -> Full Release Bundle (All Platforms -> dist/release/)
-  [2] Build All          -> All Platforms into Platform Folders (dist/android, windows, linux)
-  [3] Desktop Build        -> Windows + Linux Only (dist/windows/, dist/linux/)
-  [4] Android Client Only-> APK -> dist/android/Owlmic-v{version}.apk
-  [5] Windows Build Only -> Installer + Portable -> dist/windows/
-  [6] Linux Build Only   -> Portable Archive -> dist/linux/
+  [1] Release Build      -> Full Release Bundle (All Platforms -> dist/)
+  [2] Build All          -> All Platforms (dist/)
+  [3] Desktop Build      -> Windows + Linux Only (dist/)
+  [4] Android Client Only-> APK -> dist/Owlmic-v{version}.apk
+  [5] Windows Build Only -> Installer + Portable -> dist/
+  [6] Linux Build Only   -> Portable Archive -> dist/
 
   --- Dependency & Packaging Maintenance ---
   [7] Manage Dependencies-> Audit, prefetch, or update VB-CABLE and softcam
@@ -719,11 +711,14 @@ def interactive_menu():
         elif choice == "3":
             build_pc(version)
         elif choice == "4":
-            build_android(version, out_dir=DIST_ANDROID)
+            if build_android(version, out_dir=DIST):
+                generate_checksums(directory=DIST)
         elif choice == "5":
-            build_windows(version, out_dir=DIST_WINDOWS, mode="all")
+            if build_windows(version, out_dir=DIST, mode="all"):
+                generate_checksums(directory=DIST)
         elif choice == "6":
-            build_linux(version, out_dir=DIST_LINUX)
+            if build_linux(version, out_dir=DIST):
+                generate_checksums(directory=DIST)
         elif choice == "7":
             dependencies_menu()
         elif choice == "8":
@@ -788,11 +783,17 @@ def main():
         elif args.target in ("desktop", "pc"):
             ok = build_pc(version)
         elif args.target == "android":
-            ok = (build_android(version, out_dir=DIST_ANDROID) is not None)
+            ok = (build_android(version, out_dir=DIST) is not None)
+            if ok:
+                generate_checksums(directory=DIST)
         elif args.target == "windows":
-            ok = (len(build_windows(version, out_dir=DIST_WINDOWS, mode="all")) > 0)
+            ok = (len(build_windows(version, out_dir=DIST, mode="all")) > 0)
+            if ok:
+                generate_checksums(directory=DIST)
         elif args.target == "linux":
-            ok = (build_linux(version, out_dir=DIST_LINUX) is not None)
+            ok = (build_linux(version, out_dir=DIST) is not None)
+            if ok:
+                generate_checksums(directory=DIST)
         sys.exit(0 if ok else 1)
     elif not (args.clean or args.verify):
         interactive_menu()

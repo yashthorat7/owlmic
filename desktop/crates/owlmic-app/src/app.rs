@@ -4,7 +4,7 @@
 use owlmic_devices::DeviceHealth;
 use owlmic_hub::{Health, Hub, Outbox, Publisher};
 use owlmic_link::{LinkEvent, LinkMsg, LinkView};
-use owlmic_media::hub::{Feature as MediaFeature, MediaEvent, MediaMsg};
+use owlmic_media::hub::{MediaEvent, MediaMsg};
 use owlmic_media::video::Framing;
 use owlmic_proto::messages::{FeatureState, Message, Settings, State};
 use owlmic_session::hub::{PhaseView, SessionEvent, SessionMsg, SessionView};
@@ -206,6 +206,9 @@ impl AppHub {
                 | Message::RestartStream(_)
                 | Message::Report(_)),
             ) => {
+                if let Message::State(s) = &m {
+                    self.state.features = *s;
+                }
                 self.w.media.send(MediaMsg::FromPhone(m));
             }
             LinkEvent::FromPhone(_) => {}
@@ -268,6 +271,7 @@ impl AppHub {
                 self.w.settings.send(SettingsMsg::Session(None));
                 self.state.restarting = [false; 4];
                 self.state.last_link = None;
+                self.state.features = State::default();
             }
             SessionEvent::Changed(view) => self.state.session = view,
         }
@@ -359,10 +363,10 @@ impl AppHub {
     fn on_ui(&mut self, a: Action) {
         match a {
             Action::Pause(which) => {
-                let (feature, now) = match which {
-                    Which::Mic => (MediaFeature::Mic, self.state.features.mic),
-                    Which::Camera => (MediaFeature::Camera, self.state.features.camera),
-                    Which::Speaker => (MediaFeature::Speaker, self.state.features.speaker),
+                let now = match which {
+                    Which::Mic => self.state.features.mic,
+                    Which::Camera => self.state.features.camera,
+                    Which::Speaker => self.state.features.speaker,
                 };
                 let next_on = now != FeatureState::On;
                 let next_state = if next_on {
@@ -378,10 +382,9 @@ impl AppHub {
                 self.w
                     .link
                     .send(LinkMsg::Send(Message::State(self.state.features)));
-                self.w.media.send(MediaMsg::Pause {
-                    feature,
-                    paused: !next_on,
-                });
+                self.w
+                    .media
+                    .send(MediaMsg::FromPhone(Message::State(self.state.features)));
             }
             Action::Cycle(id) => {
                 let current = self
@@ -630,6 +633,7 @@ mod tests {
             Some(LinkMsg::SessionEnded { .. })
         ));
         assert!(matches!(r.media.try_recv(), Some(MediaMsg::Ended)));
+        assert_eq!(r.hub.state.features, State::default());
     }
 
     #[test]
@@ -848,5 +852,31 @@ mod tests {
             .droppable()
         );
         assert!(!AppMsg::Ui(Action::Allow).droppable());
+    }
+
+    #[test]
+    fn toggling_features_sends_state_to_link_and_media() {
+        let mut r = rig();
+        r.hub.handle(AppMsg::Ui(Action::Pause(Which::Mic)));
+        assert!(matches!(
+            r.link.try_recv(),
+            Some(LinkMsg::Send(Message::State(s))) if s.mic == FeatureState::On
+        ));
+        assert!(matches!(
+            r.media.try_recv(),
+            Some(MediaMsg::FromPhone(Message::State(s))) if s.mic == FeatureState::On
+        ));
+        assert_eq!(r.ui.read().mic, Feature::On);
+
+        r.hub.handle(AppMsg::Ui(Action::Pause(Which::Mic)));
+        assert!(matches!(
+            r.link.try_recv(),
+            Some(LinkMsg::Send(Message::State(s))) if s.mic == FeatureState::Off
+        ));
+        assert!(matches!(
+            r.media.try_recv(),
+            Some(MediaMsg::FromPhone(Message::State(s))) if s.mic == FeatureState::Off
+        ));
+        assert_eq!(r.ui.read().mic, Feature::Off);
     }
 }

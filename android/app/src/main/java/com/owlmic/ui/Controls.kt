@@ -1,7 +1,10 @@
 package com.owlmic.ui
 
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.CubicBezierEasing
+import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -25,6 +28,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -83,7 +87,7 @@ fun ColumnScope.MicControls(state: AppState) {
     val isolationOn = (state.settings["mic.isolation"] ?: SettingsModel.find("mic.isolation")?.default) == "on"
     SettingToggle(state, "mic.autoLevel", Copy.string.setting_mic_auto_level, enabled = isolationOn)
     SettingSlider(state, "mic.noiseReduction", Copy.string.setting_mic_noise_reduction)
-    SettingSlider(state, "mic.volume", Copy.string.setting_mic_volume, fromMiddle = true)
+    SettingSlider(state, "mic.volume", Copy.string.setting_mic_volume, fromMiddle = true, showLive = true)
 }
 
 /** How a slider's step reads: noise reduction's 0 is Off; the volume is in dB with its sign. */
@@ -99,7 +103,7 @@ fun stepText(id: String, value: String): String = when {
  * centre (the volume's 0 dB) instead of from the start. A drag sends only where it ends, so the PC isn't flooded.
  */
 @Composable
-fun SettingSlider(state: AppState, id: String, label: Int, fromMiddle: Boolean = false) {
+fun SettingSlider(state: AppState, id: String, label: Int, fromMiddle: Boolean = false, showLive: Boolean = false) {
     val def = SettingsModel.find(id) ?: return
     val current = state.settings[id] ?: def.default
     val steps = def.values.size
@@ -110,6 +114,12 @@ fun SettingSlider(state: AppState, id: String, label: Int, fromMiddle: Boolean =
     val name = stringResource(label)
     val value = stepText(id, def.values[at])
 
+    val level by Owlmic.level.collectAsState()
+    val liveFill by animateFloatAsState(
+        if (showLive) waveLevel(level) else 0f,
+        tween(70, easing = LinearEasing),
+        label = "faderLive",
+    )
     val trackHeight by animateDpAsState(if (isDragging) 10.dp else 8.dp, tween(Theme.STATE_MS), label = "trackHeight")
     val capHeight by animateDpAsState(if (isDragging) 16.dp else 14.dp, tween(Theme.STATE_MS), label = "capHeight")
 
@@ -163,6 +173,16 @@ fun SettingSlider(state: AppState, id: String, label: Int, fromMiddle: Boolean =
                 size = Size(w, th),
                 cornerRadius = CornerRadius(tr, tr),
             )
+
+            // Live mic level behind fill: rgba(255, 255, 255, 0.28)
+            if (liveFill > 0.01f) {
+                drawRoundRect(
+                    color = Color(0x47FFFFFF),
+                    topLeft = Offset(0f, cy - tr),
+                    size = Size(w * liveFill.coerceIn(0f, 1f), th),
+                    cornerRadius = CornerRadius(tr, tr),
+                )
+            }
 
             // Fill
             val x = { i: Int -> (w * i / (steps - 1).coerceAtLeast(1)) }
@@ -232,7 +252,8 @@ fun SettingToggle(state: AppState, id: String, label: Int, enabled: Boolean = tr
 /** On: white pill and black thumb at the end. Off: black pill and dim white thumb at start. */
 @Composable
 fun Switch(on: Boolean) {
-    val at by animateDpAsState(if (on) 18.dp else 0.dp, tween(Theme.STATE_MS), label = "switch")
+    val ease = CubicBezierEasing(0.22f, 1f, 0.36f, 1f)
+    val at by animateDpAsState(if (on) 18.dp else 0.dp, tween(220, easing = ease), label = "switch")
     val trackBg by animateColorAsState(if (on) Color.White else Theme.bg, tween(Theme.STATE_MS), label = "switchTrackBg")
     val trackBorder by animateColorAsState(if (on) Color.White else Theme.chipOnEdge, tween(Theme.STATE_MS), label = "switchTrackBorder")
     val thumbBg by animateColorAsState(if (on) Theme.onContent else Theme.text2, tween(Theme.STATE_MS), label = "switchThumbBg")
