@@ -355,10 +355,9 @@ impl Hub for MediaHub {
                 self.phone = s;
                 self.update_speaker();
             }
-            MediaMsg::FromPhone(Message::Report(r)) => self
-                .media
-                .speaker
-                .set_loss(r.loss_pct.clamp(0.0, 100.0).round() as u8),
+            MediaMsg::FromPhone(Message::Report(r)) => {
+                self.media.speaker.report(r.loss_pct, r.jitter_ms, r.rtt_ms)
+            }
             MediaMsg::FromPhone(Message::RestartStream(s)) if s.stream == STREAM_SPEAKER => {
                 self.speaker_codec = None;
                 self.media.speaker.stop();
@@ -525,12 +524,18 @@ mod tests {
         })));
         let ev = take(&events);
         assert!(ev.contains(&MediaEvent::Speaker(true)));
-        assert!(ev.iter().any(|e| matches!(e, MediaEvent::ToPhone(Message::StreamStart(s)) if s.stream == 3 && s.codec == "pcm")));
-        h.handle(MediaMsg::Link(3));
+        assert!(ev.iter().any(|e| matches!(
+            e,
+            MediaEvent::ToPhone(Message::StreamStart(s))
+                if s.stream == 3 && s.codec == "opus" && s.params.get("frameMs") == Some(&10.into())
+        )));
+        h.handle(MediaMsg::Link(4));
         let ev = take(&events);
-        assert!(ev.iter().any(
-            |e| matches!(e, MediaEvent::ToPhone(Message::StreamStart(s)) if s.codec == "opus")
-        ));
+        assert!(ev.iter().any(|e| matches!(
+            e,
+            MediaEvent::ToPhone(Message::StreamStart(s))
+                if s.codec == "opus" && s.params.get("frameMs") == Some(&20.into())
+        )));
         assert!(
             !ev.contains(&MediaEvent::Speaker(false)),
             "a codec change keeps the capture running"

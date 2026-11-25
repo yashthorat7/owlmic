@@ -75,6 +75,14 @@ class MonitorTest {
     }
 
     @Test
+    fun reportsEveryTwoSecondsWhenSpeakerIsActive() {
+        val m = Monitor(wireless = true) { t }
+        val stats = InboundStats { t * 1_000 }
+        t += Monitor.SPEAKER_REPORT_EVERY_MS
+        assertEquals(0, m.report(stats, null, fast = true)!!.rttMs)
+    }
+
+    @Test
     fun aLinkIsWeakWhenAnswersAreLateSlowOrLossy() {
         val m = Monitor(wireless = true) { t }
         m.heard()

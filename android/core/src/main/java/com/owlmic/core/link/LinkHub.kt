@@ -658,7 +658,7 @@ class LinkHub(
         if (t - lastPing >= Monitor.HEARTBEAT_MS) {
             lastPing = t
             a.send(Ping(Monitor.nowUs()))
-            a.monitor.report(router.speakerStats, thermal())?.let(a::send)
+            a.monitor.report(router.speakerStats, thermal(), fast = speakerSince > 0)?.let(a::send)
         }
         if (t - lastConnectedSaved >= CONNECTED_SAVE_MS) {
             lastConnectedSaved = t

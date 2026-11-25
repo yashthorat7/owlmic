@@ -123,7 +123,7 @@ This document describes the capture, encoding, transmission, jitter compensation
 ## 3. Speaker Loopback Pipeline
 
 Owlmic allows the PC's audio to be monitored or played through the phone's speaker or headphones:
-- **PC WASAPI Capture**: Captures the default audio playback endpoint via WASAPI Loopback (`AUDCLNT_STREAMFLAGS_LOOPBACK`).
-- **Quiet PC Speakers**: When enabled in settings, Owlmic activates a lightweight virtual mute filter on the PC speakers while routing loopback audio to the phone.
-- **Streaming**: Encoded as stereo 48 kHz PCM (cable) or Opus at 128 kbps (Wi-Fi).
-- **Phone Playback**: Rendered via low-latency Android `AudioTrack` / `Oboe` sink directly to speaker or connected Bluetooth headphones.
+- **PC WASAPI Capture**: Captures the default audio playback endpoint via WASAPI Loopback (`AUDCLNT_STREAMFLAGS_LOOPBACK`), paced on a high-resolution 10 ms wall-clock timer with bounded backlog trimming (40 ms ceiling).
+- **Quiet PC Speakers**: When enabled in settings, Owlmic activates a lightweight virtual mute filter on the PC speakers while routing loopback audio to the phone (auto-detecting and unmuting devices whose hardware mute silences loopback).
+- **Streaming**: Encoded as compact 48 kHz stereo Opus across all links (`96 kbps` 10 ms on cable adapting 48–96 kbps, `64 kbps` 10 ms on Wi-Fi adapting 32–96 kbps, `48 kbps` 20 ms on Bluetooth adapting 24–64 kbps) using 2-second phone telemetry (`lossPct`, `jitterMs`, `rttMs`) to keep packets tiny (~40–120 B) and MTU-safe.
+- **Phone Playback**: Decoded with Opus FEC/PLC through an anti-replay adaptive jitter buffer (`Smoother`), drift-resampled ($\pm 0.4\%$) with smooth fade-in/fade-out, and rendered via a real-time Oboe `AudioStreamDataCallback` lock-free ring buffer.

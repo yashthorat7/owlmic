@@ -1,9 +1,14 @@
 package com.owlmic.media.audio
 
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.locks.ReentrantLock
+import kotlin.concurrent.withLock
+
 /**
  * The speaker's jitter buffer (section 17.3): holds just enough audio to ride out the network's timing. The target is
  * the 95th percentile of arrival jitter plus 10 ms, kept within [minMs, maxMs]. It fills before it plays, conceals
- * losses (with the next packet for Opus FEC), and drops a frame now and then when it runs well above target.
+ * losses (with the next packet for Opus FEC), and skips only on severe runaway backlog while the drift resampler
+ * handles clock mismatch smoothly.
  *
  * The playback thread shares its lock with the network thread, so nothing under it allocates or sorts: packets sit in
  * a ring indexed by seq, and the percentile comes from a running histogram.
@@ -18,11 +23,14 @@ class Smoother(private val frameMs: Int, private val minMs: Int, private val max
         data object Silence : Pull
     }
 
+    private val lock = ReentrantLock()
+    private val ready = lock.newCondition()
     private val slots = arrayOfNulls<ByteArray>(CAPACITY)
     private val tags = LongArray(CAPACITY) { NONE }
     private var count = 0
     private var highest = -1L
     private var next = -1L
+    private var started = false
     private var playing = false
     private var misses = 0
     private var lastArrival = 0L
@@ -35,8 +43,7 @@ class Smoother(private val frameMs: Int, private val minMs: Int, private val max
     var targetMs = minMs
         private set
 
-    @Synchronized
-    fun push(seq32: Long, data: ByteArray) {
+    fun push(seq32: Long, data: ByteArray) = lock.withLock {
         val seq = unwrap(seq32)
         val t = now()
         if (lastArrival > 0) {
@@ -44,7 +51,7 @@ class Smoother(private val frameMs: Int, private val minMs: Int, private val max
             targetMs = (percentile95() + 10).coerceIn(minMs, maxMs)
         }
         lastArrival = t
-        if (playing) {
+        if (started) {
             if (seq < next) return
             // Too far ahead to fit: what lies before it is too late to wait for.
             if (seq - next >= CAPACITY) {
@@ -68,18 +75,26 @@ class Smoother(private val frameMs: Int, private val minMs: Int, private val max
         slots[i] = data
         tags[i] = seq
         count++
+        if (!playing && count * frameMs >= targetMs) {
+            ready.signalAll()
+        }
     }
 
-    @Synchronized
-    fun pull(): Pull {
+    fun pull(): Pull = lock.withLock {
         if (!playing) {
             if (count * frameMs < targetMs) return Pull.Silence
             playing = true
             misses = 0
-            next = lowest()
+            next = if (!started) {
+                started = true
+                lowest()
+            } else {
+                maxOf(next, lowest())
+            }
         }
-        // Well above target: skip a frame to bring the delay back down.
-        if (count * frameMs > targetMs + CATCH_UP_FRAMES * frameMs && take(next) != null) next++
+        // Only hard-skip on severe backlog past maxMs; normal drift is handled smoothly by the resampler.
+        val hardCapMs = maxOf(maxMs, targetMs + CATCH_UP_FRAMES * frameMs)
+        if (count * frameMs > hardCapMs && take(next) != null) next++
         take(next)?.let {
             next++
             misses = 0
@@ -98,8 +113,22 @@ class Smoother(private val frameMs: Int, private val minMs: Int, private val max
         return Pull.Lost(following)
     }
 
-    @Synchronized
-    fun buffered() = count
+    fun awaitReady(timeoutMs: Long): Boolean = lock.withLock {
+        if (playing || count * frameMs >= targetMs) return true
+        try {
+            ready.await(timeoutMs, TimeUnit.MILLISECONDS)
+        } catch (_: InterruptedException) {
+        }
+        playing || count * frameMs >= targetMs
+    }
+
+    fun wakeup() = lock.withLock {
+        ready.signalAll()
+    }
+
+    fun buffered() = lock.withLock { count }
+
+    fun bufferedMs() = lock.withLock { count * frameMs }
 
     private fun index(seq: Long) = (seq and (CAPACITY - 1).toLong()).toInt()
 
