@@ -35,7 +35,7 @@ impl IClassFactory_Impl for Factory_Impl {
         if unsafe { activate.query(iid, out) }.is_ok() {
             return Ok(());
         }
-        unsafe { source::create()?.query(iid, out).ok() }
+        unsafe { source::create(None)?.query(iid, out).ok() }
     }
 
     fn LockServer(&self, lock: BOOL) -> Result<()> {
@@ -72,7 +72,7 @@ impl IMFActivate_Impl for Activate_Impl {
     fn ActivateObject(&self, iid: *const GUID, out: *mut *mut c_void) -> Result<()> {
         let mut slot = self.source.lock().unwrap_or_else(|p| p.into_inner());
         if slot.is_none() {
-            *slot = Some(source::create()?);
+            *slot = Some(source::create(Some(&self.attributes))?);
         }
         unsafe { slot.as_ref().unwrap().query(iid, out).ok() }
     }

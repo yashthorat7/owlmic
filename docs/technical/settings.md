@@ -31,9 +31,8 @@ All setting keys, allowable value enums, scopes, and target UI visibility rules 
 | `camera.frameRate` | `24`, `30`, `60` | `24` | shared | phone, pc | Video capture frame rate |
 | `camera.orientation` | `auto`, `landscape`, `portrait` | `auto` | shared | phone | Camera sensor orientation lock |
 | `camera.ratio` | `full`, `16:9`, `4:3`, `1:1`, `3:4`, `9:16` | `full` | shared | phone, pc | Shape of the picture the PC receives: the sensor's whole frame, or a crop the user picks |
-| `camera.mirrorPreview` | `off`, `on` | `on` | phone | phone | Mirrors the phone's own preview only, never what the PC receives |
 | `camera.framing` | `fill`, `fit` | `fit` | pc | pc | How the PC's 16:9 virtual camera shows a picture of another shape: `fit` (the default) shows all of it with bars, `fill` crops it |
-| `camera.mirror` | `off`, `on` | `off` | pc | pc | Horizontal video mirroring |
+| `camera.mirror` | `off`, `on` | `off` | shared | phone, pc | Horizontal video mirroring synced between phone preview and PC preview/virtual camera |
 | `speaker.quietPc` | `on`, `off` | `on` | pc | pc | Mute PC physical speakers during loopback |
 | `link.usbDebugging` | `on`, `off` | `on` | shared | phone, pc | Allow Level 1 ADB transport |
 | `link.usbTethering` | `on`, `off` | `on` | shared | phone, pc | Allow Level 2 USB tethering transport |

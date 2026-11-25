@@ -76,7 +76,12 @@ class SettingsHub(private val store: Store, private val emit: (SettingsEvent) ->
             }
             is SettingsMsg.Remote -> {
                 val snapshot = awaitingSnapshot
-                val (next, changed) = SettingValues.applyRemote(values, message.changes, keep = if (snapshot) pending else emptySet())
+                val (next, changed) = SettingValues.applyRemote(
+                    values,
+                    message.changes,
+                    keep = if (snapshot) pending else emptySet(),
+                    authoritative = snapshot,
+                )
                 values = next
                 if (snapshot) {
                     awaitingSnapshot = false

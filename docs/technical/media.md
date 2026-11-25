@@ -90,7 +90,7 @@ This document describes the capture, encoding, transmission, jitter compensation
 ### Android Camera Capture & GPU Processing
 - **CameraX Pipeline**: Captures camera frames into a private `SurfaceTexture`.
 - **Lens (`camera.lens`)**: the front lens by default; a phone or tablet without the lens asked for uses the other one.
-- **Mirror preview (`camera.mirrorPreview`)**: on by default, so your own view reads like a mirror; what the PC gets is never mirrored.
+- **Mirror (`camera.mirror`)**: shared between phone and PC (`off` by default); the phone's encoder always sends upright un-mirrored frames while the phone preview and PC output mirror together without double-mirroring.
 - **Ratio (`camera.ratio`)**: `full` (the default) sends everything the sensor captures, at its own aspect, nothing cut: the camera binds the sensor's own frame (4:3 unless its active area is 16:9, read through Camera2 interop), and the encoder takes its shape from the real bound frame, upright for the hold, at the plan's short side (1080p: 1440x1080 sideways, 1080x1440 upright on a 4:3 sensor; 720p: 960x720 and 720x960). The long side is rounded to a multiple of 16. Front and back lenses alike.
   - The presets crop only because the user picked them, and keep their exact shape whichever way the phone is held: 16:9, 4:3, 1:1 or 9:16, at 1080p 1920x1080, 1440x1080, 1080x1080 or 1080x1920 (720p: 1280x720, 960x720, 720x720, 720x1280). 4:3 and 1:1 bind the sensor's 4:3 frame, 16:9 and 9:16 its 16:9 frame, so the crop loses as little of the view as it can.
   - The starting bitrate follows the pixel count. The bound size is given in the sensor's own landscape terms, as CameraX compares it.
@@ -100,7 +100,7 @@ This document describes the capture, encoding, transmission, jitter compensation
   - The PC always gets the picture upright and never mirrored.
   - The on-screen preview shows exactly what is sent, fitted whole and turned the way the phone is held so it reads upright. Only when fitting leaves empty space is it filled, with a blurred, dimmed duplicate of the same shown picture (never the parts a preset cut away); a picture that fills the preview gets nothing behind it.
   - The preview can go and come back at any time (the eye button turns it off): a surface that goes is released on the GL thread before the call returns, along with the backdrop's textures, and the encoder is not touched.
-  - `camera.mirrorPreview` (phone only) flips just the preview. Changing it needs no new encoder and no rebind.
+  - `camera.mirror` (shared) flips both the phone's preview and the PC's preview/virtual camera. Changing it needs no new encoder and no rebind.
   - The camera counts as bound only once CameraX has bound it, so a config that arrives while a bind is pending binds again instead of being lost.
   - Fill or Fit (`camera.framing`) is the PC's: how the virtual camera, always 1920x1080, shows a picture whose shape differs from its own. Fit (the default) shows all of a 4:3 picture with bars at the sides; Fill crops its top and bottom.
 - **Hardware Encoder**: Feeds GPU textures directly into Android's hardware `MediaCodec` H.264 encoder.

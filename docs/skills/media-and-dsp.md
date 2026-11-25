@@ -67,7 +67,7 @@ Network Transmission (UDP :7655 / TCP :7653) ───────────�
    - Max packet payload size is **1,200 bytes**.
    - With 10-byte Owlmic media header and transport headers, datagrams remain strictly under 1,232 bytes, avoiding IP fragmentation on all networks.
 3. **Orientation & Framing**:
-   - CameraX preview mirror is for phone UI only (`camera.mirrorPreview`). The video feed sent to the PC is **never mirrored** and is **always upright**.
+   - `camera.mirror` is shared (`phone, pc`); the Android encoder always sends **un-mirrored, upright** frames while phone preview and PC preview/virtual camera apply horizontal mirroring symmetrically.
    - Presets maintain exact aspect ratios (16:9, 4:3, 1:1, 9:16). PC applies `Fit` (letterbox) or `Fill` (crop) via virtual camera settings.
 4. **Loss Recovery**:
    - If any fragment of an H.264 frame is lost, the entire frame is dropped.

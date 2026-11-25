@@ -25,17 +25,24 @@ object SettingValues {
 
     /**
      * The PC's changes: a shared setting moves when the change is at least as new as ours, except those in [keep].
+     * When [authoritative] is true (the PC's snapshot right after WELCOME), non-pending shared settings align to the
+     * PC's exact value and version so stale local versions never block future PC edits.
      * Returns the new map and what changed.
      */
-    fun applyRemote(values: Map<String, Versioned>, changes: List<SettingChange>, keep: Set<String> = emptySet()): Pair<Map<String, Versioned>, Set<String>> {
+    fun applyRemote(
+        values: Map<String, Versioned>,
+        changes: List<SettingChange>,
+        keep: Set<String> = emptySet(),
+        authoritative: Boolean = false,
+    ): Pair<Map<String, Versioned>, Set<String>> {
         val out = values.toMutableMap()
         val changed = mutableSetOf<String>()
         for (c in changes) {
             if (!isShared(c.id) || !isValid(c.id, c.value) || c.id in keep) continue
             val mine = out[c.id]
-            if (mine == null || c.version >= mine.version) {
+            if (authoritative || mine == null || c.version >= mine.version) {
                 if (mine?.value != c.value) changed += c.id
-                out[c.id] = Versioned(c.value, maxOf(c.version, mine?.version ?: 0))
+                out[c.id] = Versioned(c.value, if (authoritative) c.version else maxOf(c.version, mine?.version ?: 0))
             }
         }
         return out to changed

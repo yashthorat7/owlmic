@@ -267,7 +267,7 @@ private fun Content(
                         ) { onCamMenuClose() },
                 )
             }
-            val mirrored = (state.settings["camera.mirrorPreview"] ?: SettingsModel.find("camera.mirrorPreview")?.default) == "on"
+            val mirrored = (state.settings["camera.mirror"] ?: SettingsModel.find("camera.mirror")?.default) == "on"
             val maxMenuWidth = maxWidth - 24.dp
             Box(
                 Modifier
@@ -281,9 +281,9 @@ private fun Content(
                     horizontalArrangement = Arrangement.spacedBy(9.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    CamHudButton(Glyph.MIRROR, on = mirrored, label = stringResource(Copy.string.setting_camera_mirror_preview)) {
+                    CamHudButton(Glyph.MIRROR, on = mirrored, label = stringResource(Copy.string.setting_camera_mirror)) {
                         onCamMenuClose()
-                        Owlmic.post(AppMsg.Setting("camera.mirrorPreview", if (mirrored) "off" else "on"))
+                        Owlmic.post(AppMsg.Setting("camera.mirror", if (mirrored) "off" else "on"))
                     }
                     CamHudButton(Glyph.FLIP, on = false, label = stringResource(Copy.string.phone_flip_camera)) {
                         onCamMenuClose()

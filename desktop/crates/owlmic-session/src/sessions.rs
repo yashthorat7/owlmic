@@ -271,8 +271,22 @@ impl Sessions {
 }
 
 fn remember(store: &mut StoreData, phone: &Phone, now_secs: u64) {
+    let key = crate::hex(&phone.id);
+    // Replace stale unblocked entries for the same device (e.g. after an app reinstall).
+    let stale: Vec<String> = store
+        .phones
+        .iter()
+        .filter(|(id, r)| {
+            *id != &key && !r.blocked && r.name == phone.name && r.model == phone.model
+        })
+        .map(|(id, _)| id.clone())
+        .collect();
+    for id in stale {
+        store.phones.remove(&id);
+        store.pairings.remove(&id);
+    }
     store.phones.insert(
-        crate::hex(&phone.id),
+        key,
         PhoneRecord {
             name: phone.name.clone(),
             model: phone.model.clone(),
@@ -379,5 +393,25 @@ mod tests {
         s.begin_approval(4, phone(1, "k"), "1111".into(), 3, t);
         s.connection_closed(4);
         assert_eq!(*s.phase(), Phase::Idle);
+    }
+
+    #[test]
+    fn re_pairing_the_same_device_replaces_stale_unblocked_record() {
+        let mut store = StoreData::default();
+        let mut s = Sessions::default();
+        let old = phone(1, "k1");
+        s.activate(&mut store, old.clone(), [1; 16], 3, 10);
+        store
+            .pairings
+            .insert(crate::hex(&old.id), Default::default());
+
+        let mut reinstalled = phone(2, "k2");
+        reinstalled.name = old.name.clone();
+        reinstalled.model = old.model.clone();
+        s.activate(&mut store, reinstalled.clone(), [2; 16], 3, 20);
+
+        assert_eq!(store.phones.len(), 1);
+        assert!(store.phones.contains_key(&crate::hex(&reinstalled.id)));
+        assert!(!store.pairings.contains_key(&crate::hex(&old.id)));
     }
 }

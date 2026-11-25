@@ -5,17 +5,36 @@ use crate::exports::LIVE;
 use crate::shared::{HEIGHT, WIDTH};
 use crate::stream::Stream;
 use std::ffi::c_void;
+use std::mem::ManuallyDrop;
 use std::sync::Mutex;
 use std::sync::atomic::Ordering;
-use windows::Win32::Foundation::{E_INVALIDARG, E_POINTER, ERROR_SET_NOT_FOUND};
+use windows::Win32::Foundation::{E_INVALIDARG, E_NOTIMPL, E_POINTER, ERROR_SET_NOT_FOUND};
 use windows::Win32::Media::KernelStreaming::{
-    IKsControl, IKsControl_Impl, KSIDENTIFIER, PINNAME_VIDEO_CAPTURE,
+    IKsControl, IKsControl_Impl, KSCAMERAPROFILE_HighFrameRate, KSCAMERAPROFILE_Legacy,
+    KSIDENTIFIER, PINNAME_VIDEO_CAPTURE,
 };
 use windows::Win32::Media::MediaFoundation::*;
-use windows::Win32::System::Com::StructuredStorage::PROPVARIANT;
-use windows::core::{ComObject, GUID, HRESULT, IUnknown, Ref, Result, implement};
+use windows::Win32::System::Com::StructuredStorage::{
+    PROPVARIANT, PROPVARIANT_0, PROPVARIANT_0_0, PROPVARIANT_0_0_0,
+};
+use windows::Win32::System::Variant::VT_I8;
+use windows::core::{
+    ComObject, GUID, HRESULT, IUnknown, Interface, PCWSTR, Ref, Result, implement, w,
+};
 
 pub const RATES: [u32; 2] = [30, 60];
+
+fn prop_i64(value: i64) -> PROPVARIANT {
+    PROPVARIANT {
+        Anonymous: PROPVARIANT_0 {
+            Anonymous: ManuallyDrop::new(PROPVARIANT_0_0 {
+                vt: VT_I8,
+                Anonymous: PROPVARIANT_0_0_0 { hVal: value },
+                ..Default::default()
+            }),
+        },
+    }
+}
 
 fn media_type(fps: u32) -> Result<IMFMediaType> {
     unsafe {
@@ -33,7 +52,7 @@ fn media_type(fps: u32) -> Result<IMFMediaType> {
     }
 }
 
-pub fn create() -> Result<IMFMediaSourceEx> {
+pub fn create(activate_attrs: Option<&IMFAttributes>) -> Result<IMFMediaSourceEx> {
     unsafe {
         let types = [Some(media_type(RATES[0])?), Some(media_type(RATES[1])?)];
         let descriptor = MFCreateStreamDescriptor(0, &types)?;
@@ -54,10 +73,27 @@ pub fn create() -> Result<IMFMediaSourceEx> {
         let presentation = MFCreatePresentationDescriptor(Some(&[Some(descriptor.clone())]))?;
         presentation.SelectStream(0)?;
         let mut attributes = None;
-        MFCreateAttributes(&mut attributes, 1)?;
+        MFCreateAttributes(&mut attributes, 2)?;
+        let attributes = attributes.ok_or(E_POINTER)?;
+        if let Some(a) = activate_attrs {
+            let _ = a.CopyAllItems(&attributes);
+        }
+        if let Ok(profiles) = MFCreateSensorProfileCollection() {
+            if let Ok(legacy) = MFCreateSensorProfile(&KSCAMERAPROFILE_Legacy, 0, PCWSTR::null()) {
+                let _ = legacy.AddProfileFilter(0, w!("((RES==;FRT<=30,1;SUT==))"));
+                let _ = profiles.AddProfile(&legacy);
+            }
+            if let Ok(hfr) =
+                MFCreateSensorProfile(&KSCAMERAPROFILE_HighFrameRate, 0, PCWSTR::null())
+            {
+                let _ = hfr.AddProfileFilter(0, w!("((RES==;FRT>=60,1;SUT==))"));
+                let _ = profiles.AddProfile(&hfr);
+            }
+            let _ = attributes.SetUnknown(&MF_DEVICEMFT_SENSORPROFILE_COLLECTION, &profiles);
+        }
         let source = ComObject::new(Source {
             queue: MFCreateEventQueue()?,
-            attributes: attributes.ok_or(E_POINTER)?,
+            attributes,
             presentation,
             stream_attributes: stream_attributes.clone(),
             stream: Mutex::new(None),
@@ -69,7 +105,7 @@ pub fn create() -> Result<IMFMediaSourceEx> {
     }
 }
 
-#[implement(IMFMediaSourceEx, IMFGetService, IKsControl)]
+#[implement(IMFMediaSourceEx, IMFGetService, IKsControl, IMFSampleAllocatorControl)]
 struct Source {
     queue: IMFMediaEventQueue,
     attributes: IMFAttributes,
@@ -138,11 +174,7 @@ impl IMFMediaSource_Impl for Source_Impl {
         if !time_format.is_null() && unsafe { *time_format } != GUID::zeroed() {
             return Err(MF_E_UNSUPPORTED_TIME_FORMAT.into());
         }
-        let start_pos = if _start.is_null() {
-            PROPVARIANT::default()
-        } else {
-            unsafe { (*_start).clone() }
-        };
+        let start_pos = unsafe { prop_i64(MFGetSystemTime()) };
         unsafe {
             for i in 0..presentation.GetStreamDescriptorCount()? {
                 let mut selected = Default::default();
@@ -183,13 +215,13 @@ impl IMFMediaSource_Impl for Source_Impl {
         if stream.is_running() {
             stream.stop()?;
         }
-        let empty = PROPVARIANT::default();
+        let stop_pos = unsafe { prop_i64(MFGetSystemTime()) };
         unsafe {
             self.queue.QueueEventParamVar(
                 MESourceStopped.0 as u32,
                 &GUID::zeroed(),
                 HRESULT(0),
-                &empty,
+                &stop_pos,
             )
         }
     }
@@ -219,6 +251,37 @@ impl IMFMediaSourceEx_Impl for Source_Impl {
     }
 
     fn SetD3DManager(&self, _manager: Ref<IUnknown>) -> Result<()> {
+        Err(E_NOTIMPL.into())
+    }
+}
+
+impl IMFSampleAllocatorControl_Impl for Source_Impl {
+    fn SetDefaultAllocator(&self, id: u32, allocator: Ref<IUnknown>) -> Result<()> {
+        if id != 0 {
+            return Err(E_INVALIDARG.into());
+        }
+        let stream = self.stream()?;
+        let allocator: IMFVideoSampleAllocator = allocator.ok()?.cast()?;
+        stream.set_allocator(allocator)
+    }
+
+    fn GetAllocatorUsage(
+        &self,
+        id: u32,
+        input_id: *mut u32,
+        usage: *mut MFSampleAllocatorUsage,
+    ) -> Result<()> {
+        if id != 0 {
+            return Err(E_INVALIDARG.into());
+        }
+        if input_id.is_null() || usage.is_null() {
+            return Err(E_POINTER.into());
+        }
+        self.stream()?;
+        unsafe {
+            *input_id = 0;
+            *usage = MFSampleAllocatorUsage_UsesProvidedAllocator;
+        }
         Ok(())
     }
 }

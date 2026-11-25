@@ -111,10 +111,10 @@ jobs:
           $version = (Select-String -Path desktop\Cargo.toml -Pattern '^version = "(.+)"').Matches[0].Groups[1].Value
           $iscc = Get-ChildItem "${env:ProgramFiles(x86)}\Inno Setup *\ISCC.exe", "$env:ProgramFiles\Inno Setup *\ISCC.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
           if (-not $iscc) { throw "Inno Setup's compiler wasn't found" }
-          if (-not (Test-Path "dist\windows")) { New-Item -ItemType Directory -Path dist\windows | Out-Null }
+          if (-not (Test-Path "dist")) { New-Item -ItemType Directory -Path dist | Out-Null }
           & $iscc.FullName "/DMyAppVersion=$version" scripts\packaging\windows\owlmic.iss
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          Copy-Item desktop\target\release\owlmic.exe "dist\windows\Owlmic-v$version-windows-x64.exe"
+          Copy-Item desktop\target\release\owlmic.exe "dist\Owlmic-v$version-windows-x64.exe"
 
       - name: Check the installer size
         shell: pwsh

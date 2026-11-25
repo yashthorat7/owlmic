@@ -207,7 +207,10 @@ class AppHub(private val app: Application, private val onState: (AppState) -> Un
             }
             is AppMsg.Resume -> if (state.connected) resume(message.feature)
             AppMsg.StopAll -> Feature.entries.forEach { if (state.feature(it).phase != FeaturePhase.OFF) setFeature(it, false) }
-            AppMsg.FlipLens -> settings.post(SettingsMsg.Change("camera.lens", if (state.settings["camera.lens"] == "front") "back" else "front"))
+            AppMsg.FlipLens -> {
+                val current = state.settings["camera.lens"] ?: SettingsModel.find("camera.lens")?.default
+                settings.post(SettingsMsg.Change("camera.lens", if (current == "front") "back" else "front"))
+            }
             is AppMsg.Setting -> settings.post(SettingsMsg.Change(message.id, message.value))
             is AppMsg.ChoosePc -> link.post(LinkMsg.Choose(message.id))
             AppMsg.AskAgain -> link.post(LinkMsg.AskAgain)
@@ -360,7 +363,7 @@ class AppHub(private val app: Application, private val onState: (AppState) -> Un
                 else -> Orientation.AUTO
             },
             ratio = Ratio.of(s["camera.ratio"]),
-            mirrorPreview = (s["camera.mirrorPreview"] ?: SettingsModel.find("camera.mirrorPreview")?.default) == "on",
+            mirrorPreview = (s["camera.mirror"] ?: SettingsModel.find("camera.mirror")?.default) == "on",
         )
     }
 

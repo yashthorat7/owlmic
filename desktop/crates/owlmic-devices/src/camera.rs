@@ -163,7 +163,7 @@ fn run(
                 errors = 0;
                 preview.set_stream_size(picture.width, picture.height);
                 let (framing, mirror) = shape.get();
-                picture.shape_into(&mut out, framing, mirror);
+                picture.shape_into(&mut out, framing, !mirror);
                 feed.write(&out);
                 has_picture = true;
                 last = Instant::now();
