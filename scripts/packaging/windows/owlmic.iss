@@ -5,7 +5,7 @@
 ; driver files in installer\driver (the CI workflow windows-installer.yml does both).
 
 #ifndef MyAppVersion
-  #define MyAppVersion "1.0.0"
+  #define MyAppVersion "1.1.0"
 #endif
 #ifndef OwlmicExe
   #define OwlmicExe "..\..\..\desktop\target\release\owlmic.exe"

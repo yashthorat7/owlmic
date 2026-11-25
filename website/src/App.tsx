@@ -153,7 +153,7 @@ export default function App() {
             alt="Owlmic"
           />
           <span className="brand-name">owlmic</span>
-          <span className="version-tag">v1.0.0</span>
+          <span className="version-tag">v1.1.0</span>
         </div>
 
         <nav className="nav-links" aria-label="Main Navigation">
@@ -283,7 +283,7 @@ export default function App() {
             <div className="hero-pill">
               <span className="pill-dot"></span>
               <span>
-                v1.0.0 Production Release Now Available · 100% Free &amp; Open
+                v1.1.0 Production Release Now Available · 100% Free &amp; Open
                 Source
               </span>
             </div>
@@ -300,7 +300,7 @@ export default function App() {
 
             <div className="hero-cta">
               <a
-                href="https://github.com/diveshpatil9104/owlmic/releases/download/v1.0.0/Owlmic-Setup-1.0.0.exe"
+                href="https://github.com/diveshpatil9104/owlmic/releases/download/v1.1.0/Owlmic-Setup-1.1.0.exe"
                 className="btn primary-btn"
               >
                 <svg
@@ -319,7 +319,7 @@ export default function App() {
               </a>
 
               <a
-                href="https://github.com/diveshpatil9104/owlmic/releases/download/v1.0.0/owlmic-1.0.0.apk"
+                href="https://github.com/diveshpatil9104/owlmic/releases/download/v1.1.0/Owlmic-v1.1.0.apk"
                 className="btn secondary-btn"
               >
                 <svg

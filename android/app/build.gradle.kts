@@ -11,8 +11,8 @@ android {
         applicationId = "com.owlmic"
         minSdk = 26
         targetSdk = 36
-        versionCode = 2
-        versionName = "1.0.0"
+        versionCode = 3
+        versionName = "1.1.0"
 
         // The native code (Oboe, Opus) is built for phones only; Android has been 64-bit or ARMv7 on every phone since 8.0.
         ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a") }

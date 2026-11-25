@@ -69,20 +69,21 @@ def print_banner(version: str):
 
   {YELLOW}[ Repository Setup ]{RESET}
   [11] Setup Git Hooks     -> Activate core.hooksPath -> scripts/hooks
+  [12] Release Update      -> Bump version manifests & generate AI prompt
 
   {YELLOW}[ Packaging Dependencies & Setup ]{RESET}
-  [12] Manage Dependencies -> Audit, prefetch, or update VB-CABLE and softcam
+  [13] Manage Dependencies -> Audit, prefetch, or update VB-CABLE and softcam
 
   [0] Exit
 ----------------------------------------------------------------------""")
 
 
 def interactive_menu():
-    version = get_version()
     while True:
+        version = get_version()
         print_banner(version)
         try:
-            choice = input("Select an option [0-12]: ").strip()
+            choice = input("Select an option [0-13]: ").strip()
         except (KeyboardInterrupt, EOFError):
             print("\nExiting.")
             sys.exit(0)
@@ -110,6 +111,8 @@ def interactive_menu():
         elif choice == "11":
             run_script("setup-hooks.py")
         elif choice == "12":
+            run_script("release-update.py")
+        elif choice == "13":
             print("\n  [1] Check / Audit Dependencies Status")
             print("  [2] Prefetch / Refresh All Dependencies to Local Folders")
             print("  [3] Update Remote Link / Build URL")
@@ -134,7 +137,7 @@ def interactive_menu():
             print("Exiting.")
             sys.exit(0)
         else:
-            print(f"{RED}Invalid selection. Please choose an option from 0 to 12.{RESET}")
+            print(f"{RED}Invalid selection. Please choose an option from 0 to 13.{RESET}")
 
         try:
             input("\nPress Enter to return to menu...")
@@ -156,6 +159,7 @@ Commands:
   verify                                        Verify repo invariants
   deps [--check|--fetch]                        Audit or prefetch packaging dependencies
   hooks                                         Configure git hooks
+  release-update [--version X.Y.Z]              Bump release version & print AI prompt
   help, -h, --help                              Show this help message
 
 Run without arguments to launch the interactive menu:
@@ -188,6 +192,8 @@ def main():
             sys.exit(run_script("build.py", [flag]))
         elif cmd == "hooks":
             sys.exit(run_script("setup-hooks.py"))
+        elif cmd == "release-update":
+            sys.exit(run_script("release-update.py", sys.argv[2:]))
         else:
             print(f"Unknown command: {cmd}")
             print_help()

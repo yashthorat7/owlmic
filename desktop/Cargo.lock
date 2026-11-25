@@ -407,7 +407,7 @@ checksum = "c08d65885ee38876c4f86fa503fb49d7b507c2b62552df7c70b2fce627e06381"
 
 [[package]]
 name = "owlmic-app"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "owlmic-devices",
  "owlmic-hub",
@@ -426,7 +426,7 @@ dependencies = [
 
 [[package]]
 name = "owlmic-devices"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "base64",
  "owlmic-hub",
@@ -440,11 +440,11 @@ dependencies = [
 
 [[package]]
 name = "owlmic-hub"
-version = "1.0.0"
+version = "1.1.0"
 
 [[package]]
 name = "owlmic-link"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "base64",
  "owlmic-hub",
@@ -457,7 +457,7 @@ dependencies = [
 
 [[package]]
 name = "owlmic-linux"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "owlmic-hub",
  "owlmic-platform",
@@ -466,7 +466,7 @@ dependencies = [
 
 [[package]]
 name = "owlmic-media"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "cc",
  "nnnoiseless",
@@ -477,14 +477,14 @@ dependencies = [
 
 [[package]]
 name = "owlmic-platform"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "owlmic-hub",
 ]
 
 [[package]]
 name = "owlmic-proto"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "aes-gcm",
  "base64",
@@ -499,7 +499,7 @@ dependencies = [
 
 [[package]]
 name = "owlmic-session"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "base64",
  "owlmic-hub",
@@ -509,7 +509,7 @@ dependencies = [
 
 [[package]]
 name = "owlmic-settings"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "owlmic-hub",
  "owlmic-proto",
@@ -519,7 +519,7 @@ dependencies = [
 
 [[package]]
 name = "owlmic-ui"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "owlmic-hub",
  "serde_json",
@@ -530,7 +530,7 @@ dependencies = [
 
 [[package]]
 name = "owlmic-vcam"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "owlmic-media",
  "owlmic-ui",
@@ -540,7 +540,7 @@ dependencies = [
 
 [[package]]
 name = "owlmic-windows"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "owlmic-devices",
  "owlmic-hub",

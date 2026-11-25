@@ -32,15 +32,15 @@ Owlmic adheres to [Semantic Versioning 2.0.0](https://semver.org/).
 
 When all checks are green:
 ```bash
-git tag -a v1.0.0 -m "Release v1.0.0"
-git push origin v1.0.0
+git tag -a v1.1.0 -m "Release v1.1.0"
+git push origin v1.1.0
 ```
 
 GitHub Actions triggers the release workflow (`.github/workflows/release.yml`) to build the Windows and Linux packages and open a draft release with `SHA256SUMS.txt`, while the Android APK/AAB is signed offline with the release key and attached before publishing:
-- `Owlmic-Setup-1.0.0.exe`: Standalone Windows Installer with SHA-256 checksum.
-- `Owlmic-v1.0.0-linux-x86_64.tar.gz`: Linux standalone portable archive with systemd unit.
-- `Owlmic-v1.0.0.apk`: Sideloadable Android universal APK.
-- `Owlmic-v1.0.0.aab`: Android App Bundle for Google Play Console submission.
+- `Owlmic-Setup-1.1.0.exe`: Standalone Windows Installer with SHA-256 checksum.
+- `Owlmic-v1.1.0-linux-x86_64.tar.gz`: Linux standalone portable archive with systemd unit.
+- `Owlmic-v1.1.0.apk`: Sideloadable Android universal APK.
+- `Owlmic-v1.1.0.aab`: Android App Bundle for Google Play Console submission.
 
 ---
 

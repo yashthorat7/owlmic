@@ -10,6 +10,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.1.0] - 2026-11-26
+
+### Added
+- **Release Version Automation (`scripts/core/release-update.py`)**:
+  - Added lockstep version bumper across `desktop/Cargo.toml`, `android/app/build.gradle.kts` (with automatic `versionCode` increment), and `scripts/packaging/windows/owlmic.iss`, integrated into `scripts/menu.py` (`release-update`) with invariant verification and release prompt generation.
+
+### Changed
+- **USB / ADB Lifecycle & Process Cleanup (`owlmic-link`, `owlmic-app`)**:
+  - Hardened Windows ADB management in `adb.rs` with Job Object process-tree cleanup, active TCP listener detection, bounded ADB timeouts, and explicit `owlmic_link::adb::shutdown()` on exit (`start.rs`).
+- **Speaker Loopback & Oboe Synchronization (`android/media`, `owlmic-devices`)**:
+  - Added `Oboe.burstFrames` JNI helper, condition-variable wakeup (`Smoother.awaitData`) in `SpeakerPipeline`, and increased Windows WASAPI loopback queue headroom (`MAX_QUEUED_FLOATS` from 4 to 6 frames).
+- **USB Icon Glyph (`shared/assets/icons/usb.svg`)**:
+  - Updated the USB connector vector icon for cleaner visual clarity.
+
+### Fixed
+- **Link Switching & Mid-Stream Camera Recovery (`LinkHub`, `MediaRouter`, `Packets`, `Seeker`, `CameraPipeline`, `owlmic-media`, `owlmic-devices`)**:
+  - Fixed Wi-Fi ↔ USB carrier transitions so `CameraOutput` stays active without unnecessary teardown, resets video frame counters cleanly (`allow_frame_reset`), and guards against stale tunnel acceptance (`canAcceptTunnelNow`).
+  - Fixed H.264 decoder recovery on mid-stream resolution switches (`decoder.rs`) and aligned desktop camera preview visibility gating (`panel.rs`).
+
+---
+
 ## [1.0.0] - 2026-11-26
 
 ### Added

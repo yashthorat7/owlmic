@@ -21,7 +21,7 @@ Owlmic for PC runs as a lightweight, per-user background application in your Win
 - **Privileges**: Standard user account for running Owlmic. Administrator rights are required once during setup to install the virtual audio and camera drivers.
 
 ### Download & Installation
-1. **Download the Setup Package**: Download \`Owlmic-Setup-1.0.0.exe\` from GitHub Releases.
+1. **Download the Setup Package**: Download \`Owlmic-Setup-1.1.0.exe\` from GitHub Releases.
 2. **Run the Installer**: Follow the installer prompts and choose whether Owlmic should launch on startup.
 3. **Driver Configuration**: Click **Yes** on the UAC prompt to allow \`setup-audio-device.ps1\` to configure the virtual audio endpoint and Windows Firewall rules.
 4. **Finish**: Owlmic launches silently into your taskbar system tray.
@@ -47,7 +47,7 @@ The Owlmic Android app acts as the client hardware sensor. It captures pristine 
 
 ### Installation
 - **Google Play Store**: Search for "Owlmic" and tap Install.
-- **APK Sideload**: Download \`Owlmic-v1.0.0.apk\` from GitHub Releases and install directly.
+- **APK Sideload**: Download \`Owlmic-v1.1.0.apk\` from GitHub Releases and install directly.
 
 ### Battery Optimization
 To prevent aggressive OEM battery management from terminating background streaming:
@@ -312,6 +312,6 @@ npm run build
 1. Verify \`cargo test --workspace\` and \`./gradlew testDebugUnitTest lintDebug\`.
 2. Validate wire vectors against \`shared/protocol/vectors/*.json\`.
 3. Check product name spelling invariant in CI.
-4. Tag \`v1.0.0\` to trigger automated Inno Setup, APK, and AAB release builds on GitHub Actions.`,
+4. Tag \`v1.1.0\` to trigger automated Inno Setup, APK, and AAB release builds on GitHub Actions.`,
   },
 ]

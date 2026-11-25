@@ -11,7 +11,7 @@
   <p><strong>Your Android phone is your PC's studio microphone, 1080p60 webcam, and low-latency speaker.</strong></p>
 
   <p>
-    <a href="https://github.com/diveshpatil9104/owlmic/releases">Download v1.0.0</a>
+    <a href="https://github.com/diveshpatil9104/owlmic/releases">Download v1.1.0</a>
     &nbsp;&middot;&nbsp;
     <a href="https://owlmic.com">Website</a>
     &nbsp;&middot;&nbsp;
@@ -113,7 +113,7 @@ Bidirectional control synchronizes format, lens, and audio DSP settings instantl
 ## Quick Start
 
 1. **Install**
-   - **Windows 10 / 11:** Run [`Owlmic-Setup-1.0.0.exe`](https://github.com/diveshpatil9104/owlmic/releases) (silent notification tray companion).
+   - **Windows 10 / 11:** Run [`Owlmic-Setup-1.1.0.exe`](https://github.com/diveshpatil9104/owlmic/releases) (silent notification tray companion).
    - **Linux:** Extract tarball from [Releases](https://github.com/diveshpatil9104/owlmic/releases) and enable `systemctl --user enable --now owlmic.service`. See [`install-linux.md`](docs/user/install-linux.md).
    - **Android (8.0+):** Install the APK from [Releases](https://github.com/diveshpatil9104/owlmic/releases).
 
@@ -138,9 +138,9 @@ cd owlmic
 python scripts/menu.py
 
 # Direct CLI targets
-python scripts/menu.py build windows   # -> releases/Owlmic-Setup-1.0.0.exe
-python scripts/menu.py build linux     # -> releases/Owlmic-v1.0.0-linux-x86_64.tar.gz
-python scripts/menu.py build android   # -> releases/Owlmic-v1.0.0.apk
+python scripts/menu.py build windows   # -> releases/Owlmic-Setup-1.1.0.exe
+python scripts/menu.py build linux     # -> releases/Owlmic-v1.1.0-linux-x86_64.tar.gz
+python scripts/menu.py build android   # -> releases/Owlmic-v1.1.0.apk
 python scripts/menu.py check           # Invariants + rustfmt/clippy/test + Android lint
 ```
 

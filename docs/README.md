@@ -68,7 +68,7 @@ The desktop companion server is partitioned into 13 decoupled crates under Rust 
 - **[`scripts/hooks/`](../scripts/hooks/)**: Git `pre-commit` (invariants + cargo fmt) and `commit-msg` (Conventional Commits enforcement).
 
 ### 1.6 Project History
-- **[`CHANGELOG.md`](CHANGELOG.md)**: Release history and version milestones from v0.1.0 through v1.0.0.
+- **[`CHANGELOG.md`](CHANGELOG.md)**: Release history and version milestones from v0.1.0 through v1.1.0.
 
 ### 1.7 Modular Domain Skills (`docs/skills/`)
 Specialized context rulebooks routed from the root [`AGENTS.md`](../AGENTS.md) across three priority tiers:
