@@ -75,7 +75,7 @@ class Smoother(private val frameMs: Int, private val minMs: Int, private val max
         slots[i] = data
         tags[i] = seq
         count++
-        if (!playing && count * frameMs >= targetMs) {
+        if (playing || count * frameMs >= targetMs) {
             ready.signalAll()
         }
     }
@@ -120,6 +120,15 @@ class Smoother(private val frameMs: Int, private val minMs: Int, private val max
         } catch (_: InterruptedException) {
         }
         playing || count * frameMs >= targetMs
+    }
+
+    fun awaitData(timeoutMs: Long): Boolean = lock.withLock {
+        if (count > 0) return true
+        try {
+            ready.await(timeoutMs, TimeUnit.MILLISECONDS)
+        } catch (_: InterruptedException) {
+        }
+        count > 0
     }
 
     fun wakeup() = lock.withLock {

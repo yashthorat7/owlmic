@@ -33,5 +33,7 @@ internal object Oboe {
 
     @JvmStatic external fun queuedFrames(handle: Long): Int
 
+    @JvmStatic external fun burstFrames(handle: Long): Int
+
     @JvmStatic external fun close(handle: Long)
 }

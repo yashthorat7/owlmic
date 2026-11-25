@@ -140,4 +140,17 @@ class SmootherTest {
         // Subsequent fade-out does not re-emit audio.
         assertEquals(0, r.fadeOutTail(out))
     }
+
+    @Test
+    fun awaitDataWaitsUntilAFrameArrivesWhilePlaying() {
+        pushOnTime(0)
+        pushOnTime(1)
+        assertTrue(s.pull() is Pull.Frame)
+        assertTrue(s.pull() is Pull.Frame)
+        assertEquals(0, s.buffered())
+        assertTrue(!s.awaitData(1))
+        pushOnTime(2)
+        assertTrue(s.awaitData(1))
+        assertArrayEquals(frame(2), (s.pull() as Pull.Frame).data)
+    }
 }

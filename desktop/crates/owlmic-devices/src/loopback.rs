@@ -29,8 +29,8 @@ use windows::core::{PCWSTR, Result, implement, w};
 const BUFFER: i64 = 2_000_000;
 const TICK: Duration = Duration::from_millis(10);
 const FRAME_FLOATS: usize = 48 * 10 * 2;
-/// Cap staging queue at 40 ms so latency never builds up; trim excess back to 20 ms.
-const MAX_QUEUED_FLOATS: usize = FRAME_FLOATS * 4;
+/// Cap staging queue at 60 ms so latency stays bounded across WASAPI bursts; trim excess back to 20 ms.
+const MAX_QUEUED_FLOATS: usize = FRAME_FLOATS * 6;
 const TRIM_TO_FLOATS: usize = FRAME_FLOATS * 2;
 /// Two empty ticks (20 ms) before emitting paced silence, riding out 10 ms WASAPI delivery jitter.
 const IDLE_SILENCE_TICKS: u32 = 2;

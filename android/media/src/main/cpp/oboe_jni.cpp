@@ -252,6 +252,12 @@ JNIEXPORT jint JNICALL Java_com_owlmic_media_audio_Oboe_queuedFrames(JNIEnv *, j
     return static_cast<jint>(w - r);
 }
 
+JNIEXPORT jint JNICALL Java_com_owlmic_media_audio_Oboe_burstFrames(JNIEnv *, jclass, jlong handle) {
+    Holder *h = holder(handle);
+    if (h == nullptr || !h->stream) return kDefaultFrameSamples;
+    return std::max(1, h->stream->getFramesPerBurst());
+}
+
 JNIEXPORT void JNICALL Java_com_owlmic_media_audio_Oboe_close(JNIEnv *, jclass, jlong handle) {
     Holder *h = holder(handle);
     if (h->output) {

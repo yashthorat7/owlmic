@@ -139,7 +139,7 @@ class SpeakerPipeline(private val onHealth: (Health) -> Unit, private val farEnd
     fun configure(format: SpeakerFormat) {
         this.format = format
         val prev = smoother
-        smoother = if (wireless) Smoother(format.frameMs, 20, 80) else Smoother(format.frameMs, 10, 40)
+        smoother = if (wireless) Smoother(format.frameMs, 20, 80) else Smoother(format.frameMs, 20, 40)
         prev?.wakeup()
         reopen = true
     }
@@ -181,6 +181,7 @@ class SpeakerPipeline(private val onHealth: (Health) -> Unit, private val farEnd
         var resampler = StereoDriftResampler(2)
         var healthy: Boolean? = null
         var errors = 0
+        var lowWaterFrames = 240
         while (generation == mine) {
             val f = format ?: break
             if (reopen || handle == 0L || f != current) {
@@ -204,9 +205,15 @@ class SpeakerPipeline(private val onHealth: (Health) -> Unit, private val farEnd
                     Thread.sleep(300)
                     continue
                 }
+                lowWaterFrames = maxOf(frameSamples / 2, Oboe.burstFrames(handle) / 2)
             }
             val frameSamples = 48 * f.frameMs
             val s = smoother ?: break
+            // Let Oboe's ring drain toward its burst floor before treating an empty jitter buffer as a lost packet.
+            if (s.buffered() == 0 && Oboe.queuedFrames(handle) > lowWaterFrames) {
+                s.awaitData(AWAIT_DATA_MS)
+                continue
+            }
             val outFrames: Int
             when (val p = s.pull()) {
                 is Smoother.Pull.Frame -> {
@@ -228,9 +235,7 @@ class SpeakerPipeline(private val onHealth: (Health) -> Unit, private val farEnd
                         true
                     }
                     outFrames = if (ok) {
-                        val queuedMs = Oboe.queuedFrames(handle) / 48f
-                        val bufferedMs = s.bufferedMs() + queuedMs
-                        val step = resampler.stepFor(bufferedMs, s.targetMs.toFloat(), f.frameMs)
+                        val step = resampler.stepFor(s.bufferedMs().toFloat(), s.targetMs.toFloat(), f.frameMs)
                         resampler.resample(pcm, frameSamples, resampled, step)
                     } else 0
                 }
@@ -287,6 +292,7 @@ class SpeakerPipeline(private val onHealth: (Health) -> Unit, private val farEnd
 
     private companion object {
         const val WRITE_TIMEOUT_MS = 100
+        const val AWAIT_DATA_MS = 2L
         const val SILENCE_WAIT_MS = 10L
         const val STOP_WAIT_MS = 1_000L
         const val MAX_DECODE_ERRORS = 3
