@@ -88,6 +88,8 @@ class CameraPipeline(
 
     /** Remembered while the camera is off, so the preview appears as soon as it starts. */
     @Volatile private var previewSurface: Triple<Surface, Int, Int>? = null
+    @Volatile private var previewAspect: Float? = null
+    @Volatile private var previewBorderPx = 1
 
     @Volatile var paused = false
 
@@ -147,11 +149,22 @@ class CameraPipeline(
         previewSurface = surface?.let { Triple(it, width, height) }
         val r = renderer ?: return
         if (surface != null) {
-            r.handler.post { r.setPreview(surface, width, height) }
+            r.handler.post {
+                r.setPreviewAspect(previewAspect, previewBorderPx)
+                r.setPreview(surface, width, height)
+            }
             return
         }
         val released = CountDownLatch(1)
         if (r.handler.post { r.setPreview(null, 0, 0); released.countDown() }) released.await(PREVIEW_RELEASE_MS, TimeUnit.MILLISECONDS)
+    }
+
+    /** Sets the preview tile's target crop aspect ratio (null = full playground) and hairline border width in px. Any thread. */
+    fun setPreviewAspect(aspect: Float?, borderPx: Int) {
+        previewAspect = aspect
+        previewBorderPx = borderPx
+        val r = renderer ?: return
+        r.handler.post { r.setPreviewAspect(aspect, borderPx) }
     }
 
     private fun post(block: () -> Unit) {
@@ -187,6 +200,7 @@ class CameraPipeline(
             val effFps = if (!needsCamera && capturedFps in 1 until next.plan.fps) capturedFps else next.plan.fps
             r.fps = thermalFps(effFps, thermal)
             if (needsEncoder && !rotInFlight) newEncoder() else if (!needsEncoder) encoder?.requestKeyframe()
+            r.setPreviewAspect(previewAspect, previewBorderPx)
             previewSurface?.let { (s, w, h) -> r.setPreview(s, w, h) }
         }
         if (!needsCamera) {

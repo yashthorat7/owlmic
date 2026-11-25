@@ -5,4 +5,5 @@ mod draw;
 mod panel;
 mod tray;
 
+pub use draw::draw_brand_owl;
 pub use panel::{Ui, Waker, open_running, quit_running, run};

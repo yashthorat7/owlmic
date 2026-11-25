@@ -51,6 +51,9 @@ body {
 .cam-frame { position: relative; z-index: 2; overflow: hidden; border: 0 solid transparent; }
 .cam-frame[data-crop="pillar"] { border-inline: 1px solid rgba(255,255,255,.22); }
 .cam-frame[data-crop="letter"] { border-block: 1px solid rgba(255,255,255,.22); }
+.is-preview-hidden { background: transparent !important; }
+.is-preview-hidden .cam-amb-wrap,
+.is-preview-hidden .cam-frame { opacity: 0; }
 
 .cam-hud { transition: opacity 260ms var(--ease); }
 .cam-hud.is-quiet { opacity: 0.15; }

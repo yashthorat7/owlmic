@@ -108,21 +108,26 @@
                   <div id="m-camBox" data-crop="none" class="cam-frame flex items-center justify-center"><canvas id="m-camCanvas" class="w-full h-full block"></canvas></div>
 
                   <div id="m-camHud" class="cam-hud is-quiet absolute top-3 left-3 right-3 z-[8] flex items-start justify-between pointer-events-none">
-                    <!-- Compact Single Button Expandable Dropdown: 2x3 Ratio & Orientation -->
-                    <div id="m-camMenuBox" class="cam-expand pointer-events-auto">
-                      <button id="m-btnCamMenu" class="cam-closed-btn tabular-nums text-[11px] font-medium text-white cursor-pointer" aria-label="Camera ratio settings">
-                        <span id="m-camRatioLabel" class="whitespace-nowrap font-medium">Auto</span>
-                      </button>
-                      <div class="cam-options-grid overflow-hidden">
-                        <div class="grid grid-cols-2 divide-x divide-white/10 border-b border-white/10">
-                          <div id="m-camAutoSlot"></div>
-                          <button id="m-btnCamOrient" class="h-full flex items-center justify-center text-white/80 hover:bg-white/5 hover:text-white cursor-pointer transition-colors" aria-label="Toggle orientation">
-                            <img id="m-camOrientIc" src="../../assets/icons/phone.svg" class="cam-orient-ic w-[14px] h-[14px] owl-icon" alt="Orientation" data-icon="phone" />
-                          </button>
+                    <!-- Compact Single Button Expandable Dropdown: 2x3 Ratio & Orientation + Preview Toggle -->
+                    <div class="flex items-start gap-1.5 pointer-events-auto">
+                      <div id="m-camMenuBox" class="cam-expand">
+                        <button id="m-btnCamMenu" class="cam-closed-btn tabular-nums text-[11px] font-medium text-white cursor-pointer" aria-label="Camera ratio settings">
+                          <span id="m-camRatioLabel" class="whitespace-nowrap font-medium">Auto</span>
+                        </button>
+                        <div class="cam-options-grid overflow-hidden">
+                          <div class="grid grid-cols-2 divide-x divide-white/10 border-b border-white/10">
+                            <div id="m-camAutoSlot"></div>
+                            <button id="m-btnCamOrient" class="h-full flex items-center justify-center text-white/80 hover:bg-white/5 hover:text-white cursor-pointer transition-colors" aria-label="Toggle orientation">
+                              <img id="m-camOrientIc" src="../../assets/icons/phone.svg" class="cam-orient-ic w-[14px] h-[14px] owl-icon" alt="Orientation" data-icon="phone" />
+                            </button>
+                          </div>
+                          <div id="m-camRatioRow1" class="grid grid-cols-2 divide-x divide-white/10 border-b border-white/10"></div>
+                          <div id="m-camRatioRow2" class="grid grid-cols-2 divide-x divide-white/10"></div>
                         </div>
-                        <div id="m-camRatioRow1" class="grid grid-cols-2 divide-x divide-white/10 border-b border-white/10"></div>
-                        <div id="m-camRatioRow2" class="grid grid-cols-2 divide-x divide-white/10"></div>
                       </div>
+                      <button id="m-btnPreview" aria-label="Hide preview" class="cam-btn w-[29px] h-[29px] rounded-[8px] border border-white/20 bg-black/75 backdrop-blur-md flex items-center justify-center cursor-pointer">
+                        <img src="../../assets/icons/eye.svg" class="w-[15px] h-[15px] owl-icon" alt="Preview" data-icon="eye" />
+                      </button>
                     </div>
 
                     <div class="flex items-center gap-1.5 pointer-events-auto">
@@ -312,21 +317,26 @@
             <div id="p-camBox" data-crop="none" class="cam-frame flex items-center justify-center"><canvas id="p-camCanvas" class="w-full h-full block"></canvas></div>
 
             <div id="p-camHud" class="cam-hud is-quiet absolute top-2.5 left-2.5 right-2.5 z-[8] flex items-start justify-between pointer-events-none">
-              <!-- Compact Single Button Expandable Dropdown: 2x3 Ratio & Orientation -->
-              <div id="p-camMenuBox" class="cam-expand pointer-events-auto">
-                <button id="p-btnCamMenu" class="cam-closed-btn tabular-nums text-[10px] font-medium text-white cursor-pointer" aria-label="Camera ratio settings">
-                  <span id="p-camRatioLabel" class="whitespace-nowrap font-medium">Auto</span>
-                </button>
-                <div class="cam-options-grid overflow-hidden">
-                  <div class="grid grid-cols-2 divide-x divide-white/10 border-b border-white/10">
-                    <div id="p-camAutoSlot"></div>
-                    <button id="p-btnCamOrient" class="h-full flex items-center justify-center text-white/80 hover:bg-white/5 hover:text-white cursor-pointer transition-colors" aria-label="Toggle orientation">
-                      <img id="p-camOrientIc" src="../../assets/icons/phone.svg" class="cam-orient-ic w-[12px] h-[12px] owl-icon" alt="Orientation" data-icon="phone" />
-                    </button>
+              <!-- Compact Single Button Expandable Dropdown: 2x3 Ratio & Orientation + Preview Toggle -->
+              <div class="flex items-start gap-1.5 pointer-events-auto">
+                <div id="p-camMenuBox" class="cam-expand">
+                  <button id="p-btnCamMenu" class="cam-closed-btn tabular-nums text-[10px] font-medium text-white cursor-pointer" aria-label="Camera ratio settings">
+                    <span id="p-camRatioLabel" class="whitespace-nowrap font-medium">Auto</span>
+                  </button>
+                  <div class="cam-options-grid overflow-hidden">
+                    <div class="grid grid-cols-2 divide-x divide-white/10 border-b border-white/10">
+                      <div id="p-camAutoSlot"></div>
+                      <button id="p-btnCamOrient" class="h-full flex items-center justify-center text-white/80 hover:bg-white/5 hover:text-white cursor-pointer transition-colors" aria-label="Toggle orientation">
+                        <img id="p-camOrientIc" src="../../assets/icons/phone.svg" class="cam-orient-ic w-[12px] h-[12px] owl-icon" alt="Orientation" data-icon="phone" />
+                      </button>
+                    </div>
+                    <div id="p-camRatioRow1" class="grid grid-cols-2 divide-x divide-white/10 border-b border-white/10"></div>
+                    <div id="p-camRatioRow2" class="grid grid-cols-2 divide-x divide-white/10"></div>
                   </div>
-                  <div id="p-camRatioRow1" class="grid grid-cols-2 divide-x divide-white/10 border-b border-white/10"></div>
-                  <div id="p-camRatioRow2" class="grid grid-cols-2 divide-x divide-white/10"></div>
                 </div>
+                <button id="p-btnPreview" aria-label="Hide preview" class="cam-btn w-[25px] h-[25px] rounded-[7px] border border-white/20 bg-black/75 backdrop-blur-md flex items-center justify-center cursor-pointer">
+                  <img src="../../assets/icons/eye.svg" class="w-[13px] h-[13px] owl-icon" alt="Preview" data-icon="eye" />
+                </button>
               </div>
 
               <div class="flex items-center gap-1.5 pointer-events-auto">

@@ -46,13 +46,13 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.BiasAlignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
@@ -99,6 +99,7 @@ fun Playground(seq: TurnSequence, state: AppState, drawer: Drawer?, modifier: Mo
     var micOpen by remember { mutableStateOf(false) }
     var camMenuOpen by remember { mutableStateOf(false) }
     var camMenuTouches by remember { mutableIntStateOf(0) }
+    var previewHidden by rememberSaveable { mutableStateOf(false) }
     val physicalSideways = seq.targetTurn != TURN_NONE
     var prevPhysicalSideways by remember { mutableStateOf(physicalSideways) }
     var pendingRatio by remember { mutableStateOf<Pair<String, String>?>(null) }
@@ -152,18 +153,18 @@ fun Playground(seq: TurnSequence, state: AppState, drawer: Drawer?, modifier: Mo
     )
 
     Box(modifier.clip(RoundedCornerShape(Theme.radius)).background(Theme.bg)) {
-        val camAlpha by animateFloatAsState(
-            targetValue = if (live) 1f else 0f,
+        val previewAlpha by animateFloatAsState(
+            targetValue = if (live && !previewHidden) 1f else 0f,
             animationSpec = tween(Tokens.Phone.CONTROLS_FADE_MS.toInt()),
-            label = "camFade",
+            label = "previewFade",
         )
-        if (camAlpha < 1f) {
-            Box(Modifier.fillMaxSize().graphicsLayer { alpha = 1f - camAlpha }) {
+        if (previewAlpha < 1f) {
+            Box(Modifier.fillMaxSize().graphicsLayer { alpha = 1f - previewAlpha }) {
                 DotGrid(Modifier.fillMaxSize())
             }
         }
-        if (camAlpha > 0f) {
-            Box(Modifier.fillMaxSize().graphicsLayer { alpha = camAlpha }) {
+        if (!previewHidden && previewAlpha > 0f) {
+            Box(Modifier.fillMaxSize().graphicsLayer { alpha = previewAlpha }) {
                 PreviewFrame(displayRatio, physicalSideways)
                 Frame(Modifier.fillMaxSize())
             }
@@ -173,7 +174,7 @@ fun Playground(seq: TurnSequence, state: AppState, drawer: Drawer?, modifier: Mo
             seq.fade,
             state,
             displayRatio,
-            Mode(live, mic, micOpen, camMenuOpen),
+            Mode(live, mic, micOpen, camMenuOpen, previewHidden),
             hudAlpha,
             onMicOpen = { micOpen = it },
             onCamMenuToggle = {
@@ -182,6 +183,7 @@ fun Playground(seq: TurnSequence, state: AppState, drawer: Drawer?, modifier: Mo
             },
             onCamMenuClose = { camMenuOpen = false },
             onCamMenuInteract = { camMenuTouches++ },
+            onPreviewToggle = { previewHidden = !previewHidden },
             onTouch = { touches++ },
             onStrip = onStrip,
         )
@@ -189,7 +191,13 @@ fun Playground(seq: TurnSequence, state: AppState, drawer: Drawer?, modifier: Mo
     }
 }
 
-private data class Mode(val live: Boolean, val mic: Boolean, val micOpen: Boolean, val camMenuOpen: Boolean)
+private data class Mode(
+    val live: Boolean,
+    val mic: Boolean,
+    val micOpen: Boolean,
+    val camMenuOpen: Boolean,
+    val previewHidden: Boolean,
+)
 
 @Composable
 private fun Content(
@@ -203,6 +211,7 @@ private fun Content(
     onCamMenuToggle: () -> Unit,
     onCamMenuClose: () -> Unit,
     onCamMenuInteract: () -> Unit,
+    onPreviewToggle: () -> Unit,
     onTouch: () -> Unit,
     onStrip: (StripAction) -> Unit,
 ) {
@@ -218,9 +227,9 @@ private fun Content(
         val short = with(LocalDensity.current) { minOf(window.width, window.height).toDp() }
         val capsule = minOf(short * Tokens.Phone.CAPSULE_WIDTH_FRACTION, maxWidth - 32.dp)
 
-        // Watermark: owl on dot grid when idle
+        // Watermark: owl on dot grid when idle or camera preview is hidden
         AnimatedVisibility(
-            !mode.live && !mode.mic,
+            (!mode.live || mode.previewHidden) && !mode.mic,
             Modifier.align(Alignment.Center),
             enter = fadeIn(tween(Theme.STATE_MS)),
             exit = fadeOut(tween(Theme.STATE_MS)),
@@ -255,7 +264,7 @@ private fun Content(
             WaveformDock(state, mode.live, mode.micOpen, maxWidth, onMicOpen)
         }
 
-        // Camera HUD (Ratio menu on left, Mirror & Flip on right)
+        // Camera HUD (Ratio menu + Preview toggle on left, Mirror & Flip on right)
         if (mode.live) {
             if (mode.camMenuOpen) {
                 Box(
@@ -268,7 +277,7 @@ private fun Content(
                 )
             }
             val mirrored = (state.settings["camera.mirror"] ?: SettingsModel.find("camera.mirror")?.default) == "on"
-            val maxMenuWidth = maxWidth - 24.dp
+            val maxMenuWidth = (maxWidth - 24.dp - Tokens.Phone.CAM_EXPAND_HEIGHT_DP.dp * 3 - 27.dp).coerceAtLeast(100.dp)
             Box(
                 Modifier
                     .fillMaxWidth()
@@ -290,66 +299,42 @@ private fun Content(
                         Owlmic.post(AppMsg.FlipLens)
                     }
                 }
-                CameraFormatMenu(
-                    ratio = displayRatio,
-                    isOpen = mode.camMenuOpen,
-                    sideways = up.sideways,
-                    maxMenuWidth = maxMenuWidth,
-                    onToggle = onCamMenuToggle,
-                    onInteract = onCamMenuInteract,
-                    modifier = Modifier.align(Alignment.TopStart),
-                )
+                Row(
+                    Modifier.align(Alignment.TopStart),
+                    horizontalArrangement = Arrangement.spacedBy(9.dp),
+                    verticalAlignment = Alignment.Top,
+                ) {
+                    CameraFormatMenu(
+                        ratio = displayRatio,
+                        isOpen = mode.camMenuOpen,
+                        sideways = up.sideways,
+                        maxMenuWidth = maxMenuWidth,
+                        onToggle = onCamMenuToggle,
+                        onInteract = onCamMenuInteract,
+                    )
+                    CamHudButton(
+                        if (mode.previewHidden) Glyph.EYE_OFF else Glyph.EYE,
+                        on = mode.previewHidden,
+                        label = stringResource(if (mode.previewHidden) Copy.string.camera_show_preview else Copy.string.camera_hide_preview),
+                    ) {
+                        onCamMenuClose()
+                        onPreviewToggle()
+                    }
+                }
             }
         }
     }
 }
 
-/** The camera preview surface with optical crop border lines matching target aspect ratio. */
+/** The full-playground camera surface; optical crop and ambient blur animate inside GL without resizing the SurfaceView. */
 @Composable
 private fun PreviewFrame(ratio: String, sideways: Boolean) {
-    val targetAr = when (ratio) {
-        "16:9" -> 16f / 9f
-        "4:3" -> 4f / 3f
-        "2:1" -> 2f
-        "1:1" -> 1f
-        "1:2" -> 0.5f
-        "3:4" -> 3f / 4f
-        "9:16" -> 9f / 16f
-        else -> null
-    }?.let { if (sideways) 1f / it else it }
-
-    BoxWithConstraints(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        val cw = maxWidth.value
-        val ch = maxHeight.value
-        val containerAr = if (ch > 0f) cw / ch else 1f
-
-        val (cropMode, frameW, frameH) = if (targetAr != null && kotlin.math.abs(containerAr - targetAr) >= 0.01f) {
-            if (containerAr > targetAr) {
-                Triple("pillar", (ch * targetAr).dp, maxHeight)
-            } else {
-                Triple("letter", maxWidth, (cw / targetAr).dp)
-            }
-        } else {
-            Triple("none", maxWidth, maxHeight)
-        }
-
-        Box(
-            Modifier
-                .size(frameW, frameH)
-                .drawBehind {
-                    val lineColor = Color(0x38FFFFFF)
-                    if (cropMode == "pillar") {
-                        drawLine(lineColor, Offset(0f, 0f), Offset(0f, size.height), 1.dp.toPx())
-                        drawLine(lineColor, Offset(size.width, 0f), Offset(size.width, size.height), 1.dp.toPx())
-                    } else if (cropMode == "letter") {
-                        drawLine(lineColor, Offset(0f, 0f), Offset(size.width, 0f), 1.dp.toPx())
-                        drawLine(lineColor, Offset(0f, size.height), Offset(size.width, size.height), 1.dp.toPx())
-                    }
-                },
-        ) {
-            Preview()
-        }
+    val targetAr = previewTargetAspect(ratio, sideways)
+    val borderPx = with(LocalDensity.current) { 1.dp.roundToPx().coerceAtLeast(1) }
+    LaunchedEffect(targetAr, borderPx) {
+        Owlmic.setPreviewAspect(targetAr, borderPx)
     }
+    Preview()
 }
 
 /** Compact 2x3 expandable Ratio & Orientation HUD (1.5x mobile scale, 3x height when expanded). */

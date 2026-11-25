@@ -151,5 +151,11 @@ class ScreenModelTest {
         assertEquals("2:1", toggleRatioOrientation("1:2"))
         assertNull(toggleRatioOrientation("full"))
         assertNull(toggleRatioOrientation("1:1"))
+
+        assertNull(previewTargetAspect("full", sideways = false))
+        assertNull(previewTargetAspect("auto", sideways = true))
+        assertEquals(16f / 9f, previewTargetAspect("16:9", sideways = false)!!, 0.0001f)
+        assertEquals(9f / 16f, previewTargetAspect("16:9", sideways = true)!!, 0.0001f)
+        assertEquals(1f, previewTargetAspect("1:1", sideways = true)!!, 0.0001f)
     }
 }

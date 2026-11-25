@@ -84,6 +84,9 @@ class MediaHub(
     /** The camera preview tile's surface. Any thread; goes straight to the renderer. */
     fun setPreview(surface: Surface?, width: Int, height: Int) = camera.setPreview(surface, width, height)
 
+    /** Target preview crop aspect ratio (null = fill playground) and optical border width in px. Any thread. */
+    fun setPreviewAspect(aspect: Float?, borderPx: Int) = camera.setPreviewAspect(aspect, borderPx)
+
     /** The PC's loss reports come every 10 s; a missed one is replaced by the next. */
     override fun droppable(message: MediaMsg) = message is MediaMsg.MicLoss || message is MediaMsg.CameraReport
 
