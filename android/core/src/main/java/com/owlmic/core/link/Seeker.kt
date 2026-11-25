@@ -14,7 +14,10 @@ import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.net.Socket
 import java.net.SocketTimeoutException
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.thread
+import kotlin.concurrent.withLock
 
 interface SeekerApi : Closeable {
     var pace: Seeker.Pace
@@ -50,6 +53,8 @@ class Seeker(
 
     /** The probe socket bound to the current Wi-Fi network, with its own receive thread. Probe thread only. */
     @Volatile private var bound: Pair<Network, DatagramSocket>? = null
+    private val wake = ReentrantLock()
+    private val woken = wake.newCondition()
 
     init {
         thread(name = "owlmic-seeker", isDaemon = true) { probeLoop() }
@@ -59,11 +64,13 @@ class Seeker(
     /** Starts a new burst: the app opened, or a network came or went. */
     override fun burst() {
         burstAt = System.currentTimeMillis()
+        wake.withLock { woken.signalAll() }
     }
 
     /** The Link Hub is done with the tunnel it was handed (used or failed): look again. */
     override fun tunnelReleased() {
         tunnelBusy = false
+        wake.withLock { woken.signalAll() }
     }
 
     private fun probeLoop() {
@@ -166,7 +173,11 @@ class Seeker(
     private fun answerFrom(packet: DatagramPacket): Candidate? {
         val a = Answer.decode(packet.data, packet.length) ?: return null
         val via = probeInterfaces().firstOrNull { it.contains(packet.address) }
-        val link = LinkKind.of(a.link)?.takeIf { it == LinkKind.USB_TETHERING || it == LinkKind.WIFI } ?: via?.kind ?: LinkKind.WIFI
+        val link = if (via?.kind == LinkKind.USB_TETHERING) {
+            LinkKind.USB_TETHERING
+        } else {
+            LinkKind.of(a.link)?.takeIf { it == LinkKind.USB_TETHERING || it == LinkKind.WIFI } ?: via?.kind ?: LinkKind.WIFI
+        }
         return Candidate(
             pcId = a.pcId.toHex(),
             name = a.name,
@@ -199,13 +210,17 @@ class Seeker(
                     runCatching { socket.close() }
                 }
             }
-            Thread.sleep(every ?: TUNNEL_CONNECTED_EVERY_MS)
+            wake.withLock {
+                val waitMs = every ?: TUNNEL_CONNECTED_EVERY_MS
+                if (open && waitMs > 0) runCatching { woken.await(waitMs, TimeUnit.MILLISECONDS) }
+            }
         }
     }
 
     override fun close() {
         open = false
         bound?.second?.close()
+        wake.withLock { woken.signalAll() }
     }
 
     private companion object {
@@ -214,7 +229,7 @@ class Seeker(
         const val CONNECTED_EVERY_MS = 2_000L
         const val TUNNEL_SEARCH_EVERY_MS = 500L
         const val TUNNEL_CONNECTED_EVERY_MS = 1_000L
-        const val TUNNEL_CONNECT_MS = 300
+        const val TUNNEL_CONNECT_MS = 800
         const val RESOLVE_EVERY_MS = 30_000L
     }
 }

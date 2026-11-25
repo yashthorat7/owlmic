@@ -21,8 +21,10 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import com.owlmic.core.hub.AppState
+import com.owlmic.core.hub.Connection
 import com.owlmic.core.hub.Feature
 import com.owlmic.core.hub.FeaturePhase
+import com.owlmic.core.hub.LinkKind
 import com.owlmic.core.permission.PermissionGate
 import com.owlmic.core.permission.PermissionGate.Decision
 import com.owlmic.hub.AppMsg
@@ -103,6 +105,9 @@ class MainActivity : ComponentActivity() {
     private fun tap(feature: Feature) {
         val state = Owlmic.state.value
         val v = state.feature(feature)
+        if (feature == Feature.CAMERA && (state.connection as? Connection.Connected)?.link == LinkKind.BLUETOOTH && !v.isOn) {
+            return
+        }
         if (v.phase == FeaturePhase.PAUSED && state.connected && v.problem == null) {
             Owlmic.post(AppMsg.Resume(feature))
             return

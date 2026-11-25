@@ -9,13 +9,10 @@ import com.owlmic.core.hub.LinkKind
 import kotlin.math.pow
 
 /**
- * The link tile's icon, always in the grid's ink: the link once connected; the globe until then; the alert when
- * something needs the user.
+ * The link tile's icon, always in the grid's ink: the link once connected; the globe whenever searching or connecting.
  */
 fun glyphOf(c: Connection): Glyph = when (c) {
     is Connection.Connected -> glyphOf(c.link)
-    is Connection.Searching -> if (c.unreachable != null) Glyph.ALERT else Glyph.GLOBE
-    is Connection.Denied, is Connection.Busy, is Connection.UpdateNeeded, is Connection.KeyChanged -> Glyph.ALERT
     else -> Glyph.GLOBE
 }
 
@@ -26,12 +23,8 @@ fun glyphOf(link: LinkKind): Glyph = when (link) {
     LinkKind.BLUETOOTH -> Glyph.BLUETOOTH
 }
 
-/** The link tile's icon dims softly in and out while the phone is on its way to a PC, so "not yet" reads without a colour. */
-fun pulses(c: Connection): Boolean = when (c) {
-    is Connection.Searching -> c.unreachable == null
-    is Connection.Connecting, is Connection.Approving, is Connection.Reconnecting, is Connection.Waiting -> true
-    else -> false
-}
+/** The link tile's globe pulses infinitely whenever no PC connection is active. */
+fun pulses(c: Connection): Boolean = c !is Connection.Connected
 
 /**
  * The status strip, only when there is something to read or do: a step only the user can take.
@@ -114,14 +107,24 @@ fun pcList(state: AppState): PcList {
     val rows = mutableListOf<PcRow>()
     val waiting = state.choices.associateBy { it.id }
     val c = state.connection as? Connection.Connected
+    val inFlight: Pair<String?, LinkKind?>? = when (val conn = state.connection) {
+        is Connection.Connecting -> conn.pc to conn.link
+        is Connection.Approving -> conn.pc to conn.link
+        is Connection.Reconnecting -> conn.pc to conn.link
+        is Connection.Waiting -> conn.pc to null
+        else -> null
+    }
     val known = state.knownPcs.filter { !it.blocked }
     if (c != null) {
         val me = known.firstOrNull { it.current }
         rows += PcRow(me?.id, c.pc, PcKind.CURRENT, c.address ?: me?.address, c.link, c.hotspot, me?.lastConnectedAt ?: 0)
+    } else if (inFlight?.first != null && known.none { it.current || it.name == inFlight.first }) {
+        rows += PcRow(null, inFlight.first, PcKind.NEW, null, inFlight.second)
     }
     known.filter { !(it.current && c != null) }.sortedByDescending { it.lastConnectedAt }.forEach {
+        val activeLink = if (c == null && inFlight != null && (it.current || (inFlight.first != null && it.name == inFlight.first))) inFlight.second else null
         rows += PcRow(
-            it.id, it.name, PcKind.PAIRED, waiting[it.id]?.address ?: it.address, waiting[it.id]?.link ?: it.lastLink,
+            it.id, it.name, PcKind.PAIRED, waiting[it.id]?.address ?: it.address, activeLink ?: waiting[it.id]?.link ?: it.lastLink,
             lastConnectedAt = it.lastConnectedAt, canConnect = it.id in waiting,
         )
     }
@@ -132,11 +135,11 @@ fun pcList(state: AppState): PcList {
     return PcList(rows, blocked)
 }
 
-/** The four links the connection list can switch off and on, with their settings: USB first, then Wi-Fi, then the rest. */
+/** The four links the connection list can switch off and on, from highest priority to lowest. */
 val LINK_SETTINGS = listOf(
     LinkKind.USB_DEBUGGING to "link.usbDebugging",
-    LinkKind.WIFI to "link.wifi",
     LinkKind.USB_TETHERING to "link.usbTethering",
+    LinkKind.WIFI to "link.wifi",
     LinkKind.BLUETOOTH to "link.bluetooth",
 )
 

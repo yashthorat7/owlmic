@@ -14,6 +14,8 @@ class NetInterfacesTest {
     fun interfacesAreToldApartByName() {
         assertEquals(LinkKind.USB_TETHERING, nic("rndis0").kind)
         assertEquals(LinkKind.USB_TETHERING, nic("ncm0").kind)
+        assertEquals(LinkKind.USB_TETHERING, nic("ecm0").kind)
+        assertEquals(LinkKind.USB_TETHERING, nic("tether0").kind)
         assertEquals(LinkKind.WIFI, nic("wlan0").kind)
         assertTrue(nic("ap0").hotspot)
     }

@@ -48,6 +48,18 @@ class SettingsHub(private val store: Store, private val emit: (SettingsEvent) ->
                 connected = message.connected
                 values = SettingValues.defaults() + store.settings(pcId)
                 pending = store.pending(pcId)
+                if (pcId != null) {
+                    val offPending = store.pending(null)
+                    if (offPending.isNotEmpty()) {
+                        val offValues = store.settings(null)
+                        values = SettingValues.bumpPending(
+                            values + offPending.mapNotNull { id -> offValues[id]?.let { id to it } },
+                            offPending,
+                        )
+                        pending = pending + offPending
+                        store.saveSettings(null, offValues, emptySet())
+                    }
+                }
                 val pc = message.pcValues
                 awaitingSnapshot = pc != null && connected
                 if (pc != null && connected) {
@@ -64,8 +76,8 @@ class SettingsHub(private val store: Store, private val emit: (SettingsEvent) ->
                 values = SettingValues.change(values, message.id, message.value)
                 val now = values[message.id] ?: return
                 if (before == now.value) return
-                if (SettingValues.isShared(message.id) && pcId != null) {
-                    if (connected && !awaitingSnapshot) {
+                if (SettingValues.isShared(message.id)) {
+                    if (pcId != null && connected && !awaitingSnapshot) {
                         emit(SettingsEvent.Push(listOf(SettingChange(message.id, now.value, now.version))))
                     } else {
                         pending = pending + message.id

@@ -64,7 +64,12 @@ pub fn classify(networks: &[Network], peer: IpAddr) -> u8 {
 /// Adapter descriptions that mean a phone's USB tethering.
 pub fn is_tethering_adapter(description: &str) -> bool {
     let d = description.to_ascii_lowercase();
-    d.contains("remote ndis") || d.contains("rndis") || d.contains("ncm")
+    d.contains("remote ndis")
+        || d.contains("rndis")
+        || d.contains("ncm")
+        || d.contains("usb gadget")
+        || d.contains("android")
+        || d.contains("tethering")
 }
 
 #[cfg(windows)]
@@ -77,11 +82,86 @@ pub use nix::Adapters;
 mod nix {
     use super::*;
 
+    fn is_linux_tethering(iface: &str) -> bool {
+        let d = iface.to_ascii_lowercase();
+        d.starts_with("rndis")
+            || d.starts_with("usb")
+            || d.starts_with("ncm")
+            || d.starts_with("ecm")
+            || d.contains("tether")
+    }
+
+    fn linux_rank(iface: &str, tethering: bool) -> u8 {
+        if tethering {
+            return 2;
+        }
+        let d = iface.to_ascii_lowercase();
+        if d.starts_with("wl") {
+            return 0;
+        }
+        if d.starts_with("docker")
+            || d.starts_with("br-")
+            || d.starts_with("virbr")
+            || d.starts_with("veth")
+            || d.starts_with("tun")
+            || d.starts_with("tap")
+            || d.starts_with("wg")
+        {
+            return 3;
+        }
+        1
+    }
+
     pub struct Adapters;
 
     impl Adapters {
         pub fn networks() -> Vec<Network> {
-            Vec::new()
+            let Ok(output) = std::process::Command::new("ip")
+                .args(["-o", "-4", "addr", "show", "up"])
+                .output()
+            else {
+                return Vec::new();
+            };
+            if !output.status.success() {
+                return Vec::new();
+            }
+            let text = String::from_utf8_lossy(&output.stdout);
+            let mut ranked = Vec::new();
+            for line in text.lines() {
+                let parts: Vec<&str> = line.split_whitespace().collect();
+                let Some(iface) = parts.get(1).copied() else {
+                    continue;
+                };
+                let Some(pos) = parts.iter().position(|&p| p == "inet") else {
+                    continue;
+                };
+                let Some(cidr) = parts.get(pos + 1).copied() else {
+                    continue;
+                };
+                let Some((ip_str, prefix_str)) = cidr.split_once('/') else {
+                    continue;
+                };
+                let Ok(address) = ip_str.parse::<Ipv4Addr>() else {
+                    continue;
+                };
+                let Ok(prefix) = prefix_str.parse::<u8>() else {
+                    continue;
+                };
+                if address.is_loopback() || address.is_link_local() {
+                    continue;
+                }
+                let tethering = is_linux_tethering(iface);
+                ranked.push((
+                    linux_rank(iface, tethering),
+                    Network {
+                        address,
+                        prefix,
+                        tethering,
+                    },
+                ));
+            }
+            ranked.sort_by_key(|(rank, _)| *rank);
+            ranked.into_iter().map(|(_, n)| n).collect()
         }
     }
 
@@ -90,7 +170,13 @@ mod nix {
             classify(&Self::networks(), peer)
         }
         fn broadcasts(&self, port: u16) -> Vec<SocketAddr> {
-            vec![SocketAddr::new(IpAddr::V4(Ipv4Addr::BROADCAST), port)]
+            let mut out: Vec<SocketAddr> = Self::networks()
+                .iter()
+                .map(|n| SocketAddr::new(IpAddr::V4(n.broadcast()), port))
+                .collect();
+            out.push(SocketAddr::new(IpAddr::V4(Ipv4Addr::BROADCAST), port));
+            out.dedup();
+            out
         }
     }
 }
@@ -104,6 +190,33 @@ mod win {
     };
     use windows::Win32::NetworkManagement::Ndis::IfOperStatusUp;
     use windows::Win32::Networking::WinSock::{AF_INET, SOCKADDR_IN};
+
+    fn is_virtual_adapter(description: &str) -> bool {
+        let d = description.to_ascii_lowercase();
+        d.contains("hyper-v")
+            || d.contains("vethernet")
+            || d.contains("wsl")
+            || d.contains("vmware")
+            || d.contains("virtualbox")
+            || d.contains("virtual")
+            || d.contains("tailscale")
+            || d.contains("zerotier")
+            || d.contains("wireguard")
+            || d.contains("wintun")
+            || d.contains("tap-")
+            || d.contains("loopback")
+    }
+
+    fn adapter_rank(if_type: u32, description: &str, tethering: bool) -> u8 {
+        if is_virtual_adapter(description) {
+            return 3;
+        }
+        if tethering {
+            return 2;
+        }
+        // IF_TYPE_IEEE80211 (Wi-Fi) first so host IP matches phone's LAN even with virtual NICs.
+        if if_type == 71 { 0 } else { 1 }
+    }
 
     /// Reads the adapters on every question; they change as cables and networks come and go.
     pub struct Adapters;
@@ -131,13 +244,14 @@ mod win {
                     return Vec::new();
                 }
             }
-            let mut out = Vec::new();
+            let mut ranked = Vec::new();
             let mut p = buf.as_ptr() as *const IP_ADAPTER_ADDRESSES_LH;
             while !p.is_null() {
                 let a = unsafe { &*p };
                 if a.OperStatus == IfOperStatusUp {
                     let description = unsafe { a.Description.to_string() }.unwrap_or_default();
                     let tethering = is_tethering_adapter(&description);
+                    let rank = adapter_rank(a.IfType, &description, tethering);
                     let mut u = a.FirstUnicastAddress;
                     while !u.is_null() {
                         let ua = unsafe { &*u };
@@ -146,12 +260,15 @@ mod win {
                             let sin = unsafe { &*(sa as *const SOCKADDR_IN) };
                             let address =
                                 Ipv4Addr::from(u32::from_be(unsafe { sin.sin_addr.S_un.S_addr }));
-                            if !address.is_loopback() {
-                                out.push(Network {
-                                    address,
-                                    prefix: ua.OnLinkPrefixLength,
-                                    tethering,
-                                });
+                            if !address.is_loopback() && !address.is_link_local() {
+                                ranked.push((
+                                    rank,
+                                    Network {
+                                        address,
+                                        prefix: ua.OnLinkPrefixLength,
+                                        tethering,
+                                    },
+                                ));
                             }
                         }
                         u = ua.Next;
@@ -159,7 +276,8 @@ mod win {
                 }
                 p = a.Next;
             }
-            out
+            ranked.sort_by_key(|(rank, _)| *rank);
+            ranked.into_iter().map(|(_, n)| n).collect()
         }
     }
 

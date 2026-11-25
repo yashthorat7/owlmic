@@ -16,38 +16,27 @@ import org.junit.Test
 
 class ScreenModelTest {
     @Test
-    fun theLinkTileShowsTheLinkOnceConnectedTheGlobeUntilThenOrTheAlert() {
+    fun theLinkTileShowsTheLinkOnceConnectedAndKeepsPulsingGlobeUntilConnected() {
         assertEquals(Glyph.WIFI, glyphOf(Connection.Connected("PC", LinkKind.WIFI)))
         assertEquals(Glyph.WIFI, glyphOf(Connection.Connected("PC", LinkKind.WIFI, weak = true)))
         assertEquals(Glyph.USB, glyphOf(Connection.Connected("PC", LinkKind.USB_DEBUGGING)))
         listOf(
             Connection.Searching(),
+            Connection.Searching(unreachable = "PC"),
             Connection.Choosing(2),
             Connection.Connecting("PC", LinkKind.WIFI),
             Connection.Approving("PC", "1", LinkKind.BLUETOOTH),
             Connection.Reconnecting("PC", LinkKind.USB_TETHERING),
             Connection.Waiting("PC"),
-        ).forEach { assertEquals(it.toString(), Glyph.GLOBE, glyphOf(it)) }
-        listOf(
-            Connection.Searching(unreachable = "PC"),
             Connection.Denied("PC"),
             Connection.Busy("PC", "Pixel"),
             Connection.UpdateNeeded("PC", phoneOutdated = true),
             Connection.KeyChanged("PC"),
-        ).forEach { assertEquals(it.toString(), Glyph.ALERT, glyphOf(it)) }
-    }
-
-    @Test
-    fun theLinkTileDimsInAndOutOnlyOnTheWay() {
-        listOf(
-            Connection.Searching(),
-            Connection.Connecting("PC", LinkKind.WIFI),
-            Connection.Approving("PC", "4821", LinkKind.WIFI),
-            Connection.Reconnecting("PC", LinkKind.WIFI),
-            Connection.Waiting("PC"),
-        ).forEach { assertTrue(it.toString(), pulses(it)) }
-        listOf(Connection.Connected("PC", LinkKind.WIFI), Connection.Searching(unreachable = "PC"), Connection.Denied("PC"), Connection.Choosing(2))
-            .forEach { assertFalse(it.toString(), pulses(it)) }
+        ).forEach {
+            assertEquals(it.toString(), Glyph.GLOBE, glyphOf(it))
+            assertTrue(it.toString(), pulses(it))
+        }
+        assertFalse(pulses(Connection.Connected("PC", LinkKind.WIFI)))
     }
 
     @Test
@@ -122,7 +111,7 @@ class ScreenModelTest {
     fun aBlockedPcThatAnswersIsNotOfferedAndTheLinksPutUsbThenWifiFirst() {
         val state = AppState(choices = listOf(PcChoice("x", "Office")), knownPcs = listOf(KnownPcView("x", "Office", false, blocked = true)))
         assertEquals(emptyList<PcRow>(), pcList(state).rows)
-        assertEquals(listOf(LinkKind.USB_DEBUGGING, LinkKind.WIFI, LinkKind.USB_TETHERING, LinkKind.BLUETOOTH), LINK_SETTINGS.map { it.first })
+        assertEquals(listOf(LinkKind.USB_DEBUGGING, LinkKind.USB_TETHERING, LinkKind.WIFI, LinkKind.BLUETOOTH), LINK_SETTINGS.map { it.first })
     }
 
     @Test
@@ -157,5 +146,14 @@ class ScreenModelTest {
         assertEquals(16f / 9f, previewTargetAspect("16:9", sideways = false)!!, 0.0001f)
         assertEquals(9f / 16f, previewTargetAspect("16:9", sideways = true)!!, 0.0001f)
         assertEquals(1f, previewTargetAspect("1:1", sideways = true)!!, 0.0001f)
+    }
+
+    @Test
+    fun inFlightConnectionAppearsInPcListWithActiveLink() {
+        val list = pcList(AppState(connection = Connection.Approving("Desk", "4821", LinkKind.USB_DEBUGGING)))
+        assertEquals(
+            listOf(PcRow(null, "Desk", PcKind.NEW, null, LinkKind.USB_DEBUGGING)),
+            list.rows,
+        )
     }
 }

@@ -103,6 +103,7 @@ pub enum Action {
     Allow,
     Deny,
     Repair,
+    Refresh,
     RemovePhone(String),
     BlockPhone(String, bool),
     Disconnect,
@@ -334,6 +335,19 @@ impl PanelState {
         )
     }
 
+    pub fn bluetooth(&self) -> bool {
+        matches!(
+            self.connection,
+            Connection::Connected {
+                link: LINK_BLUETOOTH,
+                ..
+            } | Connection::Reconnecting {
+                link: LINK_BLUETOOTH,
+                ..
+            }
+        )
+    }
+
     /// The tray tooltip (SYSTEM_DESIGN section 34).
     pub fn tooltip(&self) -> String {
         if self.repair.needed() {
@@ -419,7 +433,9 @@ impl PanelState {
         let feature = |which| self.connected().then_some(Action::Pause(which));
         let pairing = |id| self.paired.then_some(Action::Cycle(id));
         match target {
-            Target::Camera => feature(Which::Camera),
+            Target::Camera => (!self.bluetooth())
+                .then(|| feature(Which::Camera))
+                .flatten(),
             Target::Mic => feature(Which::Mic),
             Target::Speaker => feature(Which::Speaker),
             Target::Ratio(r) => {
@@ -474,6 +490,7 @@ impl PanelState {
                 };
                 Some(Action::Cycle(id))
             }
+            Target::Refresh => Some(Action::Refresh),
             _ => None,
         }
     }
@@ -794,5 +811,19 @@ mod tests {
             blocked: false,
         });
         assert_eq!(dup.secondary_phone().map(|p| p.id.as_str()), Some("03"));
+    }
+
+    #[test]
+    fn bluetooth_disables_camera_clicks_and_refresh_fires_action() {
+        let mut s = connected();
+        s.connection = Connection::Connected {
+            phone: "Pixel 8".into(),
+            link: LINK_BLUETOOTH,
+            weak: false,
+        };
+        assert!(s.bluetooth());
+        assert_eq!(s.click(Target::Camera), None);
+        assert_eq!(s.click(Target::Mic), Some(Action::Pause(Which::Mic)));
+        assert_eq!(s.click(Target::Refresh), Some(Action::Refresh));
     }
 }
