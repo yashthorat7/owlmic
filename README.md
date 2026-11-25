@@ -138,9 +138,9 @@ cd owlmic
 python scripts/menu.py
 
 # Direct CLI targets
-python scripts/menu.py build windows   # -> dist/windows/Owlmic-Setup-0.1.0.exe
-python scripts/menu.py build linux     # -> dist/linux/Owlmic-v0.1.0-linux-x86_64.tar.gz
-python scripts/menu.py build android   # -> dist/android/Owlmic-v0.1.0.apk
+python scripts/menu.py build windows   # -> releases/Owlmic-Setup-0.1.0.exe
+python scripts/menu.py build linux     # -> releases/Owlmic-v0.1.0-linux-x86_64.tar.gz
+python scripts/menu.py build android   # -> releases/Owlmic-v0.1.0.apk
 python scripts/menu.py check           # Invariants + rustfmt/clippy/test + Android lint
 ```
 

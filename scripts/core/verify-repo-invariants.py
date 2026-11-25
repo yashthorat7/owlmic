@@ -138,7 +138,7 @@ def check_workflow_paths():
             m_wd = re.search(r"working-directory:\s*['\"]?([^'\"\s#]+)", line)
             if m_wd:
                 wd = m_wd.group(1)
-                if wd not in {"dist", "target", "build", "out"} and not (ROOT / wd).exists():
+                if wd not in {"releases", "dist", "target", "build", "out"} and not (ROOT / wd).exists():
                     ERRORS.append(
                         f"[WORKFLOW PATH] {yml.relative_to(ROOT)}:{idx} references missing working-directory: '{wd}'"
                     )

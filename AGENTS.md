@@ -29,7 +29,7 @@ Load only the specific domain rulebook matching the modified path:
 ### Priority 3: On-Demand & Specialized Operations (Explicit Call Only)
 Least priority; load only when explicitly requested:
 - **Committing / Git Actions (On-Demand Only):** Read [`docs/skills/git-workflow.md`](docs/skills/git-workflow.md)
-- **Building, Packaging & Developer Menu (`scripts/menu.py`, `scripts/core/build.py`, `dist/`):** Read [`docs/skills/build-and-bundle.md`](docs/skills/build-and-bundle.md)
+- **Building, Packaging & Developer Menu (`scripts/menu.py`, `scripts/core/build.py`, `releases/`):** Read [`docs/skills/build-and-bundle.md`](docs/skills/build-and-bundle.md)
 - **Touching Website (`website/`):** Read [`docs/skills/website.md`](docs/skills/website.md)
 
 ---

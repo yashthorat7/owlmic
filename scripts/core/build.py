@@ -2,7 +2,7 @@
 """Owlmic Unified Release Builder.
 
 Builds, packages, and verifies production-ready Owlmic distributables for
-Android, Windows, and Linux, routing output artifacts to the centralized `dist/` directory.
+Android, Windows, and Linux, routing output artifacts to the centralized `releases/` directory.
 """
 
 import argparse
@@ -19,7 +19,8 @@ import urllib.request
 import zipfile
 
 ROOT = Path(__file__).resolve().parent.parent.parent
-DIST = ROOT / "dist"
+RELEASES = ROOT / "releases"
+RELEASES_OTHERS = RELEASES / "others"
 PACKAGING_MANIFEST = ROOT / "scripts" / "packaging" / "windows" / "dependencies.json"
 
 SOFTCAM_HASH = "9D635E0AF682A883C3C7D407513D47E59B0883771701B101216820DFCF997F0B"
@@ -99,8 +100,9 @@ def get_version() -> str:
 
 
 def ensure_dirs():
-    """Ensure dist directory and driver cache exist."""
-    DIST.mkdir(parents=True, exist_ok=True)
+    """Ensure releases, releases/others, and driver cache directories exist."""
+    RELEASES.mkdir(parents=True, exist_ok=True)
+    RELEASES_OTHERS.mkdir(parents=True, exist_ok=True)
     (ROOT / "scripts" / "packaging" / "cache").mkdir(parents=True, exist_ok=True)
 
 
@@ -355,7 +357,7 @@ def update_dependency_link(component: str, url: str, expected_hash: str = None, 
 # PLATFORM BUILD IMPLEMENTATIONS
 # =============================================================================
 
-def build_android(version: str, out_dir: Path = DIST) -> Path | None:
+def build_android(version: str, out_dir: Path = RELEASES) -> Path | None:
     """Build production Android Release APK."""
     print("\n========================================================")
     print("  BUILDING ANDROID CLIENT (RELEASE APK)")
@@ -392,7 +394,7 @@ def build_android(version: str, out_dir: Path = DIST) -> Path | None:
     return dest_apk
 
 
-def build_windows(version: str, out_dir: Path = DIST, mode: str = "all") -> list[Path]:
+def build_windows(version: str, out_dir: Path = RELEASES, mode: str = "all") -> list[Path]:
     """Build Windows packages (installer, portable standalone exe, or both)."""
     print("\n========================================================")
     print(f"  BUILDING WINDOWS DESKTOP ({mode.upper()})")
@@ -427,15 +429,17 @@ def build_windows(version: str, out_dir: Path = DIST, mode: str = "all") -> list
         print("  [ERROR] Expected binaries missing from target/release.")
         return artifacts
 
-    # 1. Portable Standalone Binary
+    # 1. Portable Standalone Binary & Supporting DLLs -> releases/others/
+    others_dir = out_dir / "others"
+    others_dir.mkdir(parents=True, exist_ok=True)
     if mode in ("all", "portable"):
-        standalone = out_dir / f"Owlmic-v{version}-windows-x64.exe"
+        standalone = others_dir / f"Owlmic-v{version}-windows-x64.exe"
         shutil.copy2(exe, standalone)
-        vcam_dst = out_dir / "owlmic_vcam.dll"
+        vcam_dst = others_dir / "owlmic_vcam.dll"
         shutil.copy2(vcam, vcam_dst)
         softcam_cache = ROOT / "scripts" / "packaging" / "cache" / "softcam.dll"
         if softcam_cache.exists():
-            shutil.copy2(softcam_cache, out_dir / "softcam.dll")
+            shutil.copy2(softcam_cache, others_dir / "softcam.dll")
         size_mb = standalone.stat().st_size / (1024 * 1024)
         sha = sha256_file(standalone)
         print(f"\n  [SUCCESS] Windows Portable Binary: {standalone}")
@@ -478,17 +482,191 @@ def build_windows(version: str, out_dir: Path = DIST, mode: str = "all") -> list
     return artifacts
 
 
-def build_linux(version: str, out_dir: Path = DIST) -> Path | None:
-    """Build Linux portable package (.tar.gz with systemd unit and setup scripts)."""
+def _find_wsl_distro() -> str | None:
+    """Return the default WSL distro name if WSL is installed with at least one distro."""
+    if platform.system() != "Windows" or not shutil.which("wsl"):
+        return None
+    try:
+        res = subprocess.run(["wsl", "-l", "-q"], capture_output=True, timeout=10)
+        if res.returncode != 0:
+            return None
+        # wsl -l -q emits UTF-16LE on Windows
+        text = res.stdout.decode("utf-16-le", errors="ignore").replace("\x00", "")
+        distros = [line.strip() for line in text.splitlines() if line.strip()]
+        return distros[0] if distros else None
+    except Exception:
+        return None
+
+
+def _find_zig() -> Path | None:
+    """Locate the Zig compiler executable, installing via winget on Windows if missing."""
+    if zig := shutil.which("zig"):
+        return Path(zig)
+
+    if platform.system() == "Windows":
+        local_app = Path(os.environ.get("LOCALAPPDATA", ""))
+        candidates = [
+            local_app / "Microsoft" / "WinGet" / "Links" / "zig.exe",
+            local_app / "Programs" / "zig" / "zig.exe",
+            ROOT / "scripts" / "packaging" / "cache" / "zig" / "zig.exe",
+        ]
+        for c in candidates:
+            if c.exists():
+                return c
+        winget_pkgs = local_app / "Microsoft" / "WinGet" / "Packages"
+        if winget_pkgs.exists():
+            for match in winget_pkgs.glob("zig.zig_*/**/zig.exe"):
+                return match
+
+        winget = shutil.which("winget.exe") or shutil.which("winget")
+        if winget:
+            print("  Zig not found. Installing Zig via winget for Linux cross-compilation...")
+            cmd = [
+                winget, "install", "--id", "zig.zig",
+                "-e", "--silent", "--accept-source-agreements", "--accept-package-agreements",
+            ]
+            try:
+                res = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+                if res.returncode == 0 and winget_pkgs.exists():
+                    for match in winget_pkgs.glob("zig.zig_*/**/zig.exe"):
+                        print(f"  [OK] Zig installed via winget: {match}")
+                        return match
+            except Exception as e:
+                print(f"  [WARN] winget Zig installation attempt failed: {e}")
+
+    return None
+
+
+def _ensure_rust_target(target: str) -> bool:
+    """Ensure the requested Rust target triple is installed via rustup."""
+    if not shutil.which("rustup"):
+        return False
+    res = subprocess.run(["rustup", "target", "list", "--installed"], capture_output=True, text=True)
+    if res.returncode == 0 and target in res.stdout.splitlines():
+        return True
+    print(f"  Installing Rust target `{target}` ...")
+    return subprocess.run(["rustup", "target", "add", target]).returncode == 0
+
+
+def _build_linux_with_zig(zig_exe: Path, manifest: str, cross_bin: Path) -> Path | None:
+    """Cross-compile `owlmic` for `x86_64-unknown-linux-gnu` using Zig as C compiler & linker."""
+    target = "x86_64-unknown-linux-gnu"
+    if not _ensure_rust_target(target):
+        return None
+
+    wrap_dir = ROOT / "scripts" / "packaging" / "cache" / "zigwrap"
+    wrap_dir.mkdir(parents=True, exist_ok=True)
+    zigcc_py = wrap_dir / "zigcc.py"
+    zigcc_py.write_text(
+        "import subprocess, sys\n"
+        'args = [a for a in sys.argv[1:] if not a.startswith("--target=")]\n'
+        f'cmd = [r"{zig_exe}", "cc", "-target", "x86_64-linux-gnu.2.28", "-fno-sanitize=all"] + args\n'
+        "sys.exit(subprocess.call(cmd))\n",
+        encoding="utf-8",
+    )
+
+    is_win = platform.system() == "Windows"
+    ext = ".cmd" if is_win else ".sh"
+    zigcc_wrap = wrap_dir / f"zigcc{ext}"
+    zigar_wrap = wrap_dir / f"zigar{ext}"
+    if is_win:
+        zigcc_wrap.write_text(f'@"{sys.executable}" "{zigcc_py}" %*\n', encoding="ascii")
+        zigar_wrap.write_text(f'@"{zig_exe}" ar %*\n', encoding="ascii")
+    else:
+        zigcc_wrap.write_text(f'#!/usr/bin/env sh\nexec "{sys.executable}" "{zigcc_py}" "$@"\n', encoding="utf-8")
+        zigar_wrap.write_text(f'#!/usr/bin/env sh\nexec "{zig_exe}" ar "$@"\n', encoding="utf-8")
+        zigcc_wrap.chmod(0o755)
+        zigar_wrap.chmod(0o755)
+
+    env = os.environ.copy()
+    env["CC_x86_64_unknown_linux_gnu"] = str(zigcc_wrap)
+    env["AR_x86_64_unknown_linux_gnu"] = str(zigar_wrap)
+    env["CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_LINKER"] = str(zigcc_wrap)
+
+    print("  Cross-compiling Linux x86_64 release binary via Zig ...")
+    res = subprocess.run(
+        ["cargo", "build", "--release", "--manifest-path", manifest, "-p", "owlmic-app", "--target", target],
+        cwd=ROOT,
+        env=env,
+    )
+    return cross_bin if res.returncode == 0 and cross_bin.exists() else None
+
+
+def _build_linux_binary(desktop_dir: Path) -> Path | None:
+    """Compile or locate the release `owlmic` Linux x86_64 binary."""
+    manifest = "desktop/Cargo.toml"
+    native_bin = desktop_dir / "target" / "release" / "owlmic"
+    cross_bin = desktop_dir / "target" / "x86_64-unknown-linux-gnu" / "release" / "owlmic"
+
+    if platform.system() == "Linux":
+        print("  Compiling native Linux release binary (cargo build --release -p owlmic-app) ...")
+        res = subprocess.run(
+            ["cargo", "build", "--release", "--manifest-path", manifest, "-p", "owlmic-app"],
+            cwd=ROOT,
+        )
+        return native_bin if res.returncode == 0 and native_bin.exists() else None
+
+    # Non-Linux host: prefer Zig cross-compilation (zero Docker/WSL overhead), then WSL / cross
+    if zig_exe := _find_zig():
+        if built := _build_linux_with_zig(zig_exe, manifest, cross_bin):
+            return built
+
+    if distro := _find_wsl_distro():
+        print(f"  Compiling Linux release binary inside WSL ({distro}) ...")
+        wsl_root = str(ROOT).replace("\\", "/")
+        drive, rest = wsl_root[0].lower(), wsl_root[2:]
+        wsl_path = f"/mnt/{drive}{rest}"
+        wsl_cmd = (
+            f'cd "{wsl_path}" && '
+            "cargo build --release --manifest-path desktop/Cargo.toml -p owlmic-app --target x86_64-unknown-linux-gnu"
+        )
+        res = subprocess.run(["wsl", "-d", distro, "bash", "-lc", wsl_cmd])
+        if res.returncode == 0 and cross_bin.exists():
+            return cross_bin
+
+    if shutil.which("cross"):
+        print("  Compiling Linux x86_64 release binary via `cross` ...")
+        res = subprocess.run(
+            ["cross", "build", "--release", "--manifest-path", manifest, "-p", "owlmic-app", "--target", "x86_64-unknown-linux-gnu"],
+            cwd=ROOT,
+        )
+        if res.returncode == 0 and cross_bin.exists():
+            return cross_bin
+
+    if cross_bin.exists():
+        print(f"  Using pre-built Linux binary: {cross_bin.relative_to(ROOT)}")
+        return cross_bin
+
+    return None
+
+
+def build_linux(version: str, out_dir: Path = RELEASES) -> Path | None:
+    """Build Linux portable package (.tar.gz with `owlmic` binary, systemd unit, and setup script)."""
     print("\n========================================================")
     print("  BUILDING LINUX PACKAGE")
     print("========================================================")
     out_dir.mkdir(parents=True, exist_ok=True)
     archive_name = f"Owlmic-v{version}-linux-x86_64.tar.gz"
     dest_archive = out_dir / archive_name
+
+    desktop_dir = ROOT / "desktop"
+    bin_path = _build_linux_binary(desktop_dir)
+    if not bin_path:
+        print(f"  [ERROR] Cannot compile Linux `owlmic` binary on host OS ({platform.system()}).")
+        print("  No Linux toolchain found (`wsl`, `cross`, or `cargo-zigbuild` + `zig`).")
+        print("  Options to produce the Linux tarball:")
+        print("    1. Run `wsl --install` (Ubuntu) on Windows, then install Rust inside WSL")
+        print("    2. Install `cross` (with Docker) or `cargo-zigbuild` + `zig`")
+        print("    3. Trigger the `Linux package` / `Release` workflow on GitHub Actions")
+        if dest_archive.exists() and dest_archive.stat().st_size < 100_000:
+            dest_archive.unlink(missing_ok=True)
+        return None
+
     staging_dir = ROOT / "scripts" / "packaging" / "linux" / "staging"
+    shutil.rmtree(staging_dir, ignore_errors=True)
     staging_dir.mkdir(parents=True, exist_ok=True)
 
+    shutil.copy2(bin_path, staging_dir / "owlmic")
     svc = ROOT / "scripts" / "packaging" / "linux" / "owlmic.service"
     setup = ROOT / "scripts" / "packaging" / "linux" / "setup-linux-devices.sh"
     if svc.exists():
@@ -496,30 +674,15 @@ def build_linux(version: str, out_dir: Path = DIST) -> Path | None:
     if setup.exists():
         shutil.copy2(setup, staging_dir / "setup-linux-devices.sh")
 
-    desktop_dir = ROOT / "desktop"
-    manifest = "desktop/Cargo.toml"
-    if platform.system() == "Linux":
-        print("  Compiling release binaries (cargo build --release) ...")
-        res = subprocess.run(["cargo", "build", "--release", "--manifest-path", manifest], cwd=ROOT)
-        if res.returncode != 0:
-            print("  [ERROR] Linux build failed.")
-            shutil.rmtree(staging_dir, ignore_errors=True)
-            return None
-        bin_path = desktop_dir / "target" / "release" / "owlmic"
-        if bin_path.exists():
-            shutil.copy2(bin_path, staging_dir / "owlmic")
-    else:
-        print(f"  [INFO] Host OS is {platform.system()}. Packaging Linux deployment configuration...")
-        print("  Notice: Native Linux binary is compiled automatically via GitHub Actions CI on Ubuntu runners.")
-        # Check if cross-compiled binary or pre-built binary exists
-        cross_bin = desktop_dir / "target" / "x86_64-unknown-linux-gnu" / "release" / "owlmic"
-        if cross_bin.exists():
-            shutil.copy2(cross_bin, staging_dir / "owlmic")
-
     import tarfile
+
+    def _set_perms(tarinfo: tarfile.TarInfo) -> tarfile.TarInfo:
+        tarinfo.mode = 0o755 if tarinfo.name in {"owlmic", "setup-linux-devices.sh"} else 0o644
+        return tarinfo
+
     with tarfile.open(dest_archive, "w:gz") as tar:
-        for f in staging_dir.iterdir():
-            tar.add(f, arcname=f.name)
+        for f in sorted(staging_dir.iterdir()):
+            tar.add(f, arcname=f.name, filter=_set_perms)
     shutil.rmtree(staging_dir, ignore_errors=True)
 
     size_mb = dest_archive.stat().st_size / (1024 * 1024)
@@ -534,22 +697,27 @@ def build_linux(version: str, out_dir: Path = DIST) -> Path | None:
 # COMPOSITE SUITES & RELEASE BUNDLE
 # =============================================================================
 
-def generate_checksums(directory: Path = DIST) -> Path | None:
-    """Generate SHA256SUMS.txt for all built release artifacts in target directory."""
+def generate_checksums(directory: Path = RELEASES) -> Path | None:
+    """Generate SHA256SUMS.txt inside `releases/others/` for all built release artifacts."""
     directory.mkdir(parents=True, exist_ok=True)
-    valid_exts = {".exe", ".apk", ".tar.gz", ".zip"}
+    others_dir = directory / "others"
+    others_dir.mkdir(parents=True, exist_ok=True)
+    valid_exts = {".exe", ".apk", ".dll", ".tar.gz", ".zip"}
     artifacts = []
-    for f in directory.iterdir():
-        if f.is_file() and (f.suffix in valid_exts or f.name.endswith(".tar.gz")) and f.name != "SHA256SUMS.txt":
-            rel = f.name
-            sha = sha256_file(f)
-            artifacts.append((sha, rel, f.stat().st_size / (1024 * 1024)))
+    for scan_dir in (directory, others_dir):
+        if not scan_dir.exists():
+            continue
+        for f in scan_dir.iterdir():
+            if f.is_file() and (f.suffix in valid_exts or f.name.endswith(".tar.gz")) and f.name != "SHA256SUMS.txt":
+                rel = f.relative_to(directory).as_posix()
+                sha = sha256_file(f)
+                artifacts.append((sha, rel, f.stat().st_size / (1024 * 1024)))
 
     if not artifacts:
         print(f"  [INFO] No release artifacts found in {directory.relative_to(ROOT)}.")
         return None
 
-    manifest = directory / "SHA256SUMS.txt"
+    manifest = others_dir / "SHA256SUMS.txt"
     lines = [f"{sha}  {rel}" for sha, rel, _ in sorted(artifacts, key=lambda x: x[1])]
     manifest.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
@@ -557,71 +725,75 @@ def generate_checksums(directory: Path = DIST) -> Path | None:
     print(f"  SHA-256 MANIFEST: {manifest.relative_to(ROOT)}")
     print("========================================================")
     for sha, rel, size_mb in sorted(artifacts, key=lambda x: x[1]):
-        print(f"  {sha}  {rel:<42} ({size_mb:.2f} MB)")
+        print(f"  {sha}  {rel:<46} ({size_mb:.2f} MB)")
     print(f"\n  [OK] Saved manifest to: {manifest}")
     return manifest
 
 
 def build_release(version: str) -> bool:
-    """Build everything directly into dist/ for GitHub release publishing."""
+    """Build everything directly into releases/ (primary) and releases/others/ (supporting)."""
     print("\n########################################################")
     print(f"   STARTING FULL RELEASE BUILD (v{version})")
-    print("   Output Destination: dist/")
+    print("   Output Destination: releases/")
     print("########################################################")
     ensure_dirs()
     ok = True
 
     # 1. Android Client Release APK
-    apk = build_android(version, out_dir=DIST)
+    apk = build_android(version, out_dir=RELEASES)
     ok = (apk is not None) and ok
 
     # 2. Windows Installer & Standalone Executable
-    win_files = build_windows(version, out_dir=DIST, mode="all")
+    win_files = build_windows(version, out_dir=RELEASES, mode="all")
     ok = (len(win_files) > 0) and ok
 
     # 3. Linux Package
-    linux_pkg = build_linux(version, out_dir=DIST)
+    linux_pkg = build_linux(version, out_dir=RELEASES)
     ok = (linux_pkg is not None) and ok
 
-    # 4. Generate SHA256SUMS.txt inside dist/
-    generate_checksums(directory=DIST)
+    # 4. Generate SHA256SUMS.txt inside releases/others/
+    generate_checksums(directory=RELEASES)
 
     print("\n========================================================")
-    print("  [COMPLETE] FULL RELEASE BUNDLE READY IN dist/")
+    print("  [COMPLETE] RELEASE BUNDLE READY IN releases/")
     print("========================================================")
-    print("  You can now drag-and-drop the contents of dist/ directly to GitHub Releases:")
-    for f in sorted(DIST.iterdir()):
+    for f in sorted(RELEASES.iterdir()):
         if f.is_file():
             print(f"    - {f.name:<40} ({f.stat().st_size / (1024 * 1024):.2f} MB)")
+    if RELEASES_OTHERS.exists():
+        print("  Supporting artifacts (releases/others/):")
+        for f in sorted(RELEASES_OTHERS.iterdir()):
+            if f.is_file():
+                print(f"    - others/{f.name:<33} ({f.stat().st_size / (1024 * 1024):.2f} MB)")
     return ok
 
 
 def build_all(version: str) -> bool:
-    """Build all platform targets directly into dist/."""
+    """Build all platform targets directly into releases/."""
     return build_release(version)
 
 
 def build_pc(version: str) -> bool:
-    """Build PC Desktop targets only (Windows + Linux) directly into dist/."""
+    """Build PC Desktop targets only (Windows + Linux) directly into releases/."""
     ensure_dirs()
     ok = True
-    ok = (len(build_windows(version, out_dir=DIST, mode="all")) > 0) and ok
-    ok = (build_linux(version, out_dir=DIST) is not None) and ok
-    generate_checksums(directory=DIST)
+    ok = (len(build_windows(version, out_dir=RELEASES, mode="all")) > 0) and ok
+    ok = (build_linux(version, out_dir=RELEASES) is not None) and ok
+    generate_checksums(directory=RELEASES)
     return ok
 
 
-def clean_dist():
-    """Wipe build outputs in dist/ for a fresh clean state."""
-    print("  Cleaning dist/ directory ...")
-    if DIST.exists():
-        for item in DIST.iterdir():
+def clean_releases():
+    """Wipe build outputs in releases/ for a fresh clean state."""
+    print("  Cleaning releases/ directory ...")
+    if RELEASES.exists():
+        for item in RELEASES.iterdir():
             if item.is_file():
                 item.unlink(missing_ok=True)
             elif item.is_dir():
                 shutil.rmtree(item, ignore_errors=True)
     ensure_dirs()
-    print("  [OK] dist/ cleaned.")
+    print("  [OK] releases/ cleaned.")
 
 
 def verify_repository() -> bool:
@@ -682,17 +854,17 @@ def interactive_menu():
 ======================================================================
   Host Platform: {host_os} ({platform.machine()})
 
-  [1] Release Build      -> Full Release Bundle (All Platforms -> dist/)
-  [2] Build All          -> All Platforms (dist/)
-  [3] Desktop Build      -> Windows + Linux Only (dist/)
-  [4] Android Client Only-> APK -> dist/Owlmic-v{version}.apk
-  [5] Windows Build Only -> Installer + Portable -> dist/
-  [6] Linux Build Only   -> Portable Archive -> dist/
+  [1] Release Build      -> Full Release Bundle (releases/ + releases/others/)
+  [2] Build All          -> All Platforms (releases/ + releases/others/)
+  [3] Desktop Build      -> Windows + Linux Only (releases/)
+  [4] Android Client Only-> APK -> releases/Owlmic-v{version}.apk
+  [5] Windows Build Only -> Installer -> releases/, Portable/DLLs -> releases/others/
+  [6] Linux Build Only   -> Portable Archive -> releases/
 
   --- Dependency & Packaging Maintenance ---
   [7] Manage Dependencies-> Audit, prefetch, or update VB-CABLE and softcam
   [8] Verify Invariants  -> Check repo casing, binary ban, and JSON schemas
-  [9] Clean dist/        -> Reset all build outputs
+  [9] Clean releases/    -> Reset all build outputs
 
   [0] Exit
 ----------------------------------------------------------------------
@@ -711,20 +883,20 @@ def interactive_menu():
         elif choice == "3":
             build_pc(version)
         elif choice == "4":
-            if build_android(version, out_dir=DIST):
-                generate_checksums(directory=DIST)
+            if build_android(version, out_dir=RELEASES):
+                generate_checksums(directory=RELEASES)
         elif choice == "5":
-            if build_windows(version, out_dir=DIST, mode="all"):
-                generate_checksums(directory=DIST)
+            if build_windows(version, out_dir=RELEASES, mode="all"):
+                generate_checksums(directory=RELEASES)
         elif choice == "6":
-            if build_linux(version, out_dir=DIST):
-                generate_checksums(directory=DIST)
+            if build_linux(version, out_dir=RELEASES):
+                generate_checksums(directory=RELEASES)
         elif choice == "7":
             dependencies_menu()
         elif choice == "8":
             verify_repository()
         elif choice == "9":
-            clean_dist()
+            clean_releases()
         elif choice == "0":
             print("Exiting.")
             sys.exit(0)
@@ -739,7 +911,7 @@ def main():
         choices=["release", "all", "desktop", "pc", "android", "windows", "linux"],
         help="Target suite to build non-interactively",
     )
-    parser.add_argument("--clean", action="store_true", help="Clean dist/ directory")
+    parser.add_argument("--clean", action="store_true", help="Clean releases/ directory")
     parser.add_argument("--verify", action="store_true", help="Run repo invariants check")
     parser.add_argument("--check-deps", action="store_true", help="Audit local packaging dependencies, hashes and URLs")
     parser.add_argument("--fetch-deps", action="store_true", help="Download/refresh all dependencies into local folders")
@@ -753,7 +925,7 @@ def main():
     ensure_dirs()
 
     if args.clean:
-        clean_dist()
+        clean_releases()
 
     if args.verify:
         if not verify_repository():
@@ -783,17 +955,17 @@ def main():
         elif args.target in ("desktop", "pc"):
             ok = build_pc(version)
         elif args.target == "android":
-            ok = (build_android(version, out_dir=DIST) is not None)
+            ok = (build_android(version, out_dir=RELEASES) is not None)
             if ok:
-                generate_checksums(directory=DIST)
+                generate_checksums(directory=RELEASES)
         elif args.target == "windows":
-            ok = (len(build_windows(version, out_dir=DIST, mode="all")) > 0)
+            ok = (len(build_windows(version, out_dir=RELEASES, mode="all")) > 0)
             if ok:
-                generate_checksums(directory=DIST)
+                generate_checksums(directory=RELEASES)
         elif args.target == "linux":
-            ok = (build_linux(version, out_dir=DIST) is not None)
+            ok = (build_linux(version, out_dir=RELEASES) is not None)
             if ok:
-                generate_checksums(directory=DIST)
+                generate_checksums(directory=RELEASES)
         sys.exit(0 if ok else 1)
     elif not (args.clean or args.verify):
         interactive_menu()

@@ -111,10 +111,10 @@ jobs:
           $version = (Select-String -Path desktop\Cargo.toml -Pattern '^version = "(.+)"').Matches[0].Groups[1].Value
           $iscc = Get-ChildItem "${env:ProgramFiles(x86)}\Inno Setup *\ISCC.exe", "$env:ProgramFiles\Inno Setup *\ISCC.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
           if (-not $iscc) { throw "Inno Setup's compiler wasn't found" }
-          if (-not (Test-Path "dist")) { New-Item -ItemType Directory -Path dist | Out-Null }
+          if (-not (Test-Path "releases\others")) { New-Item -ItemType Directory -Path releases\others | Out-Null }
           & $iscc.FullName "/DMyAppVersion=$version" scripts\packaging\windows\owlmic.iss
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          Copy-Item desktop\target\release\owlmic.exe "dist\Owlmic-v$version-windows-x64.exe"
+          Copy-Item desktop\target\release\owlmic.exe "releases\others\Owlmic-v$version-windows-x64.exe"
 
       - name: Check the installer size
         shell: pwsh
@@ -125,7 +125,7 @@ jobs:
             '{0,-40} {1,8:N2} MB' -f $f, ((Get-Item $f).Length / 1MB)
           }
           '{0,-40} {1,8:N2} MB' -f 'scripts\packaging\windows\driver (all files)', ((Get-ChildItem scripts\packaging\windows\driver -Recurse -File | Measure-Object Length -Sum).Sum / 1MB)
-          $setup = Get-Item dist\Owlmic-Setup-*.exe
+          $setup = Get-Item releases\Owlmic-Setup-*.exe
           $size = $setup.Length
           '{0,-40} {1,8:N2} MB' -f $setup.Name, ($size / 1MB)
           if ($size -gt $limit) { throw ("The installer is {0:N2} MB, above the 5 MB budget." -f ($size / 1MB)) }
@@ -134,5 +134,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: owlmic-windows
-          path: dist/*.exe
+          path: |
+            releases/Owlmic-Setup-*.exe
+            releases/others/Owlmic-v*-windows-x64.exe
           if-no-files-found: error

@@ -30,7 +30,7 @@
    - Accent states: `#30D158` (active/success), `#FFD60A` (connecting/warning), `#FF453A` (error).
    - Typography: Clean monospace and sans-serif pairings matching Owlmic brand identity.
 4. **Download Links & Release Routing**:
-   - Download buttons route users directly to the latest GitHub release assets or the local `dist/` outputs (`Owlmic-Setup-{version}.exe`, `Owlmic-v{version}.apk`, `Owlmic-v{version}-linux-x86_64.tar.gz`).
+   - Download buttons route users directly to the latest GitHub release assets or the local `releases/` outputs (`Owlmic-Setup-{version}.exe`, `Owlmic-v{version}.apk`, `Owlmic-v{version}-linux-x86_64.tar.gz`).
 
 ---
 

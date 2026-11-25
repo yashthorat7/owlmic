@@ -1,6 +1,6 @@
 # Build, Packaging & Distribution - Domain Skill
 
-> **Scope**: Developer menu, release artifacts, packaging, driver caching, and centralized `dist/` distribution.
+> **Scope**: Developer menu, release artifacts, packaging, driver caching, and centralized `releases/` distribution.
 
 ## 1. Developer Menu (`scripts/menu.py`) & Release Builder (`scripts/core/build.py`)
 
@@ -39,19 +39,20 @@ Direct builder access with zero third-party Python dependencies:
 
 ---
 
-## 2. Centralized Distribution Structure (`dist/`)
+## 2. Centralized Release Output (`releases/`)
 
-All build outputs are strictly routed to the root `dist/` folder, which is completely excluded from Git:
+All build outputs are strictly routed to the root `releases/` folder, which is completely excluded from Git:
 
 ```text
-dist/
-├── android/
-│   └── Owlmic-v{version}-{release|debug}.apk
-├── windows/
-│   ├── Owlmic-Setup-{version}.exe
-│   └── Owlmic-v{version}-windows-x64.exe
-└── linux/
-    └── Owlmic-v{version}-linux-x86_64.tar.gz
+releases/
+├── Owlmic-Setup-{version}.exe
+├── Owlmic-v{version}.apk
+├── Owlmic-v{version}-linux-x86_64.tar.gz
+└── others/
+    ├── Owlmic-v{version}-windows-x64.exe
+    ├── owlmic_vcam.dll
+    ├── softcam.dll
+    └── SHA256SUMS.txt
 ```
 
 ---
@@ -75,5 +76,5 @@ All Windows packaging dependencies are tracked in `scripts/packaging/windows/dep
 - **On-Demand Only**: APK builds are strictly executed only when explicitly requested by the user or when invoking packaging commands (`scripts/menu.py build android` / `python scripts/core/build.py --target android`). Never compile APKs during routine development or code verification.
 
 ### Linux Packaging
-- Requires Cargo, PipeWire development libraries, and systemd.
-- Generates standalone binary and portable archive containing `owlmic.service` and `setup-linux-devices.sh` from `scripts/packaging/linux/`.
+- On Linux: requires Cargo (`owlmic-app` target) and generates a standalone binary + portable `.tar.gz` containing `owlmic.service` and `setup-linux-devices.sh` from `scripts/packaging/linux/`.
+- On Windows: cross-compiles `x86_64-unknown-linux-gnu` automatically via Zig (auto-installed via `winget` if missing), WSL, or `cross`.
