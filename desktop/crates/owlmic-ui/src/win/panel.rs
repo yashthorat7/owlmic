@@ -790,7 +790,7 @@ impl Panel {
         ];
         let hov_targets = [
             (Target::Wifi, true),
-            (Target::Camera, connected),
+            (Target::Camera, connected && !self.state.bluetooth()),
             (Target::Mic, connected),
             (Target::Speaker, connected),
             (Target::Help, true),
@@ -1563,6 +1563,9 @@ impl Panel {
             }
             Target::Refresh => {
                 self.refresh_at = Some(Instant::now());
+                if let Some(action) = self.state.click(Target::Refresh) {
+                    (self.ui.on_action)(action);
+                }
             }
             Target::RemovePaired => {
                 if self.state.secondary_phone().is_some()
@@ -2435,7 +2438,13 @@ impl Panel {
                 }
                 _ => match mode {
                     WifiMode::Pairing => {
-                        (crate::messages::STATUS_WANTS_TO_PAIR.to_owned(), WHITE_70)
+                        let label = match &s.connection {
+                            Connection::Approval { code, .. } if !code.is_empty() => {
+                                format!("{} · {code}", crate::messages::STATUS_WANTS_TO_PAIR)
+                            }
+                            _ => crate::messages::STATUS_WANTS_TO_PAIR.to_owned(),
+                        };
+                        (label, WHITE_70)
                     }
                     WifiMode::Connected => (ind.label.to_owned(), WHITE_50),
                     WifiMode::Blocked => (crate::messages::PC_BLOCKED.to_owned(), WHITE_35),

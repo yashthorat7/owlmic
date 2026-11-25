@@ -96,6 +96,8 @@ pub enum LinkMsg {
     SessionEnded {
         session_id: [u8; 16],
     },
+    /// App is shutting down: notify active peers with `"quit"` and close connections.
+    Shutdown,
     /// A message for the phone on the session's active link.
     Send(Message),
 }
@@ -551,11 +553,17 @@ impl LinkHub {
         let Some(c) = self.conns.get_mut(&conn_id) else {
             return;
         };
+        let link = c.link;
         // A new carrier hello replaces the connection's carrier.
         if let Some(Carrier::Channel { out, .. }) = c.carrier.replace(carrier) {
             out.close();
         }
-        if self.switcher.active() == Some(conn_id) {
+        if !crate::is_wireless(link) {
+            self.switcher.clear_probation(link);
+        }
+        if let Some(next) = self.switcher.upgrade(Instant::now()) {
+            self.activate(next);
+        } else if self.switcher.active() == Some(conn_id) {
             self.update_out();
         }
     }
@@ -822,13 +830,27 @@ impl owlmic_hub::Hub for LinkHub {
             } => self.reject(conn, reason, owner, None),
             LinkMsg::SessionEnded { session_id } => {
                 if self.session == Some(session_id) {
-                    if let Some(c) = self.switcher.active().and_then(|a| self.conns.get(&a)) {
-                        c.out.send(&Message::Bye(Bye {
-                            reason: Some("ended".into()),
-                        }));
+                    let bye = Message::Bye(Bye {
+                        reason: Some("disconnect".into()),
+                    });
+                    for c in self.conns.values() {
+                        if c.stage == Stage::Live {
+                            c.out.send(&bye);
+                        }
                     }
                     self.end_session();
                 }
+            }
+            LinkMsg::Shutdown => {
+                let bye = Message::Bye(Bye {
+                    reason: Some("quit".into()),
+                });
+                for c in self.conns.values() {
+                    if c.stage == Stage::Live {
+                        c.out.send(&bye);
+                    }
+                }
+                self.end_session();
             }
             LinkMsg::Send(m) => {
                 if let Some(c) = self.switcher.active().and_then(|a| self.conns.get(&a)) {

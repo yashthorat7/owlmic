@@ -44,6 +44,7 @@ import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -77,6 +78,7 @@ import com.owlmic.core.hub.AppState
 import com.owlmic.core.hub.Connection
 import com.owlmic.core.hub.LinkKind
 import com.owlmic.hub.AppMsg
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import com.owlmic.core.R as Copy
 
@@ -209,7 +211,25 @@ private fun PcEntry(state: AppState, row: PcRow, open: Boolean, onToggle: () -> 
     val name = row.name?.takeIf { it.isNotEmpty() } ?: if (row.kind == PcKind.ADDRESS) stringResource(Copy.string.phone_pc_direct_ip) else row.address.orEmpty()
     val connected = stringResource(Copy.string.ui_connected)
     val isCurrent = row.kind == PcKind.CURRENT
-    val isPairing = (isCurrent || row.canConnect) && (state.connection is Connection.Connecting || state.connection is Connection.Approving || state.connection is Connection.Reconnecting)
+    val conn = state.connection
+    val matchesInFlight = when (conn) {
+        is Connection.Connecting -> row.name == conn.pc || (row.id != null && state.knownPcs.firstOrNull { it.current }?.id == row.id)
+        is Connection.Approving -> row.name == conn.pc
+        is Connection.Reconnecting -> row.name == conn.pc || (row.id != null && state.knownPcs.firstOrNull { it.current }?.id == row.id)
+        is Connection.Waiting -> row.name == conn.pc || (row.id != null && state.knownPcs.firstOrNull { it.current }?.id == row.id)
+        else -> false
+    }
+    val isPairing = matchesInFlight || ((isCurrent || row.canConnect) && (conn is Connection.Connecting || conn is Connection.Approving || conn is Connection.Reconnecting))
+    var switchFlash by remember { mutableStateOf(false) }
+    LaunchedEffect(isCurrent, row.link) {
+        if (isCurrent && row.link != null) {
+            switchFlash = true
+            delay(650)
+            switchFlash = false
+        } else {
+            switchFlash = false
+        }
+    }
 
     val infiniteTransition = rememberInfiniteTransition(label = "syncBeam")
     val beamProgress by infiniteTransition.animateFloat(
@@ -237,7 +257,7 @@ private fun PcEntry(state: AppState, row: PcRow, open: Boolean, onToggle: () -> 
             .drawBehind {
                 val y = size.height - 0.5.dp.toPx()
                 drawLine(Color(0x1AFFFFFF), Offset(0f, y), Offset(size.width, y), 1.dp.toPx())
-                if (isPairing) {
+                if (isPairing || switchFlash) {
                     val bw1 = size.width * 0.5f
                     val x1 = (size.width * beamProgress) - bw1 / 2f
                     drawRect(
@@ -282,9 +302,26 @@ private fun PcEntry(state: AppState, row: PcRow, open: Boolean, onToggle: () -> 
             )
             Column(Modifier.weight(1f)) {
                 BasicText(name, style = Theme.pageName.copy(fontSize = 19.8.sp, lineHeight = 26.sp), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                row.address?.takeIf { it.isNotEmpty() }?.let { addr ->
+                val sub = when {
+                    matchesInFlight && conn is Connection.Approving ->
+                        "${stringResource(Copy.string.status_wants_to_pair)} · ${conn.code}"
+                    matchesInFlight && conn is Connection.Reconnecting ->
+                        stringResource(Copy.string.status_reconnecting)
+                    matchesInFlight && conn is Connection.Waiting ->
+                        stringResource(Copy.string.status_waiting_for_pc)
+                    matchesInFlight && conn is Connection.Connecting ->
+                        stringResource(Copy.string.link_connecting)
+                    isCurrent && conn is Connection.Connected -> when {
+                        conn.weak -> stringResource(Copy.string.link_weak)
+                        row.hotspot -> stringResource(Copy.string.link_hotspot)
+                        !row.address.isNullOrEmpty() -> "${stringResource(linkShort(conn.link))} · ${row.address}"
+                        else -> stringResource(linkConnectedLabel(conn.link))
+                    }
+                    else -> row.address?.takeIf { it.isNotEmpty() }
+                }
+                sub?.let { detail ->
                     BasicText(
-                        addr,
+                        detail,
                         Modifier.padding(top = 2.dp),
                         style = Theme.pageDetail.copy(color = Color(0x73FFFFFF), fontSize = 16.8.sp, lineHeight = 22.sp, fontFeatureSettings = "tnum"),
                         maxLines = 1,
@@ -341,6 +378,20 @@ fun linkName(link: LinkKind) = when (link) {
     LinkKind.USB_TETHERING -> Copy.string.setting_link_usb_tethering
     LinkKind.WIFI -> Copy.string.setting_link_wifi
     LinkKind.BLUETOOTH -> Copy.string.setting_link_bluetooth
+}
+
+private fun linkShort(link: LinkKind) = when (link) {
+    LinkKind.USB_DEBUGGING -> Copy.string.link_short_usb
+    LinkKind.USB_TETHERING -> Copy.string.link_short_tethering
+    LinkKind.WIFI -> Copy.string.link_short_wifi
+    LinkKind.BLUETOOTH -> Copy.string.link_short_bluetooth
+}
+
+private fun linkConnectedLabel(link: LinkKind) = when (link) {
+    LinkKind.USB_DEBUGGING -> Copy.string.link_usb_debugging
+    LinkKind.USB_TETHERING -> Copy.string.link_usb_tethering
+    LinkKind.WIFI -> Copy.string.link_wifi
+    LinkKind.BLUETOOTH -> Copy.string.link_bluetooth
 }
 
 /**

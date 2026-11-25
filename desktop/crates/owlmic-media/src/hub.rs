@@ -61,6 +61,7 @@ pub struct Media {
 
 /// The noise reduction slider's default: the phone's suppressor, and the PC's only when the
 /// phone has none.
+const LINK_BLUETOOTH: u8 = 4;
 const NOISE_DEFAULT: u8 = 5;
 
 /// What the PC does at each level of the noise reduction slider: how much RNNoise it mixes in
@@ -211,6 +212,9 @@ impl MediaHub {
                 self.start_mic();
             }
             STREAM_CAMERA => {
+                if self.link == Some(LINK_BLUETOOTH) {
+                    return;
+                }
                 self.camera_on = true;
                 if !self.is_paused(Feature::Camera) {
                     self.set_camera_active(true);
@@ -232,6 +236,9 @@ impl MediaHub {
     }
 
     fn pause(&mut self, feature: Feature, paused: bool) {
+        if feature == Feature::Camera && !paused && self.link == Some(LINK_BLUETOOTH) {
+            return;
+        }
         if self.is_paused(feature) == paused
             && (paused
                 || (feature == Feature::Mic && self.mic_codec.is_some())
@@ -320,6 +327,10 @@ impl Hub for MediaHub {
                 self.link = Some(link);
                 self.media.mic.set_link(link);
                 self.update_speaker();
+                if link == LINK_BLUETOOTH {
+                    self.camera_on = false;
+                    self.set_camera_active(false);
+                }
             }
             MediaMsg::Ended => self.end(),
             MediaMsg::FromPhone(Message::StreamStart(s)) => self.stream_start(s),
@@ -347,7 +358,11 @@ impl Hub for MediaHub {
                         let was_paused = std::mem::take(&mut self.paused[f as usize]);
                         match f {
                             Feature::Mic if was_paused => self.start_mic(),
-                            Feature::Camera if self.camera_on => self.set_camera_active(true),
+                            Feature::Camera
+                                if self.camera_on && self.link != Some(LINK_BLUETOOTH) =>
+                            {
+                                self.set_camera_active(true)
+                            }
                             _ => {}
                         }
                     }
@@ -662,5 +677,35 @@ mod tests {
         })));
         assert!(take(&events).contains(&MediaEvent::Camera(false)));
         assert!(h.media.video.next_frame(Duration::ZERO).is_none());
+    }
+
+    #[test]
+    fn bluetooth_blocks_camera_start_and_pause() {
+        let (mut h, events) = hub();
+
+        h.handle(MediaMsg::Link(3));
+        h.handle(MediaMsg::FromPhone(Message::StreamStart(StreamStart {
+            stream: STREAM_CAMERA,
+            codec: "h264".into(),
+            params: serde_json::Map::new(),
+        })));
+        assert!(take(&events).contains(&MediaEvent::Camera(true)));
+
+        // Switching to Bluetooth stops active camera at once and ignores resume/start.
+        h.handle(MediaMsg::Link(LINK_BLUETOOTH));
+        assert!(take(&events).contains(&MediaEvent::Camera(false)));
+
+        h.handle(MediaMsg::FromPhone(Message::StreamStart(StreamStart {
+            stream: STREAM_CAMERA,
+            codec: "h264".into(),
+            params: serde_json::Map::new(),
+        })));
+        assert!(take(&events).is_empty());
+
+        h.handle(MediaMsg::FromPhone(Message::State(State {
+            camera: FeatureState::On,
+            ..State::default()
+        })));
+        assert!(!take(&events).contains(&MediaEvent::Camera(true)));
     }
 }

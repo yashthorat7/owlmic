@@ -90,6 +90,7 @@ pub struct Wiring {
     pub settings: Outbox<SettingsMsg>,
     pub devices: Box<dyn Fn(DeviceCommand) + Send>,
     pub autostart: Box<dyn Fn(bool) + Send>,
+    pub refresh: Box<dyn Fn() + Send>,
     pub quit: Box<dyn Fn() + Send>,
 }
 
@@ -224,6 +225,11 @@ impl AppHub {
             }
             LinkEvent::View(v) => {
                 self.state.last_link = v.link.or(self.state.last_link);
+                if v.link == Some(owlmic_link::LINK_BLUETOOTH)
+                    && self.state.features.camera == FeatureState::On
+                {
+                    self.state.features.camera = FeatureState::Paused;
+                }
                 self.state.link = v;
             }
         }
@@ -241,10 +247,17 @@ impl AppHub {
             } => {
                 self.state.session_id = Some(session_id);
                 let key = hex(&phone.id);
-                let settings = self
-                    .store
-                    .read(|d| d.pairings.get(&key).cloned())
-                    .unwrap_or_default();
+                let settings = self.store.read(|d| {
+                    let mut m = d.pairings.get(&key).cloned().unwrap_or_default();
+                    for (id, gv) in &d.general {
+                        if id.starts_with("link.")
+                            && m.get(id).is_none_or(|pv| gv.version > pv.version)
+                        {
+                            m.insert(id.clone(), gv.clone());
+                        }
+                    }
+                    m
+                });
                 self.w.link.send(LinkMsg::Welcome {
                     conn,
                     session_id,
@@ -347,7 +360,7 @@ impl AppHub {
                 for (id, value) in values {
                     if id == "general.startWithWindows" {
                         (self.w.autostart)(value == "on");
-                    } else {
+                    } else if !id.starts_with("link.") {
                         self.w.media.send(MediaMsg::Setting { id, value });
                     }
                 }
@@ -363,6 +376,12 @@ impl AppHub {
     fn on_ui(&mut self, a: Action) {
         match a {
             Action::Pause(which) => {
+                if which == Which::Camera
+                    && self.state.last_link == Some(owlmic_link::LINK_BLUETOOTH)
+                    && self.state.features.camera != FeatureState::On
+                {
+                    return;
+                }
                 let now = match which {
                     Which::Mic => self.state.features.mic,
                     Which::Camera => self.state.features.camera,
@@ -417,6 +436,7 @@ impl AppHub {
                 .session
                 .send(SessionMsg::UserDecision { allow: false }),
             Action::Repair => (self.w.devices)(DeviceCommand::Repair),
+            Action::Refresh => (self.w.refresh)(),
             Action::RemovePhone(id) => {
                 if let Some(phone_id) = id_from_hex(&id) {
                     self.w.session.send(SessionMsg::RemovePhone { phone_id });
@@ -590,6 +610,7 @@ mod tests {
             settings,
             devices: Box::new(move |c| d.lock().unwrap().push(c)),
             autostart: Box::new(move |on| a.lock().unwrap().push(on)),
+            refresh: Box::new(|| {}),
             quit: Box::new(|| {}),
         };
         Rig {

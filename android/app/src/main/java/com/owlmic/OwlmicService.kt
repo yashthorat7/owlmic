@@ -2,8 +2,10 @@ package com.owlmic
 
 import android.annotation.SuppressLint
 import android.app.Service
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.ServiceInfo
 import android.media.AudioDeviceCallback
 import android.media.AudioDeviceInfo
@@ -38,6 +40,18 @@ class OwlmicService : Service() {
 
     private val thermalListener = PowerManager.OnThermalStatusChangedListener { hub.post(AppMsg.Thermal(it)) }
 
+    private var lastUsbKey: String? = null
+
+    private val usbReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            val action = intent?.action ?: return
+            val key = "$action:${intent.getBooleanExtra("connected", false)}:${intent.getBooleanExtra("adb", false)}:${intent.getBooleanExtra("rndis", false)}"
+            if (action == "android.hardware.usb.action.USB_STATE" && key == lastUsbKey) return
+            lastUsbKey = key
+            if (::hub.isInitialized) hub.post(AppMsg.Opened)
+        }
+    }
+
     private val devices = object : AudioDeviceCallback() {
         override fun onAudioDevicesAdded(added: Array<out AudioDeviceInfo>) = output()
 
@@ -55,6 +69,17 @@ class OwlmicService : Service() {
         Owlmic.hub = hub
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) getSystemService(PowerManager::class.java).addThermalStatusListener(mainExecutor, thermalListener)
         getSystemService(AudioManager::class.java).registerAudioDeviceCallback(devices, main)
+        val usbFilter = IntentFilter().apply {
+            addAction("android.hardware.usb.action.USB_STATE")
+            addAction(Intent.ACTION_POWER_CONNECTED)
+            addAction(Intent.ACTION_POWER_DISCONNECTED)
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(usbReceiver, usbFilter, RECEIVER_EXPORTED)
+        } else {
+            @Suppress("UnspecifiedRegisterReceiverFlag")
+            registerReceiver(usbReceiver, usbFilter)
+        }
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -167,6 +192,7 @@ class OwlmicService : Service() {
     }
 
     override fun onDestroy() {
+        runCatching { unregisterReceiver(usbReceiver) }
         getSystemService(AudioManager::class.java).unregisterAudioDeviceCallback(devices)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) getSystemService(PowerManager::class.java).removeThermalStatusListener(thermalListener)
         hub.close()

@@ -150,6 +150,7 @@ class LinkHub(
     private var heldSessionId: String? = null
     private var deniedPc: String? = null
     private var keyChangedPc: String? = null
+    private var heldOffPc: String? = null
     private var allowed: Set<LinkKind> = LinkKind.entries.toSet()
     private var bluetoothTried = false
     private var bluetoothOffered = false
@@ -201,7 +202,10 @@ class LinkHub(
                 runCatching { message.path.carrier.close() }
             }
             is LinkMsg.Send -> active?.send(message.message)
-            is LinkMsg.Choose -> fresh().firstOrNull { it.pcId == message.pcId }?.let { connect(it, Purpose.PRIMARY, null) }
+            is LinkMsg.Choose -> {
+                heldOffPc = null
+                fresh().firstOrNull { it.pcId == message.pcId }?.let { connect(it, Purpose.PRIMARY, null) }
+            }
             LinkMsg.AskAgain -> deniedPc?.let {
                 store.clearRefusal(it)
                 deniedPc = null
@@ -217,14 +221,32 @@ class LinkHub(
             }
             LinkMsg.Reconnect -> reconnect()
             is LinkMsg.Allowed -> {
+                val gained = (message.links - allowed).isNotEmpty()
                 allowed = message.links
                 candidates.entries.removeAll { (_, v) -> (v.first.link !in allowed).also { gone -> if (gone) drop(v.first) } }
-                active?.takeIf { it.link !in allowed }?.close()
                 standby?.takeIf { it.link !in allowed }?.close()
+                active?.takeIf { it.link !in allowed }?.let { s ->
+                    // Let any in-flight Settings change reach the PC before closing the link.
+                    later(DRAIN_MS) {
+                        if (s === active && s.link !in allowed) {
+                            if (standby?.let { !it.closed && it.link in allowed } == true) s.close() else endedByPeer(s, "quit")
+                        }
+                    }
+                }
+                if (gained) {
+                    seeker.burst()
+                    if (phase == Phase.ACTIVE) upgrade() else decide()
+                }
             }
-            LinkMsg.Opened -> seeker.burst()
+            LinkMsg.Opened -> {
+                heldOffPc = null
+                probation.clear()
+                seeker.burst()
+                if (phase == Phase.ACTIVE) upgrade() else decide()
+            }
             is LinkMsg.SpeakerExpected -> speakerSince = if (message.on) now() else 0
             LinkMsg.TryBluetooth -> {
+                heldOffPc = null
                 bluetoothTried = true
                 offerBluetooth(false)
                 decide()
@@ -240,6 +262,10 @@ class LinkHub(
             return
         }
         val k = key(c)
+        if (c.link == LinkKind.USB_DEBUGGING && c.opened != null && (hasTunnel() || (failures[k]?.second ?: 0) > now())) {
+            drop(c)
+            return
+        }
         val previous = candidates.put(k, c to now())?.first
         previous?.takeIf { it.opened !== c.opened }?.let(::drop)
         // The other phone left: try at once rather than after the busy backoff.
@@ -281,6 +307,7 @@ class LinkHub(
         }
         // While holding, only the held PC (or the cable, which is its own proof of intent) will do.
         if (phase == Phase.HELD || phase == Phase.WAITING) options = options.filter { it.pcId == pcId || it.pcId == null }
+        if (heldOffPc != null) options = options.filter { it.pcId != heldOffPc || it.link.isCable }
         when (val d = Ranker.decide(options, store.known(), now())) {
             is Decision.Connect -> {
                 val resume = heldSessionId?.takeIf { d.candidate.pcId == pcId || d.candidate.pcId == null }
@@ -327,7 +354,10 @@ class LinkHub(
         var session: LinkSession? = null
         val result = try {
             channel = when (c.link) {
-                LinkKind.USB_DEBUGGING -> tcp((c.opened as? Socket) ?: dial(InetAddress.getLoopbackAddress(), Proto.PORT_CONTROL))
+                LinkKind.USB_DEBUGGING -> {
+                    val pre = c.opened as? Socket
+                    tcp(if (pre != null && !pre.isClosed) pre else dial(InetAddress.getLoopbackAddress(), Proto.PORT_CONTROL))
+                }
                 LinkKind.USB_TETHERING, LinkKind.WIFI -> tcp(dial(c.host ?: error("no address"), c.tcpPort))
                 LinkKind.BLUETOOTH -> bluetooth!!.connect(c.btAddress ?: error("no address"), BLUETOOTH_DIAL_MS).let { s -> ControlChannel(s.inputStream, s.outputStream, s) }
             }
@@ -373,11 +403,13 @@ class LinkHub(
         val hello = out.carrierHello(w.sessionId, Crypto.carrierMac(w.keys.auth, w.sessionId))
         carrier.send(hello)
         if (carrier is UdpCarrier) {
-            // UDP may drop one; a few copies cost nothing.
-            Thread.sleep(100)
-            carrier.send(hello)
-            Thread.sleep(200)
-            carrier.send(hello)
+            // UDP may drop one; send two spaced copies without blocking the connect thread.
+            scope.launch {
+                delay(100)
+                runCatching { carrier.send(hello) }
+                delay(200)
+                runCatching { carrier.send(hello) }
+            }
         }
         return path
     }
@@ -411,15 +443,17 @@ class LinkHub(
                     activate(s, resumed)
                 } else if (active != null && r.pcId == pcId && s.link != active!!.link) {
                     // The new link waits here, proven, for the PC's SWITCH (protocol section 4, "Links of one session").
-                    standby?.close()
+                    val prev = standby
                     standby = s
                     startReading(s)
+                    prev?.close()
                 } else {
                     s.close()
+                    if (m.tunnel) releaseTunnelIfIdle()
                 }
             }
             is Handshake.Result.Rejected -> {
-                if (c.link == LinkKind.USB_DEBUGGING) seeker.tunnelReleased()
+                if (c.link == LinkKind.USB_DEBUGGING) releaseTunnelIfIdle()
                 unreachable = null
                 if (a.purpose == Purpose.STANDBY) return
                 val name = r.pcName ?: c.name
@@ -451,11 +485,11 @@ class LinkHub(
                 setConnection(Connection.KeyChanged(r.pcName))
             }
             is Handshake.Result.Blocked -> {
-                if (c.link == LinkKind.USB_DEBUGGING) seeker.tunnelReleased()
+                if (c.link == LinkKind.USB_DEBUGGING) releaseTunnelIfIdle()
                 blockedAttempt(a)
             }
             is Handshake.Result.Failed -> {
-                if (c.link == LinkKind.USB_DEBUGGING) seeker.tunnelReleased()
+                if (c.link == LinkKind.USB_DEBUGGING) releaseTunnelIfIdle()
                 backoff(c, null)
                 if (a.purpose == Purpose.STANDBY) {
                     probation[key(c)] = now() + PROBATION_MS
@@ -463,6 +497,13 @@ class LinkHub(
                     failing(c)
                     searching(fresh = false)
                 }
+            }
+        }
+        if (attempt == null) {
+            when (phase) {
+                Phase.ACTIVE -> upgrade()
+                Phase.SEARCHING, Phase.HELD, Phase.WAITING -> decide()
+                else -> Unit
             }
         }
     }
@@ -514,6 +555,7 @@ class LinkHub(
         emit(LinkEvent.KnownChanged)
         offerBluetooth(false)
         hintTethering(false)
+        if (s.link != LinkKind.USB_DEBUGGING) seeker.burst()
     }
 
     private fun startReading(s: LinkSession) {
@@ -528,10 +570,21 @@ class LinkHub(
         }
     }
 
+    private fun hasTunnel(): Boolean =
+        active?.link == LinkKind.USB_DEBUGGING ||
+            standby?.link == LinkKind.USB_DEBUGGING ||
+            attempt?.candidate?.link == LinkKind.USB_DEBUGGING
+
+    private fun releaseTunnelIfIdle() {
+        if (!hasTunnel()) seeker.tunnelReleased()
+    }
+
     private fun closed(s: LinkSession) {
         s.close()
-        if (s.link == LinkKind.USB_DEBUGGING) seeker.tunnelReleased()
-        if (s === active || s === standby) probation[key(s.candidate)] = now() + PROBATION_MS
+        if (s.link == LinkKind.USB_DEBUGGING) releaseTunnelIfIdle()
+        if (s === active || s === standby) {
+            probation[key(s.candidate)] = now() + if (s.link.isCable) CABLE_PROBATION_MS else PROBATION_MS
+        }
         if (s === standby) {
             standby = null
             return
@@ -562,6 +615,33 @@ class LinkHub(
 
     private fun addressOf(s: LinkSession): String? = addressOf(s.candidate)
 
+    private fun endedByPeer(s: LinkSession, reason: String?) {
+        if (s === standby) {
+            standby = null
+            s.close()
+            if (s.link == LinkKind.USB_DEBUGGING) releaseTunnelIfIdle()
+            return
+        }
+        if (s !== active) {
+            s.close()
+            if (s.link == LinkKind.USB_DEBUGGING) releaseTunnelIfIdle()
+            return
+        }
+        val goneId = pcId
+        active = null
+        standby?.close()
+        standby = null
+        s.close()
+        if (s.link == LinkKind.USB_DEBUGGING) releaseTunnelIfIdle()
+        goneId?.let(store::connectedNow)
+        router.use(null)
+        heldSessionId = null
+        pcId = null
+        if (reason == "disconnect") heldOffPc = goneId
+        emit(LinkEvent.Ended)
+        searching()
+    }
+
     private fun hold(s: LinkSession) {
         // Connected until now: the list's "last connected" reads from the moment the link went.
         pcId?.let(store::connectedNow)
@@ -586,7 +666,7 @@ class LinkHub(
                 standby = active
                 promote(s)
             }
-            is Bye -> s.close()
+            is Bye -> endedByPeer(s, m.reason)
             is RestartStream -> if (s === active) ladder(m.stream)
             is Report -> {
                 s.monitor.peerReport(m.lossPct)
@@ -621,6 +701,7 @@ class LinkHub(
         val t = now()
         candidates.entries.removeAll { (_, v) -> (t - v.second > CANDIDATE_TTL_MS).also { stale -> if (stale) drop(v.first) } }
         probation.entries.removeAll { it.value <= t }
+        if (heldOffPc != null && fresh().none { it.pcId == heldOffPc }) heldOffPc = null
         when (phase) {
             Phase.SEARCHING, Phase.BUSY, Phase.DENIED, Phase.KEY_CHANGED -> {
                 if (phase == Phase.SEARCHING && connection !is Connection.Choosing) setConnection(searchState(t))
@@ -789,6 +870,7 @@ class LinkHub(
      * cleared and the search starts over now. A handshake already running is left to finish.
      */
     private fun reconnect() {
+        heldOffPc = null
         failures.clear()
         probation.clear()
         unreachable = null
@@ -862,6 +944,7 @@ class LinkHub(
         const val DIAL_MS = 2_000
         const val BLUETOOTH_DIAL_MS = 4_000L
         const val DRAIN_MS = 200L
+        const val CABLE_PROBATION_MS = 1_000L
         const val PROBATION_MS = 10_000L
         const val CANT_REACH_AFTER_MS = 10_000L
         const val KEY_CHANGED_RETRY_MS = 30_000L

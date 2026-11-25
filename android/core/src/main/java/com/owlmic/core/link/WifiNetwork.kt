@@ -34,15 +34,28 @@ class WifiNetwork(context: Context) : Closeable {
         }
     }
 
-    /** Starts watching; [changed] runs on a system thread whenever the Wi-Fi network comes, goes or changes address. */
+    private val tetherCallback = object : ConnectivityManager.NetworkCallback() {
+        override fun onAvailable(network: Network) = onChange()
+
+        override fun onLinkPropertiesChanged(network: Network, properties: LinkProperties) = onChange()
+
+        override fun onLost(network: Network) = onChange()
+    }
+
+    /** Starts watching; [changed] runs on a system thread whenever Wi-Fi or USB tethering changes. */
     @SuppressLint("MissingPermission") // The app's manifest declares ACCESS_NETWORK_STATE; lint checks this library alone.
     fun listen(changed: () -> Unit) {
         onChange = changed
-        val request = NetworkRequest.Builder()
+        val wifiRequest = NetworkRequest.Builder()
             .addTransportType(NetworkCapabilities.TRANSPORT_WIFI)
             .removeCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
             .build()
-        runCatching { connectivity?.registerNetworkCallback(request, callback) }
+        val tetherRequest = NetworkRequest.Builder()
+            .addTransportType(NetworkCapabilities.TRANSPORT_ETHERNET)
+            .removeCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+            .build()
+        runCatching { connectivity?.registerNetworkCallback(wifiRequest, callback) }
+        runCatching { connectivity?.registerNetworkCallback(tetherRequest, tetherCallback) }
     }
 
     /** The Wi-Fi network when [host] is on its subnet, else null for Android's normal routing. */
@@ -53,5 +66,6 @@ class WifiNetwork(context: Context) : Closeable {
 
     override fun close() {
         runCatching { connectivity?.unregisterNetworkCallback(callback) }
+        runCatching { connectivity?.unregisterNetworkCallback(tetherCallback) }
     }
 }

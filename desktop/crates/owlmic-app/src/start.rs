@@ -97,8 +97,9 @@ pub fn run(open: bool) {
         r.send_speaker(ts, payload)
     })));
 
+    let slot = AnswererSlot::default();
     {
-        let (link, session, media, settings, devices, store, panel, waker) = (
+        let (link, session, media, settings, devices, store, panel, waker, app_out, answerer) = (
             link.clone(),
             session.clone(),
             media.clone(),
@@ -107,12 +108,16 @@ pub fn run(open: bool) {
             store.clone(),
             panel.clone(),
             waker.clone(),
+            app.clone(),
+            slot.clone(),
         );
         spawn_supervised(
             "app",
             move || {
                 let d = devices.clone();
                 let w = waker.clone();
+                let rf_slot = answerer.clone();
+                let rf_app = app_out.clone();
                 let wiring = Wiring {
                     link: link.clone(),
                     session: session.clone(),
@@ -120,6 +125,10 @@ pub fn run(open: bool) {
                     settings: settings.clone(),
                     devices: Box::new(move |c| d.send(device_msg(c))),
                     autostart: Box::new(crate::autostart::sync),
+                    refresh: Box::new(move || {
+                        announce(&rf_slot);
+                        rf_app.send(AppMsg::Addresses(addresses()));
+                    }),
                     quit: Box::new(move || w.quit()),
                 };
                 AppHub::new(wiring, store.clone(), panel.clone())
@@ -198,7 +207,7 @@ pub fn run(open: bool) {
     let (a, l, s, vm) = (app.clone(), link.clone(), store.clone(), video_metrics);
     let _ = std::thread::Builder::new()
         .name("startup".into())
-        .spawn(move || network(identity, routes, s, l, link_in, a, vm));
+        .spawn(move || network(identity, routes, s, (l, link_in), a, vm, slot));
 
     let a = app.clone();
     let ui = Ui {
@@ -209,10 +218,12 @@ pub fn run(open: bool) {
     };
     let _ = owlmic_ui::win::run(&waker, ui, open);
 
-    // Quitting: the Device Hub unmutes the PC speakers before the process ends.
+    // Quitting: notify Phone immediately and unmute PC speakers before the process ends.
+    link.send(LinkMsg::Shutdown);
     let (done, wait) = std::sync::mpsc::sync_channel(1);
     devices.send(DeviceMsg::Shutdown(done));
     let _ = wait.recv_timeout(Duration::from_secs(2));
+    std::thread::sleep(Duration::from_millis(80));
     std::process::exit(0);
 }
 
@@ -233,10 +244,10 @@ fn network(
     identity: Arc<Identity>,
     routes: Arc<Routes>,
     store: Arc<Store>,
-    link: Outbox<LinkMsg>,
-    link_in: owlmic_hub::Inbox<LinkMsg>,
+    (link, link_in): (Outbox<LinkMsg>, owlmic_hub::Inbox<LinkMsg>),
     app: Outbox<AppMsg>,
     video_metrics: Arc<[std::sync::atomic::AtomicU64; 3]>,
+    slot: AnswererSlot,
 ) {
     let net: Arc<dyn NetInfo> = Arc::new(Adapters);
     let busy = Arc::new(AtomicBool::new(false));
@@ -318,7 +329,6 @@ fn network(
     let approved: IsApproved = Arc::new(move |id: &[u8; 16]| {
         store.read(|d| d.phones.get(&hex(id)).is_some_and(|p| !p.blocked))
     });
-    let slot = AnswererSlot::default();
     let s = slot.clone();
     supervise(
         "answerer",

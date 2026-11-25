@@ -537,7 +537,18 @@ class AppHub(private val app: Application, private val onState: (AppState) -> Un
                     }
                 }
                 when (m.camera) {
-                    FeatureState.ON -> {
+                    FeatureState.ON -> if (linkKind == LinkKind.BLUETOOTH) {
+                        if (state.camera.isOn || state.camera.problem != FeatureProblem.NO_BLUETOOTH) {
+                            if (state.camera.isOn) media.post(MediaMsg.CameraPaused(true))
+                            val nextPhase = if (state.camera.isOn || state.camera.phase == FeaturePhase.PAUSED) {
+                                FeaturePhase.PAUSED
+                            } else {
+                                FeaturePhase.OFF
+                            }
+                            set(Feature.CAMERA, FeatureView(nextPhase, FeatureProblem.NO_BLUETOOTH))
+                        }
+                        sendState()
+                    } else {
                         cameraPausedByPc = false
                         if (state.camera.phase == FeaturePhase.PAUSED) {
                             media.post(MediaMsg.CameraPaused(false))
@@ -587,7 +598,7 @@ class AppHub(private val app: Application, private val onState: (AppState) -> Un
                     )
                     if (state.speaker.phase != FeaturePhase.OFF) startSpeaker(reset = true)
                 }
-                Stream.CAMERA -> if (state.camera.phase != FeaturePhase.OFF && !state.camera.isOn) {
+                Stream.CAMERA -> if (linkKind != LinkKind.BLUETOOTH && state.camera.phase != FeaturePhase.OFF && !state.camera.isOn) {
                     setFeature(Feature.CAMERA, true)
                 }
                 Stream.MIC -> if (state.mic.phase != FeaturePhase.OFF && !state.mic.isOn) {

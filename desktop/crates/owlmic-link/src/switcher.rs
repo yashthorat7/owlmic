@@ -5,7 +5,7 @@
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
 
-pub const STABLE: Duration = Duration::from_secs(2);
+pub const STABLE: Duration = Duration::ZERO;
 pub const PROBATION: Duration = Duration::from_secs(10);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -85,6 +85,10 @@ impl Switcher {
         self.candidates.clear();
     }
 
+    pub fn clear_probation(&mut self, link: u8) {
+        self.failed.remove(&link);
+    }
+
     fn best(&self, now: Instant, require_stable: bool, probation: bool) -> Option<u64> {
         self.candidates
             .iter()
@@ -107,14 +111,13 @@ mod tests {
     use crate::{LINK_USB_DEBUGGING as USB, LINK_WIFI as WIFI};
 
     #[test]
-    fn a_cable_takes_over_after_2_stable_seconds() {
+    fn a_cable_takes_over_immediately() {
         let t = Instant::now();
         let mut s = Switcher::default();
         s.add(1, WIFI, t);
         assert_eq!(s.active(), Some(1));
         s.add(2, USB, t + Duration::from_secs(5));
-        assert_eq!(s.upgrade(t + Duration::from_secs(6)), None);
-        assert_eq!(s.upgrade(t + Duration::from_secs(7)), Some(2));
+        assert_eq!(s.upgrade(t + Duration::from_secs(5)), Some(2));
         assert_eq!(s.standby(), Some(1), "Wi-Fi stays warm");
     }
 
@@ -151,5 +154,19 @@ mod tests {
             "still on probation"
         );
         assert_eq!(s.upgrade(t + Duration::from_secs(10)), Some(3));
+    }
+
+    #[test]
+    fn clear_probation_allows_immediate_usb_reattach() {
+        let t = Instant::now();
+        let mut s = Switcher::default();
+        s.add(1, WIFI, t);
+        s.add(2, USB, t);
+        let _ = s.upgrade(t);
+        s.remove(2, t + Duration::from_secs(1));
+        s.add(3, USB, t + Duration::from_secs(2));
+        assert_eq!(s.upgrade(t + Duration::from_secs(2)), None);
+        s.clear_probation(USB);
+        assert_eq!(s.upgrade(t + Duration::from_secs(2)), Some(3));
     }
 }

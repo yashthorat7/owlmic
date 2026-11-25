@@ -359,4 +359,19 @@ class LinkHubTest {
         assertEquals(1, hellos.size)
         hub.close()
     }
+
+    @Test
+    fun pcByeEndsSessionImmediatelyWithoutHoldingFor30s() {
+        var ch: ControlChannel? = null
+        thread(isDaemon = true) { ch = welcomeNext() }
+        val hub = hub()
+        hub.post(LinkMsg.Found(candidate(LinkKind.WIFI)))
+        connectedOver(LinkKind.WIFI)
+
+        ch!!.send(Bye("quit"))
+        next<LinkEvent.Ended>()
+        next<LinkEvent.ConnectionChanged> { it.connection is Connection.Searching }
+        assertTrue(events.none { it is LinkEvent.Held })
+        hub.close()
+    }
 }

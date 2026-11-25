@@ -105,7 +105,37 @@ impl Hub for SettingsHub {
         match msg {
             SettingsMsg::Session(phone) => {
                 self.phone = phone;
-                if self.phone.is_some() {
+                if let Some(ref key) = self.phone {
+                    let pushed = self.store.update(|d| {
+                        let general = d.general.clone();
+                        let pairing = d.pairings.entry(key.clone()).or_default();
+                        let mut to_push = Vec::new();
+                        for def in crate::SETTINGS.iter().filter(|s| is_link(s.id)) {
+                            if let Some(gv) = general.get(def.id)
+                                && pairing.get(def.id).is_none_or(|pv| gv.version > pv.version)
+                            {
+                                let v = pairing
+                                    .values()
+                                    .map(|x| x.version)
+                                    .max()
+                                    .unwrap_or(0)
+                                    .max(gv.version);
+                                pairing.insert(
+                                    def.id.to_owned(),
+                                    crate::store::Versioned {
+                                        value: gv.value.clone(),
+                                        version: v,
+                                    },
+                                );
+                                to_push.push(SettingChange {
+                                    id: def.id.to_owned(),
+                                    value: gv.value.clone(),
+                                    version: v,
+                                });
+                            }
+                        }
+                        to_push
+                    });
                     let pairing = self.pairing();
                     let general = self.store.read(|d| d.general.clone());
                     let values = crate::SETTINGS
@@ -120,15 +150,30 @@ impl Hub for SettingsHub {
                             (d.id.to_owned(), book::value(from, d.id).to_owned())
                         });
                     (self.emit)(SettingsEvent::Apply(values.collect()));
+                    if !pushed.is_empty() {
+                        (self.emit)(SettingsEvent::ToPhone(pushed));
+                    }
                 }
             }
             SettingsMsg::FromPhone(changes) => {
                 let Some(phone) = self.phone.clone() else {
                     return;
                 };
-                let applied = self
-                    .store
-                    .update(|d| book::merge_remote(d.pairings.entry(phone).or_default(), &changes));
+                let applied = self.store.update(|d| {
+                    let out = book::merge_remote(d.pairings.entry(phone).or_default(), &changes);
+                    for c in &out {
+                        if is_link(&c.id) {
+                            d.general.insert(
+                                c.id.clone(),
+                                crate::store::Versioned {
+                                    value: c.value.clone(),
+                                    version: c.version,
+                                },
+                            );
+                        }
+                    }
+                    out
+                });
                 if !applied.is_empty() {
                     (self.emit)(SettingsEvent::Apply(
                         applied.into_iter().map(|c| (c.id, c.value)).collect(),
@@ -291,6 +336,25 @@ mod tests {
             value: "off".into(),
         });
         assert!(applied(&events).contains(&("link.wifi".into(), "off".into())));
+
+        // Offline PC link change syncs forward to phone once paired and phone updates sync back to general.
+        h.handle(SettingsMsg::Session(Some("03".into())));
+        assert!(events.lock().unwrap().iter().any(|e| matches!(
+            e,
+            SettingsEvent::ToPhone(c) if c.iter().any(|x| x.id == "link.wifi" && x.value == "off")
+        )));
+        events.lock().unwrap().clear();
+        h.handle(SettingsMsg::FromPhone(vec![SettingChange {
+            id: "link.wifi".into(),
+            value: "on".into(),
+            version: 10,
+        }]));
+        assert!(applied(&events).contains(&("link.wifi".into(), "on".into())));
+        assert_eq!(
+            h.store
+                .read(|d| book::value(&d.general, "link.wifi").to_owned()),
+            "on"
+        );
         let _ = std::fs::remove_dir_all(dir);
     }
 }

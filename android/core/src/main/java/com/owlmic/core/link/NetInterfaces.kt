@@ -15,9 +15,15 @@ data class NetIf(val name: String, val address: InetAddress, val prefixLength: I
     fun contains(other: InetAddress): Boolean = inSubnet(other.address, address.address, prefixLength)
 }
 
-/** USB tethering interfaces are rndis*, usb* or ncm*. Everything with a broadcast address is Wi-Fi, hotspots included. */
+/** USB tethering interfaces are rndis*, usb*, ncm*, ecm* or tether*. Everything else with a broadcast address is Wi-Fi, hotspots included. */
 fun linkFor(interfaceName: String): LinkKind =
-    if (interfaceName.startsWith("rndis") || interfaceName.startsWith("usb") || interfaceName.startsWith("ncm")) {
+    if (
+        interfaceName.startsWith("rndis") ||
+        interfaceName.startsWith("usb") ||
+        interfaceName.startsWith("ncm") ||
+        interfaceName.startsWith("ecm") ||
+        interfaceName.startsWith("tether")
+    ) {
         LinkKind.USB_TETHERING
     } else {
         LinkKind.WIFI

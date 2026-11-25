@@ -57,6 +57,7 @@ class Store(
     private val addresses = mutableListOf<String>()
     private val asked = mutableSetOf<String>()
     private var offlineSettings: Map<String, Versioned> = SettingValues.defaults()
+    private var offlinePending: Set<String> = emptySet()
     private val latest = AtomicReference<String?>(null)
 
     init {
@@ -73,6 +74,7 @@ class Store(
             json.optJSONArray("addresses")?.let { a -> repeat(a.length()) { addresses += a.getString(it) } }
             json.optJSONArray("asked")?.let { a -> repeat(a.length()) { asked += a.getString(it) } }
             json.optJSONObject("settings")?.let { offlineSettings = SettingValues.defaults() + readSettings(it) }
+            json.optJSONArray("pending")?.let { p -> offlinePending = (0 until p.length()).mapTo(HashSet()) { p.getString(it) } }
         } else {
             // A first start, or a Keystore key that is gone for good: a fresh identity, so PCs approve this phone again.
             phoneId = Crypto.randomBytes(16)
@@ -97,13 +99,18 @@ class Store(
     fun remember(pcId: String, name: String, staticPub: ByteArray, pairingKey: ByteArray, btAddress: String?, address: String? = null, link: LinkKind? = null) {
         val existing = pcs[pcId]
         val sameKey = existing != null && existing.pairingKey.contentEquals(pairingKey) && existing.wrappedKey.isNotEmpty()
+        val initialPending = if (existing == null && offlinePending.isNotEmpty()) {
+            offlinePending.also { offlinePending = emptySet() }
+        } else {
+            existing?.pending ?: emptySet()
+        }
         pcs[pcId] = Pc(
             pcId, name, staticPub, pairingKey,
             wrappedKey = if (sameKey) existing.wrappedKey else wrapper.wrap(pairingKey).toBase64(),
             approved = true, lastUsedAt = now(), refusedAt = 0,
             btAddress = btAddress?.uppercase() ?: existing?.btAddress,
             settings = existing?.settings ?: offlineSettings,
-            pending = existing?.pending ?: emptySet(),
+            pending = initialPending,
             blocked = existing?.blocked ?: false,
             address = address ?: existing?.address,
             lastLink = link ?: existing?.lastLink,
@@ -195,7 +202,7 @@ class Store(
     fun settings(pcId: String?): Map<String, Versioned> = pcId?.let { pcs[it]?.settings } ?: offlineSettings
 
     @Synchronized
-    fun pending(pcId: String?): Set<String> = pcId?.let { pcs[it]?.pending } ?: emptySet()
+    fun pending(pcId: String?): Set<String> = pcId?.let { pcs[it]?.pending } ?: offlinePending
 
     @Synchronized
     fun saveSettings(pcId: String?, values: Map<String, Versioned>, pending: Set<String>) {
@@ -205,6 +212,7 @@ class Store(
             p.pending = pending
         } else {
             offlineSettings = values
+            offlinePending = pending
         }
         save()
     }
@@ -276,6 +284,7 @@ class Store(
             .put("identityPublic", identity.public.toBase64())
             .put("identityPrivate", wrappedIdentity)
             .put("settings", writeSettings(offlineSettings))
+            .put("pending", JSONArray(offlinePending.toList()))
             .put("addresses", JSONArray(addresses))
             .put("asked", JSONArray(asked.toList()))
             .put(

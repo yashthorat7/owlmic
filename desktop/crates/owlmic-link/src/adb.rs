@@ -21,9 +21,9 @@ use windows::core::GUID;
 const ADB_INTERFACE: GUID = GUID::from_u128(0xF72FE0D4_CBCB_407D_8814_9ED673D0DD6B);
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 const ADB_SERVER_PORT: u16 = 5037;
-/// A reverse that failed (adbd still starting, say) is tried again this often, a few times.
-const RETRY: Duration = Duration::from_secs(2);
-const RETRIES: u32 = 5;
+/// Retries quickly while adbd boots/authorizes or a reverse setup failed.
+const RETRY: Duration = Duration::from_millis(800);
+const RETRIES: u32 = 8;
 
 /// adb isn't bundled: phones with USB debugging belong to people who already have it, from the
 /// Android SDK (ANDROID_HOME, ANDROID_SDK_ROOT or Android Studio's default folder) or on the PATH.
@@ -36,6 +36,10 @@ pub fn adb_path() -> PathBuf {
         );
     sdk_roots
         .map(|root| root.join("platform-tools").join("adb.exe"))
+        .chain(
+            std::env::var_os("USERPROFILE")
+                .map(|d| PathBuf::from(d).join("platform-tools").join("adb.exe")),
+        )
         .find(|p| p.exists())
         .unwrap_or_else(|| PathBuf::from("adb"))
 }
@@ -147,15 +151,13 @@ impl Drop for Registration {
 }
 
 /// `adb track-devices`, which also keeps the adb server up while phones are plugged in. Every
-/// change it prints is an event. Dropping it stops it, and the server if Owlmic started that.
+/// change it prints is an event.
 struct Tracker {
     child: Child,
-    started_server: bool,
 }
 
 impl Tracker {
     fn start(tx: mpsc::Sender<()>) -> Option<Self> {
-        let started_server = !server_already_running();
         let mut child = Command::new(adb_path())
             .arg("track-devices")
             .creation_flags(CREATE_NO_WINDOW)
@@ -173,12 +175,14 @@ impl Tracker {
                             return;
                         }
                     }
+                    let _ = tx.send(());
                 });
         }
-        Some(Self {
-            child,
-            started_server,
-        })
+        Some(Self { child })
+    }
+
+    fn alive(&mut self) -> bool {
+        matches!(self.child.try_wait(), Ok(None))
     }
 }
 
@@ -186,9 +190,6 @@ impl Drop for Tracker {
     fn drop(&mut self) {
         let _ = self.child.kill();
         let _ = self.child.wait();
-        if self.started_server {
-            let _ = adb(&["kill-server"]);
-        }
     }
 }
 
@@ -200,44 +201,74 @@ pub fn watch(up: &dyn Fn()) -> Result<(), String> {
     up();
     let mut tracker: Option<Tracker> = None;
     let mut reversed: Vec<String> = Vec::new();
-    let mut retries = 0;
+    let mut retries = 0u32;
+    let mut owned_server = false;
+    let mut detach_ticks = 0u32;
     let _ = tx.send(());
     loop {
-        let event = if retries > 0 {
-            rx.recv_timeout(RETRY).or_else(|e| match e {
-                mpsc::RecvTimeoutError::Timeout => Ok(()),
-                mpsc::RecvTimeoutError::Disconnected => Err(()),
-            })
-        } else {
-            rx.recv().map_err(|_| ())
-        };
-        if event.is_err() {
+        let (closed, mut had_event) =
+            if retries > 0 || (tracker.is_some() && !adb_interfaces_present()) {
+                match rx.recv_timeout(RETRY) {
+                    Ok(()) => (false, true),
+                    Err(mpsc::RecvTimeoutError::Timeout) => (false, false),
+                    Err(mpsc::RecvTimeoutError::Disconnected) => (true, false),
+                }
+            } else {
+                (rx.recv().is_err(), true)
+            };
+        if closed {
             return Err("device notifications stopped".into());
         }
-        while rx.try_recv().is_ok() {}
-        if !adb_interfaces_present() {
+        while rx.try_recv().is_ok() {
+            had_event = true;
+        }
+        if let Some(t) = tracker.as_mut()
+            && !t.alive()
+        {
             tracker = None;
+        }
+        let iface_present = adb_interfaces_present();
+        if !iface_present {
             reversed.clear();
             retries = 0;
+            // Avoid killing adb server mid-replug when user detaches and attaches quickly.
+            if tracker.is_some() {
+                detach_ticks += 1;
+                if detach_ticks >= 3 {
+                    tracker = None;
+                    if owned_server {
+                        let _ = adb(&["kill-server"]);
+                        owned_server = false;
+                    }
+                    detach_ticks = 0;
+                }
+            }
             continue;
         }
+        detach_ticks = 0;
         if tracker.is_none() {
+            if !server_already_running() {
+                owned_server = true;
+            }
             tracker = Tracker::start(tx.clone());
         }
-        // A phone that went offline (adbd restarted, debugging toggled) needs its reverse again.
+        // Any USB or device-tracker change may have restarted adbd (e.g. USB mode toggle), so re-apply reverse.
+        if had_event {
+            reversed.clear();
+        }
         let authorised = authorised_serials();
         reversed.retain(|s| authorised.contains(s));
-        let mut failed = false;
+        let mut need_retry = authorised.is_empty();
         for serial in authorised {
             if !reversed.contains(&serial) {
                 if reverse(&serial) {
                     reversed.push(serial);
                 } else {
-                    failed = true;
+                    need_retry = true;
                 }
             }
         }
-        retries = match (failed, retries) {
+        retries = match (need_retry, retries) {
             (false, _) => 0,
             (true, 0) => RETRIES,
             (true, n) => n - 1,
