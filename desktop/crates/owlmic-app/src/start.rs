@@ -218,11 +218,12 @@ pub fn run(open: bool) {
     };
     let _ = owlmic_ui::win::run(&waker, ui, open);
 
-    // Quitting: notify Phone immediately and unmute PC speakers before the process ends.
+    // Quitting: notify Phone immediately, unmute PC speakers, and release ADB before exiting.
     link.send(LinkMsg::Shutdown);
     let (done, wait) = std::sync::mpsc::sync_channel(1);
     devices.send(DeviceMsg::Shutdown(done));
     let _ = wait.recv_timeout(Duration::from_secs(2));
+    owlmic_link::adb::shutdown();
     std::thread::sleep(Duration::from_millis(80));
     std::process::exit(0);
 }
