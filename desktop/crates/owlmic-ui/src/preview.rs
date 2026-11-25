@@ -48,8 +48,12 @@ impl Preview {
         ((s >> 32) as usize, (s & 0xFFFF_FFFF) as usize)
     }
 
-    pub fn clear_stats(&self) {
+    pub fn clear(&self) {
+        let mut p = self.pixels.lock().unwrap_or_else(|p| p.into_inner());
+        p.fill(0);
+        self.size.store(0, Ordering::Release);
         self.stream_size.store(0, Ordering::Release);
+        self.seq.fetch_add(1, Ordering::Release);
     }
 
     /// For the video thread. Skipped rather than waited for while the panel is reading.
@@ -92,5 +96,18 @@ mod tests {
         assert_eq!(p.seq(), 1);
         assert_eq!(p.size(), (320, 240));
         assert_eq!(p.read(|px| px[0]), 7);
+    }
+
+    #[test]
+    fn clear_wipes_pixels_and_dimensions() {
+        let p = Preview::default();
+        p.set_stream_size(1920, 1080);
+        p.put(320, 240, |px| px.fill(42));
+        let before = p.seq();
+        p.clear();
+        assert_eq!(p.size(), (0, 0));
+        assert_eq!(p.stream_size(), (0, 0));
+        assert!(p.seq() > before);
+        assert!(p.read(|px| px.iter().all(|b| *b == 0)));
     }
 }

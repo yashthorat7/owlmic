@@ -648,14 +648,11 @@ impl Panel {
     fn sync_cam_crop(&mut self, cam_on: bool, pw: usize, ph: usize) {
         let ratio_lbl = self.state.camera_ratio_label();
         let (target, _) = l::cam_crop_rect_for_stream(ratio_lbl, pw, ph);
-        if !cam_on && self.anim.cam_layer_t.now() <= 0.01 {
+        if !cam_on || pw == 0 || ph == 0 {
             self.anim.cam_crop_has_stream = false;
             self.anim.cam_crop_from = target;
             self.anim.cam_crop_to = target;
             self.anim.cam_crop_t.snap(1.0);
-            return;
-        }
-        if !cam_on || pw == 0 || ph == 0 {
             return;
         }
         if !self.anim.cam_crop_has_stream {
@@ -713,14 +710,20 @@ impl Panel {
         }
         self.anim.cam_layer_t.set(if cam_on { 1.0 } else { 0.0 });
         let (pw, ph) = self.ui.preview.size();
+        let has_frame = self.ui.preview.seq() > 0 && pw > 0 && ph > 0;
         self.sync_cam_crop(cam_on, pw, ph);
-        self.anim
-            .cam_preview_t
-            .set(if cam_on && !self.cam_preview_hidden {
-                1.0
-            } else {
-                0.0
-            });
+        if !has_frame {
+            self.painter.clear_preview();
+            self.anim.cam_preview_t.snap(0.0);
+        } else {
+            self.anim
+                .cam_preview_t
+                .snap(if cam_on && !self.cam_preview_hidden {
+                    1.0
+                } else {
+                    0.0
+                });
+        }
         self.anim
             .cam_hud_t
             .set(if self.hud_is_bright() { 1.0 } else { 0.15 });
@@ -1083,6 +1086,12 @@ impl Panel {
         } else if !matches!(self.state.camera, Feature::On | Feature::Restarting) {
             self.touch_cam_hud();
         }
+        if !matches!(new.connection, Connection::Connected { .. })
+            || !matches!(new.camera, Feature::On | Feature::Restarting)
+        {
+            self.ui.preview.clear();
+            self.painter.clear_preview();
+        }
         if !matches!(new.mic, Feature::On | Feature::Restarting) {
             self.mic_quick_open = false;
             self.dock_open = false;
@@ -1249,6 +1258,8 @@ impl Panel {
             self.cam_preview_hidden,
         );
         self.ui.preview.set_wanted(false);
+        self.ui.preview.clear();
+        self.painter.clear_preview();
     }
 
     fn show_tray_context_menu(&mut self) {
@@ -1518,6 +1529,10 @@ impl Panel {
                 self.ui
                     .preview
                     .set_wanted(!self.cam_preview_hidden && self.visible);
+                if self.cam_preview_hidden {
+                    self.ui.preview.clear();
+                    self.painter.clear_preview();
+                }
                 self.touch_cam_hud();
             }
             Target::Mirror | Target::Flip => {
@@ -1842,7 +1857,14 @@ impl Panel {
         let dock_exp_t = self.anim.dock_expand_t.now();
         let quick_t = self.anim.quick_audio_t.now();
 
-        if preview_a < 0.999 {
+        let (pw, ph) = self.ui.preview.size();
+        let seq = self.ui.preview.seq();
+        let has_frame = seq > 0 && pw > 0 && ph > 0;
+        if !has_frame {
+            self.painter.clear_preview();
+        }
+
+        if preview_a < 0.999 || !has_frame {
             self.painter.dots_grid(c.inset(12.0), 18.0, 1.0, 0x161616);
             if !mic_on {
                 let wm_alpha = if s.connected() { 0.07 } else { 0.07 * 0.45 };
@@ -1858,11 +1880,9 @@ impl Panel {
                 self.painter.clip(l::PLAYGROUND);
             }
             let pushed = self.painter.push_layer(l::PLAYGROUND, cam_a);
-            if preview_a > 0.01 {
-                let pic_pushed = self.painter.push_layer(l::PLAYGROUND, preview_a);
+            if cam_on && !self.cam_preview_hidden && has_frame {
                 self.draw_playground_base();
 
-                let (pw, ph) = self.ui.preview.size();
                 self.sync_cam_crop(cam_on, pw, ph);
                 let cam_rect = lerp_rect(
                     self.anim.cam_crop_from,
@@ -1876,15 +1896,12 @@ impl Panel {
                     .max(c.bottom() - cam_rect.bottom())
                     .max(0.0);
 
-                if self.ui.preview.seq() > 0 && pw > 0 && ph > 0 {
-                    let seq = self.ui.preview.seq();
-                    let preview = self.ui.preview.clone();
-                    let ambient = (inset_x > 0.5 || inset_y > 0.5).then_some(l::PLAYGROUND);
-                    self.painter
-                        .picture(cam_rect, ambient, pw, ph, seq, |copy| {
-                            preview.read(|px| copy(px))
-                        });
-                }
+                let preview = self.ui.preview.clone();
+                let ambient = (inset_x > 0.5 || inset_y > 0.5).then_some(l::PLAYGROUND);
+                self.painter
+                    .picture(cam_rect, ambient, pw, ph, seq, |copy| {
+                        preview.read(|px| copy(px))
+                    });
 
                 // 1 px optical crop borders fading smoothly near playground bounds
                 let alpha_x = (inset_x / 4.0).clamp(0.0, 1.0) * 0.22;
@@ -1921,7 +1938,6 @@ impl Panel {
                         1.0,
                     );
                 }
-                self.painter.pop_layer(pic_pushed);
             }
 
             // Camera HUD controls (group-dimmed cleanly via layer opacity so backgrounds stay translucent)

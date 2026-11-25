@@ -18,19 +18,28 @@ import kotlin.concurrent.thread
 /** Moves media packets over one link. [send] never blocks the caller for long: stream carriers queue and drop the oldest. */
 interface MediaCarrier : Closeable {
     fun send(packet: ByteArray)
+
+    val congested: Boolean get() = false
 }
 
 /** UDP 7655 on USB tethering and Wi-Fi. [network] is the Wi-Fi network when the PC is on it. */
 class UdpCarrier(host: InetAddress, port: Int, network: Network?, private val onReceive: (ByteArray, Int) -> Unit) : MediaCarrier {
     private val socket = DatagramSocket().apply {
-        sendBufferSize = 512 * 1024
-        receiveBufferSize = 256 * 1024
+        sendBufferSize = 2 * 1024 * 1024
+        receiveBufferSize = 512 * 1024
+        runCatching { trafficClass = 0xB8 }
         network?.bindSocket(this)
         connect(host, port)
         soTimeout = 1_000
     }
 
     @Volatile private var open = true
+
+    @Volatile private var lastSendErrorNs = 0L
+    private val txPacket = ThreadLocal.withInitial { DatagramPacket(ByteArray(0), 0) }
+
+    override val congested: Boolean
+        get() = lastSendErrorNs != 0L && System.nanoTime() - lastSendErrorNs < 1_000_000_000L
 
     init {
         thread(name = "owlmic-receive", isDaemon = true) {
@@ -52,9 +61,12 @@ class UdpCarrier(host: InetAddress, port: Int, network: Network?, private val on
 
     override fun send(packet: ByteArray) {
         try {
-            socket.send(DatagramPacket(packet, packet.size))
+            val p = txPacket.get()!!
+            p.setData(packet, 0, packet.size)
+            socket.send(p)
         } catch (_: IOException) {
-            // A full buffer or a vanished route: media is best effort, the monitor notices a dead link.
+            // A full buffer or a vanished route: signal congestion so the camera backs off before the monitor catches up.
+            lastSendErrorNs = System.nanoTime()
         }
     }
 
@@ -68,10 +80,16 @@ class UdpCarrier(host: InetAddress, port: Int, network: Network?, private val on
  * A queue and a writer thread in front of a blocking stream, so a stalled link never blocks an encoder. When it is
  * full the oldest packet goes: fresh media is worth more than old.
  */
-private class WriterQueue(name: String, private val write: (ByteArray) -> Unit, private val onError: () -> Unit) {
-    private val queue = ArrayBlockingQueue<ByteArray>(512)
+private class WriterQueue(
+    name: String,
+    private val write: (ByteArray) -> Unit,
+    private val onError: () -> Unit,
+) {
+    private val queue = ArrayBlockingQueue<ByteArray>(384)
 
     @Volatile var open = true
+
+    val congested: Boolean get() = queue.size > 48
 
     init {
         thread(name = name, isDaemon = true) {
@@ -96,16 +114,18 @@ private class WriterQueue(name: String, private val write: (ByteArray) -> Unit, 
 class TunnelCarrier(port: Int, private val onReceive: (ByteArray, Int) -> Unit, onClosed: () -> Unit) : MediaCarrier {
     private val socket = Socket().apply {
         tcpNoDelay = true
-        sendBufferSize = 512 * 1024
+        sendBufferSize = 1024 * 1024
         receiveBufferSize = 512 * 1024
         connect(InetSocketAddress(InetAddress.getLoopbackAddress(), port), 2_000)
         soTimeout = 5_000
     }
     private val output = socket.getOutputStream()
+    private val txBuf = ByteArray(3 + 65_536).also { it[0] = Frames.MEDIA_MARKER.toByte() }
     private val writer = WriterQueue("owlmic-tunnel-out", { packet ->
-        output.write(byteArrayOf(Frames.MEDIA_MARKER.toByte(), (packet.size shr 8).toByte(), packet.size.toByte()))
-        output.write(packet)
-        output.flush()
+        txBuf[1] = (packet.size shr 8).toByte()
+        txBuf[2] = packet.size.toByte()
+        System.arraycopy(packet, 0, txBuf, 3, packet.size)
+        output.write(txBuf, 0, 3 + packet.size)
     }, onClosed)
 
     init {
@@ -130,6 +150,8 @@ class TunnelCarrier(port: Int, private val onReceive: (ByteArray, Int) -> Unit, 
         }
     }
 
+    override val congested: Boolean get() = writer.congested
+
     override fun send(packet: ByteArray) = writer.offer(packet)
 
     override fun close() {
@@ -141,6 +163,8 @@ class TunnelCarrier(port: Int, private val onReceive: (ByteArray, Int) -> Unit, 
 /** Bluetooth: media shares the RFCOMM stream with control (protocol section 3). Incoming media arrives through the control reader. */
 class SharedStreamCarrier(private val channel: ControlChannel, onClosed: () -> Unit) : MediaCarrier {
     private val writer = WriterQueue("owlmic-bt-out", { channel.sendMedia(it, it.size) }, onClosed)
+
+    override val congested: Boolean get() = writer.congested
 
     override fun send(packet: ByteArray) = writer.offer(packet)
 

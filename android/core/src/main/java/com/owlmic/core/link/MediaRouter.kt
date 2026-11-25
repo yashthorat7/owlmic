@@ -8,6 +8,8 @@ interface MediaOut {
 
     /** False when the picture was refused (too big, or the link wore out): the camera lowers its bitrate and starts a keyframe. */
     fun video(timestampUs: Long, keyframe: Boolean, data: ByteArray, offset: Int, length: Int): Boolean
+
+    fun videoCongested(): Boolean = false
 }
 
 /** Takes the PC's speaker audio, on a carrier's receive thread. */
@@ -46,6 +48,8 @@ class MediaRouter : MediaOut {
         val p = path ?: return true
         return p.out.video(timestampUs, keyframe, data, offset, length) { p.carrier.send(it) }
     }
+
+    override fun videoCongested(): Boolean = path?.carrier?.congested == true
 
     /** A packet from [from]'s carrier. */
     fun received(from: MediaPath, packet: ByteArray, length: Int) {

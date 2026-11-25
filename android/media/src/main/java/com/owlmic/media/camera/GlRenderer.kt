@@ -51,6 +51,10 @@ class GlRenderer {
 
     // Snapshot of the currently latched SurfaceTexture frame so smooth crop redraws stay consistent during CameraX rebinds.
     private var hasFrame = false
+    private var outFrameCount = 0
+    private var outFpsWindowStartNs = 0L
+    @Volatile var onOutputFps: ((Int) -> Unit)? = null
+
     private var drawnUprightW = 0
     private var drawnUprightH = 0
     private var drawnRotation = 0
@@ -280,6 +284,7 @@ class GlRenderer {
         }
         st.getTransformMatrix(texMatrix)
         val ts = st.timestamp
+        val nowNs = System.nanoTime()
         val upright = if (rotation % 180 == 0) bufferWidth to bufferHeight else bufferHeight to bufferWidth
         val camera = cameraTransform
         hasFrame = bufferWidth > 0 && bufferHeight > 0
@@ -294,9 +299,18 @@ class GlRenderer {
             drawCamera(program, sampled(upright, encoderWidth, encoderHeight, rotation, 0, false, camera))
             EGLExt.eglPresentationTimeANDROID(display, encoder, ts)
             EGL14.eglSwapBuffers(display, encoder)
+            outFrameCount++
+            if (outFpsWindowStartNs == 0L) {
+                outFpsWindowStartNs = nowNs
+            } else if (nowNs - outFpsWindowStartNs >= 1_000_000_000L) {
+                val measured = (outFrameCount * 1_000_000_000L / (nowNs - outFpsWindowStartNs)).toInt()
+                outFrameCount = 0
+                outFpsWindowStartNs = nowNs
+                onOutputFps?.invoke(measured)
+            }
         }
         if (preview != EGL14.EGL_NO_SURFACE && hasFrame) {
-            drawPreview(System.nanoTime())
+            drawPreview(nowNs)
         }
     }
 

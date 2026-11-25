@@ -156,6 +156,9 @@ impl Stream {
         let mut inner = self.inner();
         inner.running = false;
         inner.next_frame_at = None;
+        if let Some(picker) = inner.picker.as_mut() {
+            picker.clear();
+        }
         if let Some(alloc) = inner.allocator.take() {
             unsafe {
                 let _ = alloc.UninitializeSampleAllocator();
@@ -185,6 +188,7 @@ impl Stream {
         inner.provided_allocator = None;
         inner.media_type = None;
         inner.mapping = None;
+        inner.picker = None;
         drop(inner);
         unsafe {
             let _ = self.queue.Shutdown();

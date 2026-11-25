@@ -21,6 +21,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.LifecycleRegistry
 import com.owlmic.core.hub.Health
+import com.owlmic.core.hub.LinkKind
 import com.owlmic.core.hub.RestartPolicy
 import com.owlmic.core.link.MediaOut
 import java.util.concurrent.CountDownLatch
@@ -42,6 +43,8 @@ data class CameraConfig(
     val orientation: Orientation,
     val ratio: Ratio = Ratio.FULL,
     val mirrorPreview: Boolean = false,
+    val quality: String = "auto",
+    val link: LinkKind = LinkKind.WIFI,
 )
 
 /**
@@ -83,7 +86,9 @@ class CameraPipeline(
 
     // GL thread.
     private var encoder: VideoEncoder? = null
-    private var bitrate: BitrateController? = null
+    private var optimizer: StreamOptimizer? = null
+    private var activePlan: VideoPlan? = null
+    @Volatile private var measuredOutFps: Int? = null
     private val encoderRestarts = RestartPolicy()
 
     /** Remembered while the camera is off, so the preview appears as soon as it starts. */
@@ -124,20 +129,31 @@ class CameraPipeline(
     /** Step 1 of the recovery ladder (section 14.8): a fresh encoder, which starts with a keyframe. */
     fun restartEncoder() = post { newEncoder() }
 
-    /** Android's thermal status, from the App Hub: lower the frame rate, then the quality (section 19). Any thread. */
+    /** Android's thermal status, from the App Hub: adapt stream without dropping below 24 fps. Any thread. */
     fun thermal(status: Int) {
-        val before = thermal
         thermal = status
         post {
-            val c = config ?: return@post
-            renderer?.fps = thermalFps(c.plan.fps, status)
-            if (thermalPlan(c.plan, status) != thermalPlan(c.plan, before)) newEncoder()
+            optimizer?.setThermal(status)?.let(::applyAdjustment)
         }
     }
 
-    /** The PC's REPORT for the camera stream: adapt the bitrate. */
-    fun report(lossPct: Double, rttMs: Int) = post {
-        bitrate?.report(lossPct, rttMs)?.let { encoder?.setBitrate(it) }
+    /** The PC's REPORT for the camera stream: adapt FPS (down to 24 floor), resolution, and bitrate smoothly. */
+    fun report(
+        lossPct: Double,
+        rttMs: Int,
+        camLossPct: Double? = null,
+        camFps: Int? = null,
+        camDropPct: Double? = null,
+    ) = post {
+        optimizer?.report(
+            lossPct = lossPct,
+            rttMs = rttMs,
+            camLossPct = camLossPct,
+            camFps = camFps,
+            camDropPct = camDropPct,
+            measuredOutFps = measuredOutFps,
+            congested = out.videoCongested(),
+        )?.let(::applyAdjustment)
     }
 
     /**
@@ -179,17 +195,26 @@ class CameraPipeline(
             it.start()
             orientation.enable()
         }
-        val r = renderer ?: GlRenderer().also { renderer = it }
+        val r = renderer ?: GlRenderer().also { gl ->
+            gl.onOutputFps = { fpsSample ->
+                measuredOutFps = fpsSample
+                if (out.videoCongested()) {
+                    optimizer?.onCongested()?.let(::applyAdjustment)
+                }
+            }
+            renderer = gl
+        }
         // The mirror is the preview's alone: the stream doesn't change, so neither the encoder nor the camera does. A
         // bind still on its way was for the previous config, though, and drops itself, so this one must bind again.
         r.mirrorPreview = next.mirrorPreview
         val capture = captured
         if (capture != null && previous?.copy(mirrorPreview = next.mirrorPreview) == next) return
         val needsCamera = previous == null || capture == null || previous.lens != next.lens ||
-            next.plan.shortSide > capture.plan.shortSide || next.plan.fps != capture.plan.fps ||
+            next.plan.shortSide > capture.plan.shortSide || next.plan.fps > capture.plan.fps ||
             framing(next.ratio) != framing(capture.ratio)
         // A new size or shape needs a new encoder; another lens or orientation only needs a fresh keyframe.
         val needsEncoder = previous == null || previous.plan != next.plan || previous.ratio != next.ratio
+        val resetOpt = previous == null || previous.quality != next.quality || previous.plan.fps != next.plan.fps || previous.link != next.link
         val targetRot = targetRotationFor(next.orientation, rotation)
         if (!needsCamera && preview != null && preview?.targetRotation != targetRot) {
             pendingRot = targetRot
@@ -197,8 +222,15 @@ class CameraPipeline(
         }
         val rotInFlight = !needsCamera && pendingRot != null
         r.handler.post {
-            val effFps = if (!needsCamera && capturedFps in 1 until next.plan.fps) capturedFps else next.plan.fps
-            r.fps = thermalFps(effFps, thermal)
+            if (resetOpt || optimizer == null) {
+                val opt = StreamOptimizer(next.quality, next.plan.fps, next.link)
+                opt.setThermal(thermal)
+                optimizer = opt
+                activePlan = opt.current
+            }
+            val effPlan = activePlan ?: next.plan
+            val effFps = if (!needsCamera && capturedFps in 1 until effPlan.fps) capturedFps else effPlan.fps
+            r.fps = effFps.coerceAtLeast(24)
             if (needsEncoder && !rotInFlight) newEncoder() else if (!needsEncoder) encoder?.requestKeyframe()
             r.setPreviewAspect(previewAspect, previewBorderPx)
             previewSurface?.let { (s, w, h) -> r.setPreview(s, w, h) }
@@ -278,7 +310,8 @@ class CameraPipeline(
                 captured = next
                 capturedFps = appliedFps
                 r.handler.post {
-                    r.fps = thermalFps(appliedFps, thermal)
+                    val effFps = (activePlan ?: next.plan).fps.coerceAtMost(appliedFps).coerceAtLeast(24)
+                    r.fps = effFps
                     if (encoder != null && appliedFps != next.plan.fps) newEncoder()
                 }
             }
@@ -292,7 +325,8 @@ class CameraPipeline(
      */
     private fun frameChanged() {
         val c = config ?: return
-        val size = outputSize(thermalPlan(c.plan, thermal), c.ratio, renderer?.uprightFrame()) ?: return
+        val plan = activePlan ?: c.plan
+        val size = outputSize(plan, c.ratio, renderer?.uprightFrame()) ?: return
         if (encoder == null || size != encoded) newEncoder()
     }
 
@@ -307,15 +341,13 @@ class CameraPipeline(
         encoder?.release()
         encoder = null
         encoded = null
-        val base = thermalPlan(c.plan, thermal)
-        val plan = if (capturedFps in 1 until base.fps) base.copy(fps = capturedFps) else base
+        val base = activePlan ?: c.plan
+        val plan = if (capturedFps in 24 until base.fps) base.copy(fps = capturedFps) else base
         val (w, h) = outputSize(plan, c.ratio, r.uprightFrame()) ?: return
-        // A rebuilt encoder keeps the adapted bitrate; a new plan or shape starts its own.
-        val start = bitrateFor(plan, w, h)
-        val rate = bitrate?.takeIf { it.start == start } ?: BitrateController(start).also { bitrate = it }
+        val initialBitrate = bitrateFor(plan, w, h)
         val e = runCatching {
             VideoEncoder(
-                w, h, plan.fps, rate.current,
+                w, h, plan.fps, initialBitrate,
                 onFrame = { pts, key, data, len -> if (!paused && !out.video(pts, key, data, 0, len)) post(::pictureRefused) },
                 onError = { post(::encoderFailed) },
             )
@@ -325,16 +357,44 @@ class CameraPipeline(
         }
         encoder = e
         encoded = w to h
-        r.fps = thermalFps(plan.fps, thermal)
+        r.fps = plan.fps.coerceAtLeast(24)
         r.setEncoder(e.inputSurface, w, h)
         onFormat(w, h, plan.fps)
     }
 
     /** GL thread: a picture was too big to send, so the PC is missing a frame. Less bitrate, and a keyframe to start over. */
     private fun pictureRefused() {
-        val e = encoder ?: return
-        bitrate?.refused()?.let(e::setBitrate)
-        e.requestKeyframe()
+        optimizer?.refused()?.let(::applyAdjustment)
+        encoder?.requestKeyframe()
+    }
+
+    private fun applyAdjustment(adj: StreamAdjustment) {
+        activePlan = adj.plan
+        val c = config ?: return
+        val r = renderer ?: return
+        if (adj.resolutionChanged) {
+            if (adj.plan.shortSide > (captured?.plan?.shortSide ?: 0)) {
+                main.post {
+                    val cur = config ?: return@post
+                    if (cur.plan.shortSide < adj.plan.shortSide) {
+                        bind(cur.copy(plan = adj.plan))
+                    }
+                }
+            } else {
+                newEncoder()
+            }
+            return
+        }
+        if (adj.fpsChanged) {
+            val eff = if (capturedFps in 24 until adj.plan.fps) capturedFps else adj.plan.fps
+            r.fps = eff.coerceAtLeast(24)
+        }
+        if (adj.bitrateChanged) {
+            val w = encoded?.first
+            val h = encoded?.second
+            val targetBps = if (w != null && h != null) bitrateFor(adj.plan, w, h) else adj.plan.bitrate
+            encoder?.setBitrate(targetBps)
+        }
     }
 
     /** GL thread: MediaCodec reported an error; a new encoder after the usual backoff, until it has failed too often. */
@@ -373,7 +433,9 @@ class CameraPipeline(
             encoder?.release()
             encoder = null
             encoded = null
-            bitrate = null
+            optimizer = null
+            activePlan = null
+            measuredOutFps = null
         }
         r.release()
     }
@@ -385,17 +447,15 @@ class CameraPipeline(
         return area != null && sensorIsWide(area.width(), area.height())
     }
 
-    /** Highest stable AE frame-rate range at or below [requested], preferring tight upper bounds for smooth pacing. */
+    /** Picks AE range whose lower bound never drops below 24 fps when available. */
     @androidx.annotation.OptIn(markerClass = [ExperimentalCamera2Interop::class])
     private fun bestFpsRange(camera: CameraInfo?, requested: Int): Range<Int>? {
         if (requested <= 0) return null
         val ranges = camera?.let {
             runCatching { Camera2CameraInfo.from(it).getCameraCharacteristic(CameraCharacteristics.CONTROL_AE_AVAILABLE_TARGET_FPS_RANGES) }.getOrNull()
         } ?: return null
-        return ranges
-            .filter { it.upper <= requested }
-            .sortedWith(compareByDescending<Range<Int>> { it.upper == requested }.thenByDescending { it.upper }.thenByDescending { it.lower })
-            .firstOrNull()
+        val picked = selectFpsRange(ranges.map { it.lower to it.upper }, requested) ?: return null
+        return Range(picked.first, picked.second)
     }
 
     /** CameraX binds to a lifecycle; the camera's is its own, from start to stop. Main thread. */

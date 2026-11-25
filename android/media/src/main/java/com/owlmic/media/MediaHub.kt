@@ -27,7 +27,13 @@ sealed interface MediaMsg {
 
     class CameraPaused(val paused: Boolean) : MediaMsg
 
-    class CameraReport(val lossPct: Double, val rttMs: Int) : MediaMsg
+    class CameraReport(
+        val lossPct: Double,
+        val rttMs: Int,
+        val camLossPct: Double? = null,
+        val camFps: Int? = null,
+        val camDropPct: Double? = null,
+    ) : MediaMsg
 
     data object Keyframe : MediaMsg
 
@@ -124,7 +130,7 @@ class MediaHub(
                 camera.paused = message.paused
                 if (!message.paused) camera.requestKeyframe()
             }
-            is MediaMsg.CameraReport -> camera.report(message.lossPct, message.rttMs)
+            is MediaMsg.CameraReport -> camera.report(message.lossPct, message.rttMs, message.camLossPct, message.camFps, message.camDropPct)
             MediaMsg.Keyframe -> camera.requestKeyframe()
             is MediaMsg.Speaker -> {
                 val f = message.format

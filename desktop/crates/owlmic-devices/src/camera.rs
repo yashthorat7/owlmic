@@ -6,19 +6,15 @@ use crate::audio::Com;
 use crate::decoder::Decoder;
 use crate::softcam::Softcam;
 use owlmic_media::video::receiver::VideoReceiver;
-use owlmic_media::video::{Framing, Nv12};
+use owlmic_media::video::{Framing, Nv12, Nv12Shaper};
 use owlmic_ui::preview::{self, Preview};
-use owlmic_vcam::shared::{HEIGHT, Mapping, WIDTH};
+use owlmic_vcam::shared::{HEIGHT, Mapping, STALE_MS, WIDTH};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
 use windows::Win32::System::SystemInformation::GetTickCount64;
 
-/// While no picture arrives (a held session, say), the last one is written again this often, so
-/// Owlmic Cam keeps showing it rather than its placeholder (SYSTEM_DESIGN section 7.6). The
-/// placeholder comes back when the camera stops: the phone turned it off or the session ended.
-const REPEAT: Duration = Duration::from_secs(1);
 /// The ring exists only while an app has Owlmic Cam open; look for it this often.
 const RETRY_OPEN: Duration = Duration::from_secs(1);
 /// Decoder errors in a row before the stream waits for a keyframe (SYSTEM_DESIGN section 14.8).
@@ -80,13 +76,26 @@ impl Feed {
         }
     }
 
-    /// On Windows 11 the camera falls back by itself once pictures stop coming.
+    /// Clears any retained frame so both Windows 11 Ring and Windows 10 Softcam show the placeholder.
     fn placeholder(&mut self) {
-        if let Feed::Softcam {
-            cam, placeholder, ..
-        } = self
-        {
-            cam.send(placeholder);
+        match self {
+            Feed::Ring { mapping, tried } => {
+                if mapping.is_none() {
+                    *mapping = Mapping::open();
+                }
+                if let Some(m) = mapping.take() {
+                    m.ring.clear();
+                }
+                *tried = None;
+            }
+            Feed::Softcam {
+                cam,
+                bgr,
+                placeholder,
+            } => {
+                bgr.fill(0);
+                cam.send(placeholder);
+            }
         }
     }
 }
@@ -137,52 +146,64 @@ fn run(
     stop: &AtomicBool,
 ) {
     let _com = Com::init();
+    preview.clear();
+    feed.placeholder();
     // Windows N editions ship without Media Foundation: the camera keeps its placeholder.
     let Ok(mut decoder) = Decoder::new() else {
-        feed.placeholder();
         return;
     };
     let mut out = Nv12::black(WIDTH, HEIGHT);
+    let mut shaper = Nv12Shaper::new();
     let mut has_picture = false;
     let mut last = Instant::now();
     let mut previewed = Instant::now();
     let mut last_pic_size = (0usize, 0usize);
     let mut errors = 0;
     while !stop.load(Ordering::Acquire) {
-        let Some(next) = receiver.next_frame(Duration::from_millis(250)) else {
-            if has_picture && last.elapsed() >= REPEAT {
-                feed.write(&out);
-                last = Instant::now();
+        let Some(next) = receiver.next_frame(Duration::from_millis(120)) else {
+            if has_picture && last.elapsed() >= Duration::from_millis(STALE_MS) {
+                has_picture = false;
+                out = Nv12::black(WIDTH, HEIGHT);
+                last_pic_size = (0, 0);
+                preview.clear();
+                feed.placeholder();
             }
             continue;
         };
-        match decoder.decode(&next.frame.data, next.frame.timestamp_us) {
+        match decoder.decode_frame(&next.frame.data, next.frame.timestamp_us, !next.more) {
             // A newer frame waits behind this one: decode it, but only the newest is shown.
-            Ok(Some(_)) if next.more => errors = 0,
+            Ok(Some(_)) if next.more => {
+                errors = 0;
+                receiver.record_behind();
+            }
             Ok(Some(picture)) => {
                 errors = 0;
+                receiver.record_delivered();
                 preview.set_stream_size(picture.width, picture.height);
                 let (framing, mirror) = shape.get();
-                picture.shape_into(&mut out, framing, !mirror);
+                shaper.shape_into(picture, &mut out, framing, !mirror);
                 feed.write(&out);
                 has_picture = true;
                 last = Instant::now();
-                if preview.wanted()
-                    && ((picture.width, picture.height) != last_pic_size
-                        || previewed.elapsed() >= Duration::from_millis(preview::EVERY_MS))
-                {
-                    previewed = last;
-                    last_pic_size = (picture.width, picture.height);
-                    let (pw, ph) = if picture.width >= picture.height {
-                        let w = preview::WIDTH;
-                        let h = ((w * picture.height) / picture.width).max(1);
-                        (w, h)
-                    } else {
-                        let h = preview::HEIGHT;
-                        let w = ((h * picture.width) / picture.height).max(1);
-                        (w, h)
-                    };
-                    preview.put(pw, ph, |px| picture.to_bgra_scaled(pw, ph, mirror, px));
+                if preview.wanted() {
+                    if (picture.width, picture.height) != last_pic_size
+                        || previewed.elapsed() >= Duration::from_millis(preview::EVERY_MS)
+                    {
+                        previewed = last;
+                        last_pic_size = (picture.width, picture.height);
+                        let (pw, ph) = if picture.width >= picture.height {
+                            let w = preview::WIDTH;
+                            let h = ((w * picture.height) / picture.width).max(1);
+                            (w, h)
+                        } else {
+                            let h = preview::HEIGHT;
+                            let w = ((h * picture.width) / picture.height).max(1);
+                            (w, h)
+                        };
+                        preview.put(pw, ph, |px| picture.to_bgra_scaled(pw, ph, mirror, px));
+                    }
+                } else {
+                    last_pic_size = (0, 0);
                 }
             }
             Ok(None) => errors = 0,
@@ -196,6 +217,7 @@ fn run(
             }
         }
     }
-    preview.clear_stats();
+    receiver.clear();
+    preview.clear();
     feed.placeholder();
 }

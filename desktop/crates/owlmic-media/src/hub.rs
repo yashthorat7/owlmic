@@ -93,6 +93,7 @@ pub struct MediaHub {
     paused: [bool; 3],
     mic_codec: Option<MicCodec>,
     camera_on: bool,
+    camera_active: bool,
     speaker_codec: Option<SpeakerCodec>,
     /// The noise reduction slider, 0 to 10.
     noise: u8,
@@ -112,6 +113,7 @@ impl MediaHub {
             paused: [false; 3],
             mic_codec: None,
             camera_on: false,
+            camera_active: false,
             speaker_codec: None,
             noise: NOISE_DEFAULT,
             phone_has_ns: true,
@@ -144,6 +146,17 @@ impl MediaHub {
     fn stop_mic(&self) {
         self.media.mic.stop();
         (self.emit)(MediaEvent::Mic(false));
+    }
+
+    fn set_camera_active(&mut self, active: bool) {
+        if active == self.camera_active {
+            return;
+        }
+        self.camera_active = active;
+        if !active {
+            self.media.video.clear();
+        }
+        (self.emit)(MediaEvent::Camera(active));
     }
 
     /// Speaker runs when the phone has it on, the panel hasn't paused it, and a link is up. A
@@ -200,7 +213,7 @@ impl MediaHub {
             STREAM_CAMERA => {
                 self.camera_on = true;
                 if !self.is_paused(Feature::Camera) {
-                    (self.emit)(MediaEvent::Camera(true));
+                    self.set_camera_active(true);
                 }
             }
             _ => {}
@@ -210,9 +223,9 @@ impl MediaHub {
     fn stream_stop(&mut self, stream: u8) {
         match stream {
             STREAM_MIC if self.mic_codec.take().is_some() => self.stop_mic(),
-            STREAM_CAMERA if self.camera_on => {
+            STREAM_CAMERA if self.camera_on || self.camera_active => {
                 self.camera_on = false;
-                (self.emit)(MediaEvent::Camera(false));
+                self.set_camera_active(false);
             }
             _ => {}
         }
@@ -252,12 +265,12 @@ impl MediaHub {
             Feature::Camera => {
                 if paused {
                     self.camera_on = false;
-                    (self.emit)(MediaEvent::Camera(false));
+                    self.set_camera_active(false);
                     (self.emit)(MediaEvent::ToPhone(Message::StreamStop(StreamRef {
                         stream: STREAM_CAMERA,
                     })));
                 } else if self.camera_on {
-                    (self.emit)(MediaEvent::Camera(true));
+                    self.set_camera_active(true);
                 } else {
                     (self.emit)(MediaEvent::ToPhone(Message::StreamStart(StreamStart {
                         stream: STREAM_CAMERA,
@@ -279,9 +292,8 @@ impl MediaHub {
         if self.mic_codec.take().is_some() {
             self.stop_mic();
         }
-        if std::mem::take(&mut self.camera_on) {
-            (self.emit)(MediaEvent::Camera(false));
-        }
+        self.camera_on = false;
+        self.set_camera_active(false);
         self.update_speaker();
     }
 
@@ -323,16 +335,20 @@ impl Hub for MediaHub {
                 ] {
                     if now == FeatureState::Off {
                         self.paused[f as usize] = false;
+                        if f == Feature::Camera {
+                            self.camera_on = false;
+                            self.set_camera_active(false);
+                        }
+                    } else if now == FeatureState::Paused {
+                        if f == Feature::Camera {
+                            self.set_camera_active(false);
+                        }
                     } else if now == FeatureState::On {
                         let was_paused = std::mem::take(&mut self.paused[f as usize]);
-                        if was_paused {
-                            match f {
-                                Feature::Mic => self.start_mic(),
-                                Feature::Camera if self.camera_on => {
-                                    (self.emit)(MediaEvent::Camera(true));
-                                }
-                                _ => {}
-                            }
+                        match f {
+                            Feature::Mic if was_paused => self.start_mic(),
+                            Feature::Camera if self.camera_on => self.set_camera_active(true),
+                            _ => {}
                         }
                     }
                 }
@@ -391,6 +407,7 @@ impl Hub for MediaHub {
 mod tests {
     use super::*;
     use std::sync::Mutex;
+    use std::time::Duration;
 
     fn hub() -> (MediaHub, Arc<Mutex<Vec<MediaEvent>>>) {
         let jitter = Arc::new(JitterBuffer::new());
@@ -534,8 +551,7 @@ mod tests {
             loss_pct: 12.4,
             jitter_ms: 3,
             rtt_ms: 20,
-            kbps: Default::default(),
-            thermal: None,
+            ..Report::default()
         })));
         assert_eq!(h.media.speaker.loss(), 12);
     }
@@ -604,5 +620,42 @@ mod tests {
         assert_eq!((p.volume_db, p.normalize), (-6, false));
         set(&mut h, "mic.volume", "99");
         assert_eq!(h.media.jitter.processing().volume_db, 12);
+    }
+
+    #[test]
+    fn camera_state_off_or_paused_stops_output_and_clears_video_queue() {
+        let (mut h, events) = hub();
+        h.handle(MediaMsg::Link(3));
+        h.handle(start(STREAM_CAMERA, "h264"));
+        h.handle(MediaMsg::FromPhone(Message::State(State {
+            camera: FeatureState::On,
+            ..State::default()
+        })));
+        let _ = take(&events);
+
+        h.media.video.fragment(1, 0, 1, true, 0, b"stale");
+        h.handle(MediaMsg::FromPhone(Message::State(State {
+            camera: FeatureState::Paused,
+            ..State::default()
+        })));
+        assert!(take(&events).contains(&MediaEvent::Camera(false)));
+        assert!(
+            h.media.video.next_frame(Duration::ZERO).is_none(),
+            "queued frames must be cleared when paused"
+        );
+
+        h.handle(MediaMsg::FromPhone(Message::State(State {
+            camera: FeatureState::On,
+            ..State::default()
+        })));
+        assert!(take(&events).contains(&MediaEvent::Camera(true)));
+
+        h.media.video.fragment(2, 0, 1, true, 0, b"stale2");
+        h.handle(MediaMsg::FromPhone(Message::State(State {
+            camera: FeatureState::Off,
+            ..State::default()
+        })));
+        assert!(take(&events).contains(&MediaEvent::Camera(false)));
+        assert!(h.media.video.next_frame(Duration::ZERO).is_none());
     }
 }

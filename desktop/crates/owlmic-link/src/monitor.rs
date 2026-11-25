@@ -8,6 +8,7 @@ use std::time::{Duration, Instant};
 
 pub const HEARTBEAT: Duration = Duration::from_secs(1);
 pub const REPORT_EVERY: Duration = Duration::from_secs(10);
+pub const CAMERA_REPORT_EVERY: Duration = Duration::from_secs(2);
 /// One heartbeat a second over 60 seconds.
 const HISTORY: usize = 60;
 
@@ -139,6 +140,13 @@ pub struct StatsMark {
     lost: u64,
 }
 
+#[derive(Default, Clone, Copy)]
+pub struct VideoMarks {
+    pub delivered: u64,
+    pub dropped: u64,
+    pub behind: u64,
+}
+
 /// The REPORT for the period since `marks`, updating them.
 pub fn report(
     streams: &[(u8, &StreamStats)],
@@ -146,8 +154,21 @@ pub fn report(
     period: Duration,
     rtt_ms: u32,
 ) -> Report {
+    report_with_video(streams, marks, period, rtt_ms, None)
+}
+
+/// The REPORT including per-camera packet loss and PC decoder frame metrics when available.
+pub fn report_with_video(
+    streams: &[(u8, &StreamStats)],
+    marks: &mut BTreeMap<u8, StatsMark>,
+    period: Duration,
+    rtt_ms: u32,
+    video: Option<(&[AtomicU64; 3], &mut VideoMarks)>,
+) -> Report {
     let (mut got, mut lost, mut jitter) = (0u64, 0u64, 0u32);
+    let (mut cam_got, mut cam_lost) = (0u64, 0u64);
     let mut kbps = BTreeMap::new();
+    let secs = period.as_secs_f64().max(0.001);
     for (stream, s) in streams {
         let now = StatsMark {
             packets: s.packets.load(Ordering::Relaxed),
@@ -156,13 +177,19 @@ pub fn report(
         };
         // Counters start over with a new session, so a mark can be ahead of them.
         let then = marks.insert(*stream, now).unwrap_or_default();
-        got += now.packets.saturating_sub(then.packets);
-        lost += now.lost.saturating_sub(then.lost);
+        let p = now.packets.saturating_sub(then.packets);
+        let l = now.lost.saturating_sub(then.lost);
+        got += p;
+        lost += l;
+        if *stream == owlmic_proto::frame::stream::CAMERA {
+            cam_got = p;
+            cam_lost = l;
+        }
         jitter = jitter.max(s.jitter_us.load(Ordering::Relaxed) / 1000);
         let bits = now.bytes.saturating_sub(then.bytes) * 8;
         kbps.insert(
             stream.to_string(),
-            (bits as f64 / period.as_secs_f64().max(0.001) / 1000.0).round() as u32,
+            (bits as f64 / secs / 1000.0).round() as u32,
         );
     }
     let loss_pct = if got + lost == 0 {
@@ -170,12 +197,42 @@ pub fn report(
     } else {
         (lost as f64 * 1000.0 / (got + lost) as f64).round() / 10.0
     };
+    let mut cam_loss_pct = (cam_got + cam_lost > 0)
+        .then(|| (cam_lost as f64 * 1000.0 / (cam_got + cam_lost) as f64).round() / 10.0);
+    let mut cam_fps = None;
+    let mut cam_drop_pct = None;
+    if let Some((counters, vmarks)) = video {
+        let delivered = counters[0].load(Ordering::Relaxed);
+        let dropped = counters[1].load(Ordering::Relaxed);
+        let behind = counters[2].load(Ordering::Relaxed);
+        let d_del = delivered.saturating_sub(vmarks.delivered);
+        let d_drop = dropped.saturating_sub(vmarks.dropped);
+        let d_beh = behind.saturating_sub(vmarks.behind);
+        *vmarks = VideoMarks {
+            delivered,
+            dropped,
+            behind,
+        };
+        let total = d_del + d_drop + d_beh;
+        if total > 0 || cam_got + cam_lost > 0 {
+            cam_loss_pct.get_or_insert(0.0);
+            cam_fps = Some((d_del as f64 / secs).round() as u32);
+            cam_drop_pct = Some(if total == 0 {
+                0.0
+            } else {
+                ((d_drop + d_beh) as f64 * 1000.0 / total as f64).round() / 10.0
+            });
+        }
+    }
     Report {
         loss_pct,
         jitter_ms: jitter,
         rtt_ms,
         kbps,
         thermal: None,
+        cam_loss_pct,
+        cam_fps,
+        cam_drop_pct,
     }
 }
 
@@ -218,5 +275,25 @@ mod tests {
         assert_eq!(r.kbps["1"], 0);
         let again = report(&[(1, &s)], &mut marks, Duration::from_secs(10), 15);
         assert_eq!(again.loss_pct, 0.0, "only the new period counts");
+    }
+
+    #[test]
+    fn video_report_tracks_camera_fps_and_drops() {
+        let cam = StreamStats::default();
+        cam.packet(1, 1_000, 1_000, 1000);
+        cam.packet(2, 2_000, 2_000, 1000);
+        let counters = [AtomicU64::new(58), AtomicU64::new(1), AtomicU64::new(1)];
+        let mut marks = BTreeMap::new();
+        let mut vmarks = VideoMarks::default();
+        let r = report_with_video(
+            &[(owlmic_proto::frame::stream::CAMERA, &cam)],
+            &mut marks,
+            Duration::from_secs(2),
+            12,
+            Some((&counters, &mut vmarks)),
+        );
+        assert_eq!(r.cam_loss_pct, Some(0.0));
+        assert_eq!(r.cam_fps, Some(29));
+        assert_eq!(r.cam_drop_pct, Some(3.3));
     }
 }

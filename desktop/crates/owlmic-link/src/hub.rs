@@ -4,7 +4,9 @@
 
 use crate::handshake::{Ours, ServerHandshake};
 use crate::media::{Path, Routes};
-use crate::monitor::{HEARTBEAT, Monitor, REPORT_EVERY, StatsMark, report};
+use crate::monitor::{
+    CAMERA_REPORT_EVERY, HEARTBEAT, Monitor, REPORT_EVERY, StatsMark, VideoMarks, report_with_video,
+};
 use crate::ratelimit::HandshakeLimit;
 use crate::reconnect::{Reconnector, STALL, Step};
 use crate::switcher::Switcher;
@@ -19,7 +21,7 @@ use owlmic_session::{Decision, Identity};
 use owlmic_settings::store::Versioned;
 use std::collections::{BTreeMap, HashMap};
 use std::net::{SocketAddr, UdpSocket};
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
@@ -207,6 +209,8 @@ pub struct LinkHub {
     stalled: [bool; 4],
     reconnect: [Reconnector; 4],
     marks: BTreeMap<u8, StatsMark>,
+    video_metrics: Option<Arc<[AtomicU64; 3]>>,
+    video_marks: VideoMarks,
     last_report: Instant,
     next_tick: Option<Instant>,
     view: LinkView,
@@ -238,6 +242,8 @@ impl LinkHub {
             stalled: [false; 4],
             reconnect: Default::default(),
             marks: BTreeMap::new(),
+            video_metrics: None,
+            video_marks: VideoMarks::default(),
             last_report: Instant::now(),
             next_tick: None,
             view: LinkView::default(),
@@ -247,6 +253,12 @@ impl LinkHub {
     /// The PC's Bluetooth address, sent in HELLO_ACK so the phone can find it over Bluetooth later.
     pub fn with_bt_addr(mut self, addr: BtAddr) -> Self {
         self.bt_addr = addr;
+        self
+    }
+
+    /// Lock-free `[delivered, dropped, behind]` counters from `VideoReceiver` for camera reports.
+    pub fn with_video_metrics(mut self, metrics: Arc<[AtomicU64; 3]>) -> Self {
+        self.video_metrics = Some(metrics);
         self
     }
 
@@ -683,8 +695,21 @@ impl LinkHub {
         }
         if let Some(active) = self.switcher.active() {
             self.view.rtt_ms = self.conns.get(&active).map_or(0, |c| c.monitor.rtt_ms());
-            if now.saturating_duration_since(self.last_report) >= REPORT_EVERY {
-                let r = report(
+            let cam_on = self.flow_since[stream::CAMERA as usize].is_some();
+            let report_period = if cam_on {
+                CAMERA_REPORT_EVERY
+            } else {
+                REPORT_EVERY
+            };
+            if now.saturating_duration_since(self.last_report) >= report_period {
+                let video = if cam_on {
+                    self.video_metrics
+                        .as_deref()
+                        .map(|c| (c, &mut self.video_marks))
+                } else {
+                    None
+                };
+                let r = report_with_video(
                     &[
                         (stream::MIC, &self.routes.stats[1]),
                         (stream::CAMERA, &self.routes.stats[2]),
@@ -692,6 +717,7 @@ impl LinkHub {
                     &mut self.marks,
                     now.saturating_duration_since(self.last_report),
                     self.view.rtt_ms,
+                    video,
                 );
                 self.last_report = now;
                 if let Some(c) = self.conns.get(&active) {

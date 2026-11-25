@@ -4,13 +4,14 @@
 
 use super::reassembly::{EncodedFrame, Reassembler};
 use std::collections::VecDeque;
-use std::sync::{Condvar, Mutex};
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, Condvar, Mutex};
 use std::time::{Duration, Instant};
 
-/// About 200 ms at 60 fps.
-const QUEUE: usize = 12;
+/// Tight queue (~120-160 ms ceiling) so live video stays instant instead of piling up lag.
+const QUEUE: usize = 5;
 /// A frame that has waited this long means the decoder is behind.
-const MAX_AGE: Duration = Duration::from_millis(200);
+const MAX_AGE: Duration = Duration::from_millis(105);
 
 /// A frame for the decoder.
 pub struct Next {
@@ -24,6 +25,8 @@ pub struct VideoReceiver {
     queue: Mutex<VecDeque<(EncodedFrame, Instant)>>,
     ready: Condvar,
     request_keyframe: Box<dyn Fn() + Send + Sync>,
+    /// `[delivered, dropped, behind]` lock-free counters for telemetry reports.
+    counters: Arc<[AtomicU64; 3]>,
 }
 
 impl VideoReceiver {
@@ -34,7 +37,20 @@ impl VideoReceiver {
             queue: Mutex::new(VecDeque::with_capacity(QUEUE)),
             ready: Condvar::new(),
             request_keyframe: Box::new(request_keyframe),
+            counters: Arc::new([AtomicU64::new(0), AtomicU64::new(0), AtomicU64::new(0)]),
         }
+    }
+
+    pub fn metrics(&self) -> Arc<[AtomicU64; 3]> {
+        self.counters.clone()
+    }
+
+    pub fn record_delivered(&self) {
+        self.counters[0].fetch_add(1, Ordering::Relaxed);
+    }
+
+    pub fn record_behind(&self) {
+        self.counters[2].fetch_add(1, Ordering::Relaxed);
     }
 
     /// One fragment, payload after the fragment header.
@@ -61,18 +77,28 @@ impl VideoReceiver {
                 data,
                 Instant::now(),
             );
+        if pushed.dropped > 0 {
+            self.counters[1].fetch_add(pushed.dropped, Ordering::Relaxed);
+        }
         if pushed.request_keyframe {
             (self.request_keyframe)();
         }
         let Some(f) = pushed.frame else { return };
         let mut q = self.queue.lock().unwrap_or_else(|p| p.into_inner());
         if q.len() == QUEUE && !f.keyframe {
-            q.clear();
-            drop(q);
-            self.resync();
-            return;
+            if let Some(k) = q.iter().rposition(|(item, _)| item.keyframe) {
+                self.counters[1].fetch_add(k as u64, Ordering::Relaxed);
+                q.drain(..k);
+            } else {
+                self.counters[1].fetch_add(q.len() as u64 + 1, Ordering::Relaxed);
+                q.clear();
+                drop(q);
+                self.resync();
+                return;
+            }
         }
-        if f.keyframe {
+        if f.keyframe && !q.is_empty() {
+            self.counters[1].fetch_add(q.len() as u64, Ordering::Relaxed);
             q.clear();
         }
         q.push_back((f, Instant::now()));
@@ -87,7 +113,10 @@ impl VideoReceiver {
             .ready
             .wait_timeout_while(q, wait, |q| q.is_empty())
             .unwrap_or_else(|p| p.into_inner());
-        skip_stale(&mut q, Instant::now());
+        let skipped = skip_stale(&mut q, Instant::now());
+        if skipped > 0 {
+            self.counters[1].fetch_add(skipped as u64, Ordering::Relaxed);
+        }
         let (frame, _) = q.pop_front()?;
         Some(Next {
             frame,
@@ -103,16 +132,28 @@ impl VideoReceiver {
         r.take_keyframe_request(Instant::now());
         (self.request_keyframe)();
     }
+
+    /// Drops queued frames and partial fragments when the camera stops or pauses.
+    pub fn clear(&self) {
+        self.queue.lock().unwrap_or_else(|p| p.into_inner()).clear();
+        self.reassembler
+            .lock()
+            .unwrap_or_else(|p| p.into_inner())
+            .reset();
+        self.ready.notify_all();
+    }
 }
 
 /// When the oldest frame has waited past [`MAX_AGE`], everything before the newest keyframe goes.
-fn skip_stale(q: &mut VecDeque<(EncodedFrame, Instant)>, now: Instant) {
+fn skip_stale(q: &mut VecDeque<(EncodedFrame, Instant)>, now: Instant) -> usize {
     if q.front()
         .is_some_and(|(_, at)| now.duration_since(*at) > MAX_AGE)
         && let Some(k) = q.iter().rposition(|(f, _)| f.keyframe)
     {
         q.drain(..k);
+        return k;
     }
+    0
 }
 
 #[cfg(test)]
@@ -165,5 +206,24 @@ mod tests {
         q.pop_front();
         skip_stale(&mut q, t + Duration::from_millis(300));
         assert_eq!(q.len(), 1, "with no keyframe left, every frame is decoded");
+    }
+
+    #[test]
+    fn clear_drops_queued_and_partial_frames_and_requires_keyframe() {
+        let rx = VideoReceiver::new(|| {});
+        rx.fragment(1, 0, 1, true, 0, b"k1");
+        rx.fragment(2, 0, 2, false, 0, b"part");
+        rx.clear();
+        assert!(rx.next_frame(Duration::ZERO).is_none());
+        rx.fragment(3, 0, 1, false, 0, b"p");
+        assert!(
+            rx.next_frame(Duration::ZERO).is_none(),
+            "delta frame after clear must wait for a keyframe"
+        );
+        rx.fragment(4, 0, 1, true, 0, b"k2");
+        assert_eq!(
+            rx.next_frame(Duration::ZERO).map(|n| n.frame.data),
+            Some(b"k2".to_vec())
+        );
     }
 }

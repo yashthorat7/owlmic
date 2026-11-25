@@ -37,7 +37,10 @@ sealed interface Message {
                 Kind.REPORT -> Report(
                     j.getDouble("lossPct"), j.getInt("jitterMs"), j.getInt("rttMs"),
                     j.optJSONObject("kbps")?.let { k -> k.keys().asSequence().associateWith { k.getInt(it) } } ?: emptyMap(),
-                    if (j.has("thermal")) j.getInt("thermal") else null,
+                    if (j.has("thermal") && !j.isNull("thermal")) j.getInt("thermal") else null,
+                    if (j.has("camLossPct") && !j.isNull("camLossPct")) j.getDouble("camLossPct") else null,
+                    if (j.has("camFps") && !j.isNull("camFps")) j.getInt("camFps") else null,
+                    if (j.has("camDropPct") && !j.isNull("camDropPct")) j.getDouble("camDropPct") else null,
                 )
                 Kind.STATE -> State(
                     FeatureState.parse(j.getString("mic")), FeatureState.parse(j.getString("camera")), FeatureState.parse(j.getString("speaker")),
@@ -166,11 +169,24 @@ data class Pong(val t: Long) : Message {
     override fun toJson(): JSONObject = JSONObject().put("t", t)
 }
 
-data class Report(val lossPct: Double, val jitterMs: Int, val rttMs: Int, val kbps: Map<String, Int>, val thermal: Int? = null) : Message {
+data class Report(
+    val lossPct: Double,
+    val jitterMs: Int,
+    val rttMs: Int,
+    val kbps: Map<String, Int>,
+    val thermal: Int? = null,
+    val camLossPct: Double? = null,
+    val camFps: Int? = null,
+    val camDropPct: Double? = null,
+) : Message {
     override val kind = Kind.REPORT
 
     override fun toJson(): JSONObject = JSONObject().put("lossPct", lossPct).put("jitterMs", jitterMs).put("rttMs", rttMs)
-        .put("kbps", JSONObject(kbps)).putIfNotNull("thermal", thermal)
+        .put("kbps", JSONObject(kbps))
+        .putIfNotNull("thermal", thermal)
+        .putIfNotNull("camLossPct", camLossPct)
+        .putIfNotNull("camFps", camFps)
+        .putIfNotNull("camDropPct", camDropPct)
 }
 
 data class State(val mic: FeatureState, val camera: FeatureState, val speaker: FeatureState) : Message {

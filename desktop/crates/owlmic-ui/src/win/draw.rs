@@ -126,6 +126,9 @@ pub struct Painter {
     mono: HSTRING,
     preview: Option<(ID2D1Bitmap, u64)>,
     preview_ambient: Option<(ID2D1Bitmap, u64)>,
+    amb_a: Vec<[f32; 3]>,
+    amb_b: Vec<[f32; 3]>,
+    amb_out: Vec<u8>,
     layers: Vec<ID2D1Layer>,
     layer_depth: usize,
     pub scale: f32,
@@ -180,6 +183,9 @@ impl Painter {
                 mono,
                 preview: None,
                 preview_ambient: None,
+                amb_a: Vec::new(),
+                amb_b: Vec::new(),
+                amb_out: Vec::new(),
                 layers: Vec::new(),
                 layer_depth: 0,
                 scale: 1.0,
@@ -849,6 +855,12 @@ impl Painter {
         }
     }
 
+    /// Drops cached GPU preview bitmaps when the camera stops or preview is cleared.
+    pub fn clear_preview(&mut self) {
+        self.preview = None;
+        self.preview_ambient = None;
+    }
+
     /// The camera preview (BGRA `w` x `h`), refreshed when `seq` changed.
     /// When `ambient` is `Some`, draws a blurred zoomed dimmed backdrop inside `ambient` first.
     pub fn picture(
@@ -905,23 +917,31 @@ impl Painter {
             .as_ref()
             .is_some_and(|(_, shown)| *shown != seq);
         if need_main || need_amb {
-            let mut amb_buf = need_amb.then(|| vec![0u8; AMB * AMB * 4]);
+            let need_amb_work = need_amb;
+            let preview_ref = self.preview.as_ref().map(|(b, _)| b.clone());
+            let amb_ref = self.preview_ambient.as_ref().map(|(b, _)| b.clone());
+            let amb_a = &mut self.amb_a;
+            let amb_b = &mut self.amb_b;
+            let amb_out = &mut self.amb_out;
             pixels(&mut |px: &[u8]| {
                 if px.len() < (w * h * 4) {
                     return;
                 }
-                if need_main && let Some((bitmap, _)) = self.preview.as_ref() {
+                if need_main && let Some(bitmap) = preview_ref.as_ref() {
                     let len = (w * 4) as u32;
                     unsafe {
                         let _ = bitmap.CopyFromMemory(None, px.as_ptr().cast(), len);
                     }
                 }
-                if let Some(out) = amb_buf.as_mut() {
-                    build_ambient_bgra::<AMB>(px, w, h, out);
-                    if let Some((amb_bmp, _)) = self.preview_ambient.as_ref() {
+                if need_amb_work {
+                    build_ambient_bgra::<AMB>(px, w, h, amb_a, amb_b, amb_out);
+                    if let Some(amb_bmp) = amb_ref.as_ref() {
                         unsafe {
-                            let _ =
-                                amb_bmp.CopyFromMemory(None, out.as_ptr().cast(), (AMB * 4) as u32);
+                            let _ = amb_bmp.CopyFromMemory(
+                                None,
+                                amb_out.as_ptr().cast(),
+                                (AMB * 4) as u32,
+                            );
                         }
                     }
                 }
@@ -951,34 +971,7 @@ impl Painter {
             return;
         };
         let bitmap = bitmap.clone();
-        let src_ar = w as f32 / h as f32;
-        let dst_ar = r.w / r.h.max(0.001);
-        let src_rect = if (src_ar - dst_ar).abs() < 0.005 {
-            D2D_RECT_F {
-                left: 0.0,
-                top: 0.0,
-                right: w as f32,
-                bottom: h as f32,
-            }
-        } else if src_ar > dst_ar {
-            let sw = (h as f32 * dst_ar).min(w as f32);
-            let sx = (w as f32 - sw) / 2.0;
-            D2D_RECT_F {
-                left: sx,
-                top: 0.0,
-                right: sx + sw,
-                bottom: h as f32,
-            }
-        } else {
-            let sh = (w as f32 / dst_ar).min(h as f32);
-            let sy = (h as f32 - sh) / 2.0;
-            D2D_RECT_F {
-                left: 0.0,
-                top: sy,
-                right: w as f32,
-                bottom: sy + sh,
-            }
-        };
+        let src_rect = cover_src_rect(w as f32, h as f32, r.w, r.h);
         unsafe {
             self.t().DrawBitmap(
                 &bitmap,
@@ -991,11 +984,50 @@ impl Painter {
     }
 }
 
+fn cover_src_rect(src_w: f32, src_h: f32, dst_w: f32, dst_h: f32) -> D2D_RECT_F {
+    let src_ar = src_w / src_h.max(0.001);
+    let dst_ar = dst_w / dst_h.max(0.001);
+    if (src_ar - dst_ar).abs() < 0.005 {
+        D2D_RECT_F {
+            left: 0.0,
+            top: 0.0,
+            right: src_w,
+            bottom: src_h,
+        }
+    } else if src_ar > dst_ar {
+        let sw = (src_h * dst_ar).min(src_w);
+        let sx = (src_w - sw) * 0.5;
+        D2D_RECT_F {
+            left: sx,
+            top: 0.0,
+            right: sx + sw,
+            bottom: src_h,
+        }
+    } else {
+        let sh = (src_w / dst_ar).min(src_h);
+        let sy = (src_h - sh) * 0.5;
+        D2D_RECT_F {
+            left: 0.0,
+            top: sy,
+            right: src_w,
+            bottom: sy + sh,
+        }
+    }
+}
+
 /// Downsamples `px` into a blurred, slightly zoomed (1.14x), dimmed (0.46) and boosted-saturation
-/// (1.18) `N x N` BGRA backdrop matching prototype `.cam-amb-canvas`.
-fn build_ambient_bgra<const N: usize>(px: &[u8], w: usize, h: usize, out: &mut [u8]) {
-    let mut a = vec![[0.0f32; 3]; N * N];
-    let mut b = vec![[0.0f32; 3]; N * N];
+/// (1.18) `N x N` BGRA backdrop matching prototype `.cam-amb-canvas`, reusing caller buffers.
+fn build_ambient_bgra<const N: usize>(
+    px: &[u8],
+    w: usize,
+    h: usize,
+    a: &mut Vec<[f32; 3]>,
+    b: &mut Vec<[f32; 3]>,
+    out: &mut Vec<u8>,
+) {
+    a.resize(N * N, [0.0; 3]);
+    b.resize(N * N, [0.0; 3]);
+    out.resize(N * N * 4, 0);
     let span = 1.0 / 1.14_f32;
     let pad = (1.0 - span) * 0.5;
     for y in 0..N {

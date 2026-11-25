@@ -79,6 +79,13 @@ data class MediaHeader(val stream: Int, val keyframe: Boolean, val seq: Long, va
     companion object {
         const val LEN = 10
 
+        fun encodeInto(out: ByteArray, at: Int = 0, stream: Int, keyframe: Boolean, seq: Long, timestampUs: Long) {
+            out[at] = stream.toByte()
+            out[at + 1] = (if (keyframe) 1 else 0).toByte()
+            out.put32(at + 2, seq)
+            out.put32(at + 6, timestampUs)
+        }
+
         fun decode(b: ByteArray, length: Int = b.size): MediaHeader? {
             if (length < LEN) return null
             return MediaHeader(b[0].toInt() and 0xFF, b[1].toInt() and 1 != 0, b.u32(2), b.u32(6))
@@ -97,6 +104,12 @@ data class FragmentHeader(val frame: Int, val index: Int, val count: Int) {
 
     companion object {
         const val LEN = 6
+
+        fun encodeInto(out: ByteArray, at: Int = 0, frame: Int, index: Int, count: Int) {
+            out.put16(at, frame)
+            out.put16(at + 2, index)
+            out.put16(at + 4, count)
+        }
 
         /** Null when the index is outside the count or the count is over [Frames.MAX_FRAGMENTS]. */
         fun decode(b: ByteArray, length: Int = b.size): FragmentHeader? {

@@ -71,6 +71,18 @@ impl Ring {
         self.u32_at(OFF_MAGIC).store(MAGIC, Ordering::Release);
     }
 
+    /// Clears any published frame so readers immediately fall back to the placeholder.
+    pub fn clear(&self) {
+        self.u32_at(OFF_LATEST).store(NONE, Ordering::Release);
+        self.u64_at(OFF_WRITTEN_MS).store(0, Ordering::Release);
+        for i in 0..2 {
+            let seq = self.u32_at(OFF_SEQ + i * 4);
+            seq.fetch_add(1, Ordering::AcqRel);
+            unsafe { std::ptr::write_bytes(self.slot(i), 0, FRAME_BYTES) };
+            seq.fetch_add(1, Ordering::AcqRel);
+        }
+    }
+
     pub fn is_ready(&self) -> bool {
         self.u32_at(OFF_MAGIC).load(Ordering::Acquire) == MAGIC
     }
@@ -141,6 +153,12 @@ impl Picker {
         }
     }
 
+    pub fn clear(&mut self) {
+        self.has_picture = false;
+        self.shown.fill(0);
+        self.scratch.fill(0);
+    }
+
     pub fn next(&mut self, ring: Option<&Ring>, now_ms: u64) -> &[u8] {
         match ring.map_or(Read::Nothing, |r| r.read(&mut self.scratch, now_ms)) {
             Read::Picture => {
@@ -148,7 +166,11 @@ impl Picker {
                 self.has_picture = true;
             }
             Read::Torn => {}
-            Read::Nothing => self.has_picture = false,
+            Read::Nothing => {
+                if self.has_picture {
+                    self.clear();
+                }
+            }
         }
         if self.has_picture {
             &self.shown
@@ -210,6 +232,22 @@ mod tests {
             .fetch_add(1, Ordering::Relaxed);
         assert_eq!(picker.next(Some(&ring), 120)[0], 4);
         assert_eq!(picker.next(Some(&ring), 100 + STALE_MS + 1)[0], 9);
+    }
+
+    #[test]
+    fn clearing_the_ring_immediately_drops_the_last_picture() {
+        let mut mem = memory();
+        let ring = unsafe { Ring::new(mem.as_mut_ptr() as *mut u8) };
+        ring.init();
+        let mut picker = Picker::new(vec![9u8; FRAME_BYTES]);
+        ring.write(&vec![5u8; FRAME_BYTES], 100);
+        assert_eq!(picker.next(Some(&ring), 110)[0], 5);
+        ring.clear();
+        let mut out = vec![1u8; FRAME_BYTES];
+        assert_eq!(ring.read(&mut out, 111), Read::Nothing);
+        assert_eq!(picker.next(Some(&ring), 111)[0], 9);
+        assert!(picker.shown.iter().all(|b| *b == 0));
+        assert!(picker.scratch.iter().all(|b| *b == 0));
     }
 }
 

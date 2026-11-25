@@ -87,6 +87,7 @@ pub fn run(open: bool) {
     let video = Arc::new(VideoReceiver::new(move || {
         a.send(AppMsg::Media(MediaEvent::ToPhone(Message::KeyframeRequest)))
     }));
+    let video_metrics = video.metrics();
     let routes = Arc::new(Routes::new(
         Some(Arc::new(MicSink(mic.clone()))),
         Some(Arc::new(CameraSink(video.clone()))),
@@ -194,10 +195,10 @@ pub fn run(open: bool) {
     );
     devices.send(DeviceMsg::Check);
 
-    let (a, l, s) = (app.clone(), link.clone(), store.clone());
+    let (a, l, s, vm) = (app.clone(), link.clone(), store.clone(), video_metrics);
     let _ = std::thread::Builder::new()
         .name("startup".into())
-        .spawn(move || network(identity, routes, s, l, link_in, a));
+        .spawn(move || network(identity, routes, s, l, link_in, a, vm));
 
     let a = app.clone();
     let ui = Ui {
@@ -235,6 +236,7 @@ fn network(
     link: Outbox<LinkMsg>,
     link_in: owlmic_hub::Inbox<LinkMsg>,
     app: Outbox<AppMsg>,
+    video_metrics: Arc<[std::sync::atomic::AtomicU64; 3]>,
 ) {
     let net: Arc<dyn NetInfo> = Arc::new(Adapters);
     let busy = Arc::new(AtomicBool::new(false));
@@ -294,7 +296,7 @@ fn network(
     supervise("adb", owlmic_link::adb::watch, report(&app, "adb"));
 
     let a = app.clone();
-    let (b, r) = (busy.clone(), routes.clone());
+    let (b, r, vm) = (busy.clone(), routes.clone(), video_metrics);
     spawn_supervised(
         "link",
         move || {
@@ -307,6 +309,7 @@ fn network(
                 move |e| a.send(AppMsg::Link(e)),
             )
             .with_bt_addr(bt_addr.clone())
+            .with_video_metrics(vm.clone())
         },
         link_in,
         report(&app, "link"),

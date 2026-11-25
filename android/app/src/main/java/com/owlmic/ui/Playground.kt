@@ -153,21 +153,12 @@ fun Playground(seq: TurnSequence, state: AppState, drawer: Drawer?, modifier: Mo
     )
 
     Box(modifier.clip(RoundedCornerShape(Theme.radius)).background(Theme.bg)) {
-        val previewAlpha by animateFloatAsState(
-            targetValue = if (live && !previewHidden) 1f else 0f,
-            animationSpec = tween(Tokens.Phone.CONTROLS_FADE_MS.toInt()),
-            label = "previewFade",
-        )
-        if (previewAlpha < 1f) {
-            Box(Modifier.fillMaxSize().graphicsLayer { alpha = 1f - previewAlpha }) {
-                DotGrid(Modifier.fillMaxSize())
-            }
-        }
-        if (!previewHidden && previewAlpha > 0f) {
-            Box(Modifier.fillMaxSize().graphicsLayer { alpha = previewAlpha }) {
-                PreviewFrame(displayRatio, physicalSideways)
-                Frame(Modifier.fillMaxSize())
-            }
+        val showLive = live && !previewHidden
+        if (!showLive) {
+            DotGrid(Modifier.fillMaxSize())
+        } else {
+            PreviewFrame(displayRatio, physicalSideways)
+            Frame(Modifier.fillMaxSize())
         }
         Content(
             seq.layout,
