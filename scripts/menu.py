@@ -29,7 +29,7 @@ def get_version() -> str:
         m = re.search(r'^version\s*=\s*"([^"]+)"', cargo_toml.read_text(encoding="utf-8"), re.M)
         if m:
             return m.group(1)
-    return "0.1.0"
+    return "1.0.0"
 
 
 def run_script(script_name: str, args: list[str] | None = None) -> int:

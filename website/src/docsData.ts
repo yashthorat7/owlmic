@@ -47,7 +47,7 @@ The Owlmic Android app acts as the client hardware sensor. It captures pristine 
 
 ### Installation
 - **Google Play Store**: Search for "Owlmic" and tap Install.
-- **APK Sideload**: Download \`owlmic-1.0.0.apk\` from GitHub Releases and install directly.
+- **APK Sideload**: Download \`Owlmic-v1.0.0.apk\` from GitHub Releases and install directly.
 
 ### Battery Optimization
 To prevent aggressive OEM battery management from terminating background streaming:
@@ -117,7 +117,7 @@ If Owlmic Mic or Cam shows an error:
 4. The automated script re-registers camera filters, restores Windows audio endpoints, and verifies firewall rules.
 
 ### Common Fixes
-- **Phone cannot find PC**: Ensure both devices are on the same Wi-Fi network and AP Isolation is disabled. Try entering your PC's IP address directly under Settings -> "Add PC by address".
+- **Phone cannot find PC**: Ensure both devices are on the same Wi-Fi network and AP Isolation is disabled. Try entering your PC's IP address directly under the connection tile -> "Add PC by address".
 - **Microphone silent**: Check that the mic tile on your phone is ON and the volume in Windows Sound Settings is set to 100%.`,
   },
   {
@@ -204,6 +204,7 @@ All integers are big-endian. Text strings are UTF-8.
 - \`0x21\` SETTINGS
 - \`0x22\` STREAM_START / \`0x23\` STREAM_STOP
 - \`0x24\` KEYFRAME_REQUEST
+- \`0x25\` RESTART_STREAM
 - \`0x30\` SWITCH
 - \`0x3F\` BYE
 
@@ -272,7 +273,7 @@ All integers are big-endian. Text strings are UTF-8.
 - High-contrast state accents: Green (\`#30D158\`), Yellow (\`#FFD60A\`), Red (\`#FF453A\`).
 
 ### PC Tray Flyout
-- 312 x 374 px Win32 panel rendered in double-buffered GDI/GDI+.
+- 312 x 312 px Win32 panel rendered in Direct2D / GDI.
 - Cold start in < 15 ms, memory footprint < 15 MB.`,
   },
   {
@@ -309,7 +310,7 @@ npm run build
     content: `# Release Process
 
 1. Verify \`cargo test --workspace\` and \`./gradlew testDebugUnitTest lintDebug\`.
-2. Validate wire vectors against \`protocol/vectors/*.json\`.
+2. Validate wire vectors against \`shared/protocol/vectors/*.json\`.
 3. Check product name spelling invariant in CI.
 4. Tag \`v1.0.0\` to trigger automated Inno Setup, APK, and AAB release builds on GitHub Actions.`,
   },

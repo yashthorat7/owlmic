@@ -33,6 +33,7 @@ All setting keys, allowable value enums, scopes, and target UI visibility rules 
 | `camera.ratio` | `full`, `16:9`, `4:3`, `2:1`, `1:1`, `1:2`, `3:4`, `9:16` | `full` | shared | phone, pc | Shape of the picture the PC receives: the sensor's whole frame, or a crop the user picks |
 | `camera.framing` | `fill`, `fit` | `fit` | pc | pc | How the PC's 16:9 virtual camera shows a picture of another shape: `fit` (the default) shows all of it with bars, `fill` crops it |
 | `camera.mirror` | `off`, `on` | `off` | shared | phone, pc | Horizontal video mirroring synced between phone preview and PC preview/virtual camera |
+| `camera.hidePreview` | `off`, `on` | `off` | shared | phone, pc | Hides local camera preview on phone and PC while keeping the stream active |
 | `speaker.quietPc` | `on`, `off` | `on` | pc | pc | Mute PC physical speakers during loopback |
 | `link.usbDebugging` | `on`, `off` | `on` | shared | phone, pc | Allow Level 1 ADB transport |
 | `link.usbTethering` | `on`, `off` | `on` | shared | phone, pc | Allow Level 2 USB tethering transport |

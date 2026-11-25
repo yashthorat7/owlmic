@@ -646,7 +646,7 @@ class AppHub(private val app: Application, private val onState: (AppState) -> Un
                 val changed = e.changed
                 if (changed.any { it.startsWith("mic.") } && running(state.mic)) media.post(MediaMsg.Mic(micConfig()))
                 if ("mic.isolation" in changed && state.speaker.isOn) startSpeaker()
-                if (changed.any { it.startsWith("camera.") } && running(state.camera)) media.post(MediaMsg.Camera(cameraConfig()))
+                if (changed.any { it.startsWith("camera.") && it != "camera.hidePreview" } && running(state.camera)) media.post(MediaMsg.Camera(cameraConfig()))
                 if (changed.any { it.startsWith("link.") }) {
                     val allowed = LinkKind.entries.filter { k ->
                         state.settings[

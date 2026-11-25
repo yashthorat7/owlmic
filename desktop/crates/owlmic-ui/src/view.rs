@@ -199,6 +199,10 @@ impl PanelState {
         }
     }
 
+    pub fn cam_preview_hidden(&self) -> bool {
+        self.is_on("camera.hidePreview", false)
+    }
+
     pub fn camera_ratio_label(&self) -> &'static str {
         match self.value("camera.ratio") {
             "16:9" => "16:9",
@@ -445,6 +449,7 @@ impl PanelState {
                 };
                 Some(Action::Set("camera.ratio", val.to_string()))
             }
+            Target::CamPreview => pairing("camera.hidePreview"),
             Target::Mirror => pairing("camera.mirror"),
             Target::Flip => pairing("camera.lens"),
             Target::ToggleIso => Some(Action::Cycle("mic.isolation")),
@@ -755,8 +760,16 @@ mod tests {
             Some(Action::Pause(Which::Speaker))
         );
         assert_eq!(s.click(Target::Flip), Some(Action::Cycle("camera.lens")));
+        assert_eq!(
+            s.click(Target::CamPreview),
+            Some(Action::Cycle("camera.hidePreview"))
+        );
+        assert!(!s.cam_preview_hidden());
+        s.settings.insert("camera.hidePreview".into(), "on".into());
+        assert!(s.cam_preview_hidden());
         s.paired = false;
         assert_eq!(s.click(Target::Flip), None);
+        assert_eq!(s.click(Target::CamPreview), None);
 
         let not_conn = PanelState::default();
         assert_eq!(not_conn.click(Target::Mic), None);

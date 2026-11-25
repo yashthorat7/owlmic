@@ -25,7 +25,7 @@ Owlmic enforces a strict, asymmetrical role division:
            ▼                  ▼                   ▼
 +──────────┴──────────────────┴───────────────────┴───────────+
 │                         PC SERVER                           │
-│  Native Win32 Flyout (GDI/GDI+) ◄── Bounded Handoff ──► App │
+│  Native Win32 Flyout (Direct2D / GDI) ◄── Bounded Handoff ──► App │
 │  Supervised Thread Hubs:                                    │
 │  ┌───────────────┐  ┌───────────────┐  ┌─────────────────┐  │
 │  │    LinkHub    │  │   SessionHub  │  │    MediaHub     │  │

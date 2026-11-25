@@ -59,7 +59,7 @@ Owlmic provides dual virtual camera implementations to support both modern and l
 - Implemented in `desktop/crates/owlmic-vcam/src/shared.rs`.
 - Backed by a named Win32 file mapping (`Local\OwlmicCamSharedMem`).
 - Uses atomic sequence numbers and buffer index pointers to guarantee tear-free reads without locking reader and writer threads.
-- If no frame has arrived for 500 ms, the reader falls back to a clean, calm placeholder frame (*"Owlmic Cam"*).
+- If no frame has arrived for 500 ms, the reader falls back to a clean placeholder frame showing the centered Owlmic owl symbol on pure black.
 
 ---
 

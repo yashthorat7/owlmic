@@ -11,6 +11,7 @@
     { "id": "camera.ratio", "values": ["full", "16:9", "4:3", "2:1", "1:1", "1:2", "3:4", "9:16"], "default": "full", "scope": "shared", "shownOn": ["phone", "pc"] },
     { "id": "camera.framing", "values": ["fill", "fit"], "default": "fit", "scope": "pc", "shownOn": ["pc"] },
     { "id": "camera.mirror", "values": ["off", "on"], "default": "off", "scope": "shared", "shownOn": ["phone", "pc"] },
+    { "id": "camera.hidePreview", "values": ["off", "on"], "default": "off", "scope": "shared", "shownOn": ["phone", "pc"] },
     { "id": "speaker.quietPc", "values": ["on", "off"], "default": "on", "scope": "pc", "shownOn": ["pc"] },
     { "id": "link.usbDebugging", "values": ["on", "off"], "default": "on", "scope": "shared", "shownOn": ["phone", "pc"] },
     { "id": "link.usbTethering", "values": ["on", "off"], "default": "on", "scope": "shared", "shownOn": ["phone", "pc"] },

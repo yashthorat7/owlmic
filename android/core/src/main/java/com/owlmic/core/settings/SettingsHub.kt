@@ -67,6 +67,7 @@ class SettingsHub(private val store: Store, private val emit: (SettingsEvent) ->
                     // A PC that sends no snapshot still gets the waiting changes, a little later.
                     val connection = ++connections
                     later(SNAPSHOT_WAIT_MS) { if (awaitingSnapshot && connection == connections) handle(SettingsMsg.Remote(emptyList())) }
+                    mirrorLinkOffline(values)
                 }
                 store.saveSettings(pcId, values, pending)
                 emit(SettingsEvent.Values(SettingValues.plain(values), values.keys))
@@ -83,6 +84,7 @@ class SettingsHub(private val store: Store, private val emit: (SettingsEvent) ->
                         pending = pending + message.id
                     }
                 }
+                if (pcId != null && message.id.startsWith("link.")) mirrorLinkOffline(values)
                 store.saveSettings(pcId, values, pending)
                 emit(SettingsEvent.Values(SettingValues.plain(values), setOf(message.id)))
             }
@@ -105,10 +107,24 @@ class SettingsHub(private val store: Store, private val emit: (SettingsEvent) ->
                 } else {
                     pending = pending - changed
                 }
+                if (pcId != null && (snapshot || changed.any { it.startsWith("link.") })) mirrorLinkOffline(values)
                 store.saveSettings(pcId, values, pending)
                 if (changed.isNotEmpty()) emit(SettingsEvent.Values(SettingValues.plain(values), changed))
             }
         }
+    }
+
+    /** Mirrors active `link.*` values into offline settings so disconnecting keeps transport toggles. */
+    private fun mirrorLinkOffline(current: Map<String, Versioned>) {
+        val off = store.settings(null).toMutableMap()
+        var dirty = false
+        for ((id, v) in current) {
+            if (id.startsWith("link.") && off[id] != v) {
+                off[id] = v
+                dirty = true
+            }
+        }
+        if (dirty) store.saveSettings(null, off, store.pending(null))
     }
 
     /** After a failure: the values in the store are the truth. */

@@ -110,4 +110,33 @@ class SettingsHubTest {
         assertEquals("on", v.values["camera.mirror"])
         hub.close()
     }
+
+    @Test
+    fun hidePreviewAndLinkSettingsSyncBidirectionallyAndPersistOffline() {
+        val store = store()
+        store.remember("aa", "DESKTOP-A", byteArrayOf(4), ByteArray(32), null)
+        val hub = SettingsHub(store) { events.put(it) }
+        nextOf<SettingsEvent.Values>()
+
+        hub.post(SettingsMsg.Use("aa", connected = true, pcValues = mapOf("camera.hidePreview" to "off", "link.wifi" to "on")))
+        nextOf<SettingsEvent.Values>()
+        hub.post(SettingsMsg.Remote(listOf(SettingChange("camera.hidePreview", "off", 1), SettingChange("link.wifi", "on", 1))))
+
+        hub.post(SettingsMsg.Change("camera.hidePreview", "on"))
+        val push = nextOf<SettingsEvent.Push>()
+        assertEquals(SettingChange("camera.hidePreview", "on", 2), push.changes.single())
+        assertEquals("on", nextOf<SettingsEvent.Values>().values["camera.hidePreview"])
+
+        hub.post(SettingsMsg.Remote(listOf(SettingChange("camera.hidePreview", "off", 3), SettingChange("link.wifi", "off", 4))))
+        var v = nextOf<SettingsEvent.Values>()
+        while (v.values["camera.hidePreview"] != "off" || "camera.hidePreview" !in v.changed) v = nextOf()
+        assertEquals("off", v.values["camera.hidePreview"])
+        assertEquals("off", v.values["link.wifi"])
+
+        hub.post(SettingsMsg.Use(null, connected = false))
+        var offline = nextOf<SettingsEvent.Values>()
+        while (offline.values["link.wifi"] != "off") offline = nextOf()
+        assertEquals("off", offline.values["link.wifi"])
+        hub.close()
+    }
 }

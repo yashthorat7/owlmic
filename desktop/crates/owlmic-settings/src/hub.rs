@@ -108,6 +108,7 @@ impl Hub for SettingsHub {
                 if let Some(ref key) = self.phone {
                     let pushed = self.store.update(|d| {
                         let general = d.general.clone();
+                        let mut pushed_versions = Vec::new();
                         let pairing = d.pairings.entry(key.clone()).or_default();
                         let mut to_push = Vec::new();
                         for def in crate::SETTINGS.iter().filter(|s| is_link(s.id)) {
@@ -120,19 +121,21 @@ impl Hub for SettingsHub {
                                     .max()
                                     .unwrap_or(0)
                                     .max(gv.version);
-                                pairing.insert(
-                                    def.id.to_owned(),
-                                    crate::store::Versioned {
-                                        value: gv.value.clone(),
-                                        version: v,
-                                    },
-                                );
+                                let ver = crate::store::Versioned {
+                                    value: gv.value.clone(),
+                                    version: v,
+                                };
+                                pairing.insert(def.id.to_owned(), ver.clone());
+                                pushed_versions.push((def.id.to_owned(), ver));
                                 to_push.push(SettingChange {
                                     id: def.id.to_owned(),
                                     value: gv.value.clone(),
                                     version: v,
                                 });
                             }
+                        }
+                        for (id, ver) in pushed_versions {
+                            d.general.insert(id, ver);
                         }
                         to_push
                     });
@@ -162,7 +165,11 @@ impl Hub for SettingsHub {
                 let applied = self.store.update(|d| {
                     let out = book::merge_remote(d.pairings.entry(phone).or_default(), &changes);
                     for c in &out {
-                        if is_link(&c.id) {
+                        if is_link(&c.id)
+                            && d.general
+                                .get(&c.id)
+                                .is_none_or(|gv| c.version >= gv.version)
+                        {
                             d.general.insert(
                                 c.id.clone(),
                                 crate::store::Versioned {
@@ -189,9 +196,33 @@ impl Hub for SettingsHub {
                 }
                 let change = self.store.update(|d| {
                     if link {
-                        book::set_local(&mut d.general, &id, &value);
+                        let def = crate::find(&id)?;
+                        if !def.values.contains(&value.as_str()) {
+                            return None;
+                        }
+                        let version = d
+                            .general
+                            .values()
+                            .chain(d.pairings.values().flat_map(|b| b.values()))
+                            .map(|v| v.version)
+                            .max()
+                            .unwrap_or(0)
+                            + 1;
+                        let v = crate::store::Versioned {
+                            value: value.clone(),
+                            version,
+                        };
+                        d.general.insert(id.clone(), v.clone());
+                        if let Some(p) = phone {
+                            d.pairings.entry(p).or_default().insert(id.clone(), v);
+                        }
+                        return Some(SettingChange {
+                            id: id.clone(),
+                            value: value.clone(),
+                            version,
+                        });
                     }
-                    let target = if general || (link && phone.is_none()) {
+                    let target = if general {
                         &mut d.general
                     } else {
                         d.pairings.entry(phone.unwrap_or_default()).or_default()
@@ -355,6 +386,54 @@ mod tests {
                 .read(|d| book::value(&d.general, "link.wifi").to_owned()),
             "on"
         );
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn offline_link_change_overrides_pairing_with_higher_other_versions_and_hide_preview_syncs() {
+        let (mut h, events, dir) = hub();
+        h.handle(SettingsMsg::Session(Some("04".into())));
+        for step in ["1", "2", "3", "4", "5"] {
+            h.handle(SettingsMsg::Set {
+                id: "mic.noiseReduction".into(),
+                value: step.into(),
+            });
+        }
+        // Hide preview syncs bidirectionally.
+        events.lock().unwrap().clear();
+        h.handle(SettingsMsg::Set {
+            id: "camera.hidePreview".into(),
+            value: "on".into(),
+        });
+        assert!(events.lock().unwrap().iter().any(|e| matches!(
+            e,
+            SettingsEvent::ToPhone(c) if c.iter().any(|x| x.id == "camera.hidePreview" && x.value == "on")
+        )));
+        events.lock().unwrap().clear();
+        h.handle(SettingsMsg::FromPhone(vec![SettingChange {
+            id: "camera.hidePreview".into(),
+            value: "off".into(),
+            version: 99,
+        }]));
+        assert!(applied(&events).contains(&("camera.hidePreview".into(), "off".into())));
+
+        // Offline link toggle after disconnect outranks older pairing versions on reconnect.
+        h.handle(SettingsMsg::Set {
+            id: "link.wifi".into(),
+            value: "on".into(),
+        });
+        h.handle(SettingsMsg::Session(None));
+        h.handle(SettingsMsg::Set {
+            id: "link.wifi".into(),
+            value: "off".into(),
+        });
+        events.lock().unwrap().clear();
+        h.handle(SettingsMsg::Session(Some("04".into())));
+        assert!(applied(&events).contains(&("link.wifi".into(), "off".into())));
+        assert!(events.lock().unwrap().iter().any(|e| matches!(
+            e,
+            SettingsEvent::ToPhone(c) if c.iter().any(|x| x.id == "link.wifi" && x.value == "off")
+        )));
         let _ = std::fs::remove_dir_all(dir);
     }
 }

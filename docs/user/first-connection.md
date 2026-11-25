@@ -61,5 +61,5 @@ If your PC and phone are connected via a USB cable:
 ## 3. Managing Paired Devices
 
 You can view, block, or forget paired devices at any time:
-- **On PC**: Click the Owl tray icon -> Open Settings -> **Phones**. You can view paired phones, rename them, or click **Forget** / **Block**.
+- **On PC**: Click the Owl tray icon -> click the connection button in the bottom dock. You can view paired phones or click **Remove** / **Block**.
 - **On Phone**: Tap the link tile (top right) to see your PCs: the connected one first, then the others, with blocked PCs at the bottom. Tap a PC to see its IP address and when it last connected, and to **Block** or **Unblock** it. A blocked PC is never connected to until you unblock it. **Reconnect** drops the link and connects again at once. To remove a pairing, long-press a tile to open settings -> **PCs** -> **Forget**.

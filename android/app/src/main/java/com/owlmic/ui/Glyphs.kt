@@ -20,7 +20,6 @@ import com.owlmic.core.design.Tokens
 
 /** The Lucide icons Owlmic uses, dynamically sourced from shared/assets/icons/ via GeneratedGlyphs. */
 enum class Glyph(val elements: () -> List<GlyphPath>) {
-    ALERT({ GeneratedGlyphs.ALERT }),
     ARROW({ GeneratedGlyphs.ARROW }),
     BLUETOOTH({ GeneratedGlyphs.BLUETOOTH }),
     CABLE({ GeneratedGlyphs.CABLE }),

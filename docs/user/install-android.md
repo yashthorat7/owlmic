@@ -26,7 +26,7 @@ The Owlmic Android app acts as the client hardware sensor. It captures pristine 
 
 ### Option B: Sideloading the Release APK
 1. Visit the [GitHub Releases](https://github.com/diveshpatil9104/owlmic/releases) page on your Android phone.
-2. Download the latest `owlmic-release.apk`.
+2. Download the latest `Owlmic-v1.0.0.apk`.
 3. Tap the downloaded file to install. If prompted by Android, enable **Install unknown apps** for your browser or file manager.
 4. Follow the on-screen installer prompts.
 

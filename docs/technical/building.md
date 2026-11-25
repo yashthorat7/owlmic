@@ -18,7 +18,7 @@ This document provides step-by-step instructions for building the Android client
 
 ### Android Client
 - **JDK**: Java Development Kit 17 (Temurin or OpenJDK recommended).
-- **Android SDK**: API 34+ with Android NDK version 26+ installed.
+- **Android SDK**: API 36+ (`compileSdk 37`, `targetSdk 36`, `minSdk 26`) with Android NDK version 26+ installed.
 - **CMake**: Version 3.22+ (for compiling native Oboe and Opus JNI libraries).
 
 ---
@@ -56,13 +56,13 @@ This document provides step-by-step instructions for building the Android client
      python scripts/menu.py build windows
      # Or directly: python scripts/core/build.py --target windows
      ```
-     Generates `releases/Owlmic-Setup-0.1.0.exe`. Packaging dependencies (`VB-CABLE` audio driver and `softcam.dll` virtual camera fallback) are tracked in `scripts/packaging/windows/dependencies.json`, verified via SHA-256, and cached locally for offline and reproducible builds. Use `python scripts/menu.py deps --check` to audit dependencies.
+     Generates `releases/Owlmic-Setup-1.0.0.exe`. Packaging dependencies (`VB-CABLE` audio driver and `softcam.dll` virtual camera fallback) are tracked in `scripts/packaging/windows/dependencies.json`, verified via SHA-256, and cached locally for offline and reproducible builds. Use `python scripts/menu.py deps --check` to audit dependencies.
    - **Linux Portable Archive**:
      ```bash
      python scripts/menu.py build linux
      # Or directly: python scripts/core/build.py --target linux
      ```
-     Generates `releases/Owlmic-v0.1.0-linux-x86_64.tar.gz` containing the `owlmic` binary, systemd user service unit (`owlmic.service`), and setup script (`setup-linux-devices.sh`).
+     Generates `releases/Owlmic-v1.0.0-linux-x86_64.tar.gz` containing the `owlmic` binary, systemd user service unit (`owlmic.service`), and setup script (`setup-linux-devices.sh`).
    - **All Platforms Release Bundle**:
      ```bash
      python scripts/menu.py build release

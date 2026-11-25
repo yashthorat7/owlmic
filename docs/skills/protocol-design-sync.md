@@ -33,7 +33,7 @@
   - OLED Black Palette: Background `#000000`, Tile Surface `#0A0A0A`, Hairline `#262626`.
   - Text Primary `#FFFFFF`, Text Secondary `#8E8E93`, Inactive `#3A3A3C`.
   - Status Indicators: OK `#30D158`, Waiting/Warning `#FFD60A`, Disconnected/Error `#FF453A`.
-  - Geometry: $312 \times 374\text{ px}$ fixed panel.
+  - Geometry: $312 \times 312\text{ px}$ fixed panel.
 - `shared/design/copy.json`:
   - Canonical UI strings across Android, Windows, and Linux.
   - Product name casing invariant: strictly `Owlmic` or lowercase `owlmic`.

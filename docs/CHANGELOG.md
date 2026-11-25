@@ -8,25 +8,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+---
+
+## [1.0.0] - 2026-11-26
+
 ### Added
-- **Bidirectional Feature Sync (Hive Mind)**:
-  - Synchronized feature toggling (`STATE` `0x20`) across Android and PC companion; activating or pausing mic, camera, or speaker on either device updates the other in real time.
-- **Audio DSP & Live Waveform Metering**:
-  - Real-time RMS audio metering in `owlmic-media` published via lock-free atomic meter to the PC UI, driving live audio waveforms tuned (`WAVE_GAIN = 1.2`) to preserve headroom for loud notes across Android and Windows.
-  - Eased `Agc` auto-level normalization (`mic.autoLevel`, `-20` to `+36 dB`) with fast pause-onset re-anchoring, smoothstep/ease-out gain transitions, noise-floor capping, and click-free burst protection.
-  - Pre-denoiser raw noise floor measurement with RNNoise VAD fallback (`-99 dBFS` digital-zero guard) and `75%` PC RNNoise at default level `5` when phone hardware suppression is present.
-  - Live Android `NoiseSuppressor` toggling without reopening Oboe capture, plus live `CallMode` headset hot-plug refreshes (`OutputChanged`).
-  - Independent `Auto level` toggleability on Android and Windows, aligned `"Auto level"` UI label, center-filled `-12` to `+12 dB` volume fader on Windows, and straight top-bordered mic-only quick panel on Android.
-- **Connection Drawer & Transport Controls**:
-  - Support for offline transport configuration: USB, tethering, Wi-Fi, and Bluetooth links can be toggled without requiring an active phone session, persisting locally and synchronizing on connect.
-  - Interactive 420 ms spinning feedback on the PC refresh button.
-  - Contextual connection indicator subtitles (`ind.label`) replacing duplicate host IP text.
-  - Safe paired device retention guards preventing accidental primary phone removal.
+- **Linux Desktop Companion & Packaging (`owlmic-linux`)**:
+  - Native userspace PipeWire / PulseAudio virtual microphone (`Owlmic Mic`) and sink loopback monitor, `v4l2loopback` virtual camera (`/dev/video*`), and StatusNotifierItem (`ksni`) tray integration.
+  - Systemd user unit (`owlmic.service`), `setup-linux-devices.sh`, CI target (`desktop-linux`), and portable `.tar.gz` release packaging (`Owlmic-v1.0.0-linux-x86_64.tar.gz`) with Windows-to-Linux cross-build support.
+- **Unified OLED Bento UI (Android & Desktop)**:
+  - Redesigned Android Jetpack Compose screens (`MainScreen`, `Playground`, `Drawers`) and native `312 × 312 px` Win32 Direct2D / GDI tray flyout (`owlmic-ui`) aligned with `shared/design/prototypes/`.
+  - Dynamic SVG glyph compilation from `shared/assets/icons/*.svg` (`build.rs` and `:core:generateDesign`), dynamic brand owl watermark (`shared/assets/brand/icon.svg`), sideways letter-by-letter Android wordmark/UI rotation, and 2×3 Help drawer with subpages.
+- **Bidirectional Feature & Settings Sync (Hive Mind)**:
+  - Real-time `STATE` (`0x20`) and versioned `SETTINGS` (`0x21`) synchronization across Android and PC for mic, camera, and speaker toggles, camera format, audio DSP, and transport preferences (`link.*`).
+  - Offline transport configuration on PC persists locally and reconciles deterministically upon connection.
+- **Camera Format HUD, Mirror, Flip & Preview Toggle**:
+  - Expandable camera ratio HUD (`Auto`/`Full`, `16:9`, `4:3`, `2:1`, `1:1`, `1:2`, `3:4`, `9:16`) with landscape/portrait toggle, symmetric horizontal mirroring (`camera.mirror`), lens flip, cover-fit preview with optical crop guides, eye/eye-off local preview toggle, and centered Direct2D `Owlmic Cam` owl placeholder (`owlmic-vcam`).
+- **Audio DSP, Voice Isolation & Live Waveform Metering**:
+  - Real-time RMS audio metering (`WAVE_GAIN = 1.2`) driving live centered and camera-docked waveforms across Android and PC.
+  - `EchoSuppressor` (-24 dB residual echo attenuation), `CallMode` live headset hot-plug switching (`OutputChanged`), live Android `NoiseSuppressor` toggling without reopening Oboe, pre-denoiser room noise floor tracking (`-99 dBFS` digital-zero guard), eased `Agc` auto-level normalization (`-20` to `+36 dB`) with burst clamping, center-filled `-12` to `+12 dB` volume fader, and soft-knee limiter.
+- **Unified Developer & Release Tooling**:
+  - Standard-library Python toolkit (`scripts/menu.py` and `scripts/core/build.py`) routing build outputs to `releases/`, automated invariant verifier (`scripts/core/verify-repo-invariants.py`), master checker (`scripts/core/check.py`), Git hooks (`pre-commit`, `commit-msg`, `pre-push`), and SHA-256 pinned Windows packaging manifest (`dependencies.json`).
+
+### Changed
+- **Compact Opus Speaker Loopback**:
+  - Switched PC speaker loopback (`Stream 3`) to compact 48 kHz stereo Opus across all links (`48–96 kbps` cable, `32–96 kbps` Wi-Fi, `24–64 kbps` Bluetooth) with telemetry-driven adaptation, anti-replay jitter buffer (`Smoother`), ±0.4% drift resampling, and real-time Oboe `AudioStreamDataCallback` ring-buffer playback.
+- **Video Bitrate & Preview Tuning**:
+  - Tuned `VideoPlan` starting bitrates across `360p`/`480p`/`720p`/`1080p` for wired and Wi-Fi links, raised PC preview cadence to 30 FPS (`preview.rs`), and stabilized Windows 11 Media Foundation sample timestamps and clean-point metadata for WebRTC browsers.
+- **Repository Layout & Packaging Paths**:
+  - Standardized root directory layout (`android/`, `desktop/`, `docs/`, `scripts/`, `shared/`, `website/`), moved release output from `dist/` to `releases/`, and updated GitHub Actions CI and release workflows.
 
 ### Fixed
-- **Camera Pipeline Stutter & Freezing**:
-  - Resolved H.264 slice reassembly frame dropping issue on multi-slice NAL boundaries in `owlmic-devices`, eliminating video freezing.
-  - Improved PC live video preview cadence to a smooth 30 FPS.
+- **Connectivity & Link Switching Stability**:
+  - Stabilized make-before-break carrier migration, ADB tunnel and network interface detection, disconnect/hold state synchronization, and Bluetooth camera capability gating.
+- **H.264 Multi-Slice Reassembly & Decoder Recovery**:
+  - Fixed multi-slice NAL frame drops in `owlmic-devices` / `owlmic-media`, visible-aperture NV12 stride clipping (`MF_MT_MINIMUM_DISPLAY_APERTURE`), and smooth preview fade transitions without stalls.
+- **Icon Sizing & Visual Clarity**:
+  - Reduced `24×24` canvas padding in `eye.svg` and `eye-off.svg` for clearer camera preview toggle rendering.
 
 ---
 

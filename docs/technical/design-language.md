@@ -1,6 +1,6 @@
 # Design Language & UI System
 
-This document outlines the visual design system, typography tokens, layout specifications, and rendering implementations for Owlmic across Android (Jetpack Compose) and Windows (Native Win32 GDI/GDI+).
+This document outlines the visual design system, typography tokens, layout specifications, and rendering implementations for Owlmic across Android (Jetpack Compose), Windows (Native Win32 Direct2D / GDI), and Linux (KSNI).
 
 The definitive design tokens and strings are defined in [`shared/design/tokens.json`](../../shared/design/tokens.json) and [`shared/design/copy.json`](../../shared/design/copy.json).
 
@@ -67,17 +67,17 @@ The phone uses no colour: green, yellow and red are the PC panel's. On the phone
 ## 3. Windows Native Flyout Panel (`desktop/crates/owlmic-ui`)
 
 Rather than shipping Chromium/Electron or bloated webview engines, Owlmic PC uses a **100% native Win32 Direct2D / GDI renderer**:
-- **Geometry**: Bento layout with a fixed 312 × 374 px panel positioned above the taskbar system tray on a 1 px hairline gap (`#727272`).
+- **Geometry**: Bento layout with a fixed 312 × 312 px panel positioned above the taskbar system tray on a 1 px hairline gap (`#727272`).
 - **Rendering Architecture**: High-performance Direct2D hardware-accelerated drawing with DirectWrite typography, vector Lucide glyph paths, and double-buffered GDI memory DC fallback for offscreen testing and snapshots.
 - **Instant Response**: Panel opens in < 15 ms with zero cold-start delay.
-- **Top Playground Area (310 × 310 px)**:
+- **Top Playground Area (312 × 250 px)**:
   - **Dot Matrix Grid & Watermark**: 18 px subtle radial dot matrix grid background with centered 152 px owl logo watermark (`opacity: 0.07`) dynamically generated from `shared/assets/brand/icon.svg` during idle and standby states. In accordance with the prototype, standby mode features pure Bauhaus minimalism with zero text pills or status overlays.
-  - **Instantaneous Camera Layer**: Real-time video preview with compact expandable format HUD (Resolution: FHD, HD, 480p; Framerate: 60, 30, 24 fps; Aspect Ratio: 16:9, 4:3, 1:1), top-right Mirror and Flip buttons, and docked waveform capsule (204 × 22 px) when microphone is simultaneously active.
-  - **Centered Waveform Dock**: Centered 248 × 68 px capsule with real-time RMS-driven audio waveform bars, live sound level response, and stream codec metadata when microphone is streaming and camera is off.
-  - **Quick Audio Settings Panel**: Slides up from the bottom of the playground on waveform click (310 × 150 px with a straight 1 px top hairline), providing Voice isolation switch, Auto level switch, Noise reduction fader (0–10), and Mic volume fader (-12 to +12 dB, center-filled from 0 dB with live level underlay).
+  - **Instantaneous Camera Layer**: Real-time video preview with compact expandable ratio & orientation HUD (`Auto`/Full, `16:9`, `4:3`, `2:1`, `1:1`, `1:2`, `3:4`, `9:16`), Preview hide/show (`eye`/`eye-off`), top-right Mirror and Flip buttons, and docked waveform capsule (`204 × 22 px` waveform inside the dock) when microphone is simultaneously active.
+  - **Centered Waveform Dock**: Centered `248 × 68 px` waveform area with real-time RMS-driven audio waveform bars, live sound level response, and stream codec metadata when microphone is streaming and camera is off.
+  - **Quick Audio Settings Panel**: Slides up from the bottom of the playground on waveform click (with a straight 1 px top hairline), providing Voice isolation switch, Auto level switch, Noise reduction fader (0–10), and Mic volume fader (-12 to +12 dB, center-filled from 0 dB with live level underlay).
   - **Concentric Speaker Ripples**: Animated concentric circles pulsing outward from the speaker glyph when loopback is active.
-  - **Connection Drawer (`p-drawerWifi`)**: Host PC name & IP with instant clipboard copy button, primary device row displaying phone name with transport indicator subtitle (`ind.label`, e.g., "Connected by Wi-Fi") rather than duplicate host IP text, clean empty state when no phone is paired ("No phone connected", "Open Owlmic on your phone"), paired device list with safe single-device retention guards, and 5-item transport footer (Refresh with 420 ms interactive spin feedback, USB Debugging, USB Tethering, Wi-Fi, Bluetooth) toggleable at any time. Clicking any bottom feature tile (Camera, Mic, Speaker) cleanly dismisses the drawer back to the main playground.
-  - **Help Drawer (`p-drawerHelp`)**: 2×3 Bento grid (How-to, Privacy, Rate, GitHub, Donate, Credits) with subpages and back navigation for How-to, Privacy, and Credits.
+  - **Connection Drawer**: Host PC name & IP with instant clipboard copy button, primary device row displaying phone name with transport indicator subtitle (`ind.label`, e.g., "Connected by Wi-Fi") rather than duplicate host IP text, clean empty state when no phone is paired ("No phone connected", "Open Owlmic on your phone"), paired device list with safe single-device retention guards, and 5-item transport footer (Refresh with 420 ms interactive spin feedback, USB Debugging, USB Tethering, Wi-Fi, Bluetooth) toggleable at any time. Clicking any bottom feature tile (Camera, Mic, Speaker) cleanly dismisses the drawer back to the main playground.
+  - **Help Drawer**: 2×3 Bento grid (How-to, Privacy, Rate, GitHub, Donate, Credits) with subpages and back navigation for How-to, Privacy, and Credits.
 - **Bottom Bento Dock**: 5 exact square action buttons across 61 px height on a 1 px hairline seam:
   - `b0`: Wi-Fi / Connection Drawer toggle (`icons::WIFI`/`GLOBE`/`USB`/`CABLE`/`BLUETOOTH`)
   - `b1`: Camera stream toggle (`icons::CAMERA` / `CAMERA_OFF`)
@@ -93,7 +93,7 @@ The main screen strictly replicates the Bento layout prototyped in `shared/desig
 
 | Band | Geometry | Contents |
 | :--- | :--- | :--- |
-| **Top Bar** | 66 dp height (`phone.topBarDp`) | OWLMIC wordmark, **?** tile that opens Help & Info, and connection tile |
+| **Top Bar** | 72 dp height (`phone.topBarDp`) | OWLMIC wordmark, **?** tile that opens Help & Info, and connection tile |
 | **Playground Area** | Flexible weight (`1f`) | Centered owl watermark on dot grid when idle; live camera preview with optical crop borders and expandable format HUD; docked/floating audio waveform; status strip |
 | **Bottom Bar** | 124 dp height (`phone.bottomBarDp`) | 3 square Bento feature tiles (Camera, Mic, Speaker) with 35 dp glyphs; tap to toggle ON/OFF, long-press for feature settings sheet |
 
@@ -102,7 +102,7 @@ The main screen strictly replicates the Bento layout prototyped in `shared/desig
 - **Top-Bar Tiles & Glyphs**:
   - Wordmark dynamically rotates letter-by-letter to match device orientation.
   - Help and Connection tiles use 26 dp glyphs (`phone.topGlyphDp`).
-  - Connection tile displays active link type (USB, Tethering, Wi-Fi, Bluetooth), globe during discovery, or alert glyph for attention. During negotiation, the icon breathes smoothly (`linkPulseLow`, `linkPulseMs`).
+  - Connection tile displays active link type (USB, Tethering, Wi-Fi, Bluetooth), or the globe icon while searching or disconnected. During negotiation, the icon breathes smoothly (`linkPulseLow`, `linkPulseMs`).
 - **Feature Tiles**:
   - High-contrast 35 dp vector glyphs (`phone.glyphDp`) centered in 124 dp square tiles.
   - Inverted pure white (`#FFFFFF`) with black glyphs when active; muted outline when off; dimmed when no PC is connected.
@@ -113,10 +113,10 @@ The main screen strictly replicates the Bento layout prototyped in `shared/desig
 - **Camera Preview & Formatting**:
   - **Auto Zoom-to-Fit**: Camera preview rendered via `GlRenderer` uses cover scaling to fill the available playground area without letterbox bars.
   - **Optical Crop Borders**: Crisp hairline guides outline target aspect ratios when explicit framing is chosen.
-  - **Format Heads-Up Display (HUD)**: Compact expandable dropdown menu at top-left (closed: 50 × 29 dp, open: 180 × 128 dp) featuring dual-axis easing (`CubicBezierEasing(0.16f, 1f, 0.3f, 1f)`) and Crossfade transitions between Resolution (FHD 1080p, HD 720p, 480p), Framerate (60fps, 30fps, 24fps), and Aspect Ratio (Auto, 16:9, 4:3, 1:1, 3:4, 9:16).
-  - **HUD Auto-Dimming**: Format menu and top-right mirror/flip buttons fade to 0.15 alpha after 4 seconds idle (`controlsIdleMs`), waking immediately upon any screen touch.
+  - **Format Heads-Up Display (HUD)**: Compact expandable dropdown menu at top-left (closed: `75 × 44 dp`, open: `150 × 132 dp`) featuring dual-axis easing (`CubicBezierEasing(0.16f, 1f, 0.3f, 1f)`) and Crossfade transitions for Aspect Ratio (`Auto`/Full, `16:9`, `4:3`, `2:1`, `1:1`, `1:2`, `3:4`, `9:16`) and landscape/portrait orientation toggle, paired with the Preview (`eye`/`eye-off`), Mirror, and Flip buttons. Resolution and Frame rate live in the Camera settings sheet (long-press Camera tile).
+  - **HUD Auto-Dimming**: Camera HUD controls fade to `0.2` alpha after 4 seconds idle (`controlsIdleMs`), waking immediately upon any screen touch.
 - **Audio Waveform & Controls**:
-  - Centered 208 dp container for waveform bars using the shared `waveLevel` curve (`WAVE_THRESHOLD = 0.08`, `WAVE_EXPONENT = 0.7`, `WAVE_GAIN = 1.2`) across both platforms for peak headroom; docks into a bottom capsule when camera is active.
+  - Centered waveform container (`288 dp` max in mic-only mode, `236 dp` docked capsule when camera is active) using the shared `waveLevel` curve (`WAVE_THRESHOLD = 0.08`, `WAVE_EXPONENT = 0.7`, `WAVE_GAIN = 1.2`) across both platforms for peak headroom.
   - In mic-only mode, tapping the waveform opens a full-width flat black bottom quick panel with a straight `1 dp` horizontal top border line (`0x26FFFFFF`). When camera is active, tapping the docked capsule expands it upward into audio controls (voice isolation switch, independent auto-level switch, noise reduction fader, and center-filled volume fader `-12` to `+12 dB`) without stretching the internal waveform bars horizontally.
 - **Dynamic Glyph Pipeline**:
   - All icons are dynamically parsed from `shared/assets/icons/*.svg` by the Gradle task `:core:generateDesign` into `GeneratedGlyphs.kt`.

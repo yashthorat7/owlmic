@@ -177,7 +177,6 @@ struct Panel {
     cam_hud_at: Option<Instant>,
     cam_menu_open: bool,
     cam_menu_wide: Option<bool>,
-    cam_preview_hidden: bool,
     mic_quick_open: bool,
     dock_open: bool,
     hover: Option<Target>,
@@ -217,8 +216,7 @@ pub fn run(waker: &Waker, ui: Ui, open: bool) -> Result<()> {
         };
         RegisterClassExW(&class);
         let init_state = ui.state.read();
-        let anim =
-            UiAnim::settled_for(&init_state, Drawer::None, false, false, false, false, false);
+        let anim = UiAnim::settled_for(&init_state, Drawer::None, false, false, false, false);
         let panel = Box::new(Panel {
             hwnd: HWND::default(),
             state: init_state,
@@ -230,7 +228,6 @@ pub fn run(waker: &Waker, ui: Ui, open: bool) -> Result<()> {
             cam_hud_at: None,
             cam_menu_open: false,
             cam_menu_wide: None,
-            cam_preview_hidden: false,
             mic_quick_open: false,
             dock_open: false,
             hover: None,
@@ -466,9 +463,9 @@ impl UiAnim {
         cam_menu: bool,
         mic_quick: bool,
         dock_open: bool,
-        cam_preview_hidden: bool,
     ) -> Self {
         let cam_on = matches!(state.camera, Feature::On | Feature::Restarting) && state.connected();
+        let cam_preview_hidden = state.cam_preview_hidden();
         let mic_on = matches!(state.mic, Feature::On | Feature::Restarting) && state.connected();
         let spk_on =
             matches!(state.speaker, Feature::On | Feature::Restarting) && state.connected();
@@ -592,6 +589,10 @@ impl Panel {
 
     fn mic_active(&self) -> bool {
         matches!(self.state.mic, Feature::On | Feature::Restarting) && self.state.connected()
+    }
+
+    fn cam_preview_hidden(&self) -> bool {
+        self.state.cam_preview_hidden()
     }
 
     fn active_quick_audio(&self) -> bool {
@@ -718,7 +719,7 @@ impl Panel {
         } else {
             self.anim
                 .cam_preview_t
-                .snap(if cam_on && !self.cam_preview_hidden {
+                .snap(if cam_on && !self.cam_preview_hidden() {
                     1.0
                 } else {
                     0.0
@@ -1086,8 +1087,11 @@ impl Panel {
         } else if !matches!(self.state.camera, Feature::On | Feature::Restarting) {
             self.touch_cam_hud();
         }
+        let hidden = new.cam_preview_hidden();
+        self.ui.preview.set_wanted(self.visible && !hidden);
         if !matches!(new.connection, Connection::Connected { .. })
             || !matches!(new.camera, Feature::On | Feature::Restarting)
+            || hidden
         {
             self.ui.preview.clear();
             self.painter.clear_preview();
@@ -1210,7 +1214,7 @@ impl Panel {
             SetTimer(Some(self.hwnd), TIMER_PREVIEW, 16, None);
         }
         self.visible = true;
-        self.ui.preview.set_wanted(!self.cam_preview_hidden);
+        self.ui.preview.set_wanted(!self.cam_preview_hidden());
         self.sync_tweens();
         self.invalidate();
     }
@@ -1248,15 +1252,7 @@ impl Panel {
         self.unhover_since = None;
         self.hidden_at = Some(Instant::now());
         self.shown_at = None;
-        self.anim = UiAnim::settled_for(
-            &self.state,
-            Drawer::None,
-            false,
-            false,
-            false,
-            false,
-            self.cam_preview_hidden,
-        );
+        self.anim = UiAnim::settled_for(&self.state, Drawer::None, false, false, false, false);
         self.ui.preview.set_wanted(false);
         self.ui.preview.clear();
         self.painter.clear_preview();
@@ -1525,15 +1521,10 @@ impl Panel {
             }
             Target::CamPreview => {
                 self.cam_menu_open = false;
-                self.cam_preview_hidden = !self.cam_preview_hidden;
-                self.ui
-                    .preview
-                    .set_wanted(!self.cam_preview_hidden && self.visible);
-                if self.cam_preview_hidden {
-                    self.ui.preview.clear();
-                    self.painter.clear_preview();
-                }
                 self.touch_cam_hud();
+                if let Some(action) = self.state.click(target) {
+                    (self.ui.on_action)(action);
+                }
             }
             Target::Mirror | Target::Flip => {
                 self.cam_menu_open = false;
@@ -1883,7 +1874,7 @@ impl Panel {
                 self.painter.clip(l::PLAYGROUND);
             }
             let pushed = self.painter.push_layer(l::PLAYGROUND, cam_a);
-            if cam_on && !self.cam_preview_hidden && has_frame {
+            if cam_on && !self.cam_preview_hidden() && has_frame {
                 self.draw_playground_base();
 
                 self.sync_cam_crop(cam_on, pw, ph);
@@ -2088,7 +2079,8 @@ impl Panel {
                 l::CAM_PREVIEW_BTN.w,
                 l::CAM_PREVIEW_BTN.h,
             );
-            if self.cam_preview_hidden {
+            let preview_hidden = self.cam_preview_hidden();
+            if preview_hidden {
                 self.painter.fill_rounded(preview_btn, 7.0, WHITE);
                 self.painter.stroke_rounded(preview_btn, 7.0, WHITE, 1.0);
             } else {
@@ -2101,7 +2093,7 @@ impl Panel {
                 self.painter.stroke_rounded(preview_btn, 7.0, WHITE_20, 1.0);
             }
             self.painter.icon(
-                if self.cam_preview_hidden {
+                if preview_hidden {
                     icons::EYE_OFF
                 } else {
                     icons::EYE
@@ -2109,11 +2101,7 @@ impl Panel {
                 preview_btn.x + preview_btn.w / 2.0,
                 preview_btn.y + preview_btn.h / 2.0,
                 13.0,
-                if self.cam_preview_hidden {
-                    BLACK
-                } else {
-                    WHITE
-                },
+                if preview_hidden { BLACK } else { WHITE },
             );
 
             // Mirror button (white fill + black icon when active, translucent black when off)
@@ -3248,7 +3236,7 @@ mod tests {
                 PanelState {
                     connection: Connection::NotConnected,
                     settings: settings.clone(),
-                    version: "v0.1.0".into(),
+                    version: "v1.0.0".into(),
                     ..Default::default()
                 },
                 Drawer::None,
@@ -3270,7 +3258,7 @@ mod tests {
                     phones: phones.clone(),
                     addresses: addresses.clone(),
                     hostname: "YASH-PC".into(),
-                    version: "v0.1.0".into(),
+                    version: "v1.0.0".into(),
                     ..Default::default()
                 },
                 Drawer::Wifi,
@@ -3291,7 +3279,7 @@ mod tests {
                     mic: Feature::On,
                     settings: settings.clone(),
                     paired: true,
-                    version: "v0.1.0".into(),
+                    version: "v1.0.0".into(),
                     ..Default::default()
                 },
                 Drawer::None,
@@ -3312,7 +3300,7 @@ mod tests {
                     camera: Feature::On,
                     settings: settings.clone(),
                     paired: true,
-                    version: "v0.1.0".into(),
+                    version: "v1.0.0".into(),
                     ..Default::default()
                 },
                 Drawer::None,
@@ -3334,7 +3322,7 @@ mod tests {
                     camera: Feature::On,
                     settings: settings.clone(),
                     paired: true,
-                    version: "v0.1.0".into(),
+                    version: "v1.0.0".into(),
                     ..Default::default()
                 },
                 Drawer::None,
@@ -3357,7 +3345,7 @@ mod tests {
                     phones: phones.clone(),
                     addresses: addresses.clone(),
                     hostname: "YASH-PC".into(),
-                    version: "v0.1.0".into(),
+                    version: "v1.0.0".into(),
                     ..Default::default()
                 },
                 Drawer::Wifi,
@@ -3377,7 +3365,7 @@ mod tests {
                         net: false,
                     },
                     settings: settings.clone(),
-                    version: "v0.1.0".into(),
+                    version: "v1.0.0".into(),
                     ..Default::default()
                 },
                 Drawer::None,
@@ -3396,7 +3384,7 @@ mod tests {
                         weak: false,
                     },
                     settings: settings.clone(),
-                    version: "v0.1.0".into(),
+                    version: "v1.0.0".into(),
                     ..Default::default()
                 },
                 Drawer::Help(HelpScreen::Bento),
@@ -3415,7 +3403,7 @@ mod tests {
                         weak: false,
                     },
                     settings: settings.clone(),
-                    version: "v0.1.0".into(),
+                    version: "v1.0.0".into(),
                     ..Default::default()
                 },
                 Drawer::Help(HelpScreen::HowTo),
@@ -3434,7 +3422,7 @@ mod tests {
                         weak: false,
                     },
                     settings: settings.clone(),
-                    version: "v0.1.0".into(),
+                    version: "v1.0.0".into(),
                     ..Default::default()
                 },
                 Drawer::Help(HelpScreen::Privacy),
@@ -3453,7 +3441,7 @@ mod tests {
                         weak: false,
                     },
                     settings: settings.clone(),
-                    version: "v0.1.0".into(),
+                    version: "v1.0.0".into(),
                     ..Default::default()
                 },
                 Drawer::Help(HelpScreen::Credits),
@@ -3474,7 +3462,7 @@ mod tests {
                     camera: Feature::On,
                     settings: settings.clone(),
                     paired: true,
-                    version: "v0.1.0".into(),
+                    version: "v1.0.0".into(),
                     ..Default::default()
                 },
                 Drawer::None,
@@ -3495,7 +3483,7 @@ mod tests {
                     mic: Feature::On,
                     settings: settings.clone(),
                     paired: true,
-                    version: "v0.1.0".into(),
+                    version: "v1.0.0".into(),
                     ..Default::default()
                 },
                 Drawer::None,
@@ -3517,7 +3505,7 @@ mod tests {
                     mic: Feature::On,
                     settings: settings.clone(),
                     paired: true,
-                    version: "v0.1.0".into(),
+                    version: "v1.0.0".into(),
                     ..Default::default()
                 },
                 Drawer::None,
@@ -3533,9 +3521,8 @@ mod tests {
 
             for (file_name, st, drawer, cam_hud, cam_menu, mic_quick, dock_open) in states {
                 let arc_st = Arc::new(st);
-                let anim = UiAnim::settled_for(
-                    &arc_st, drawer, cam_hud, cam_menu, mic_quick, dock_open, false,
-                );
+                let anim =
+                    UiAnim::settled_for(&arc_st, drawer, cam_hud, cam_menu, mic_quick, dock_open);
                 let mut panel = Panel {
                     hwnd: HWND::default(),
                     ui: Ui {
@@ -3552,7 +3539,6 @@ mod tests {
                     cam_hud_at: None,
                     cam_menu_open: cam_menu,
                     cam_menu_wide: None,
-                    cam_preview_hidden: false,
                     mic_quick_open: mic_quick,
                     dock_open,
                     hover: None,
@@ -3677,7 +3663,7 @@ mod tests {
             paired: true,
             ..Default::default()
         };
-        let anim = UiAnim::settled_for(&st, Drawer::Wifi, false, true, false, true, false);
+        let anim = UiAnim::settled_for(&st, Drawer::Wifi, false, true, false, true);
         assert!((anim.drawer_t.now() - 1.0).abs() < 1e-4);
         assert!((anim.cam_layer_t.now() - 1.0).abs() < 1e-4);
         assert!((anim.cam_preview_t.now() - 1.0).abs() < 1e-4);

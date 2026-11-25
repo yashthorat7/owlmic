@@ -31,7 +31,7 @@ If Owlmic Mic or Owlmic Cam shows an error, or if your phone cannot discover you
   - Ensure Windows network profile is set to **Private**, not Public.
 - **Direct IP Pairing**:
   - In Owlmic PC tray panel, view **This PC's addresses** (e.g., `192.168.1.145`).
-  - In the Android app, tap Settings (gear icon) -> **Add PC by address** -> enter the IP address.
+  - In the Android app, tap the connection tile (top right) -> `+` (**Add PC by address**) -> enter the IP address.
 
 ### USB Connection Not Recognized
 - **USB Tethering**: If plugged in via USB cable, enable **USB tethering** on your Android phone under `Settings -> Network & Internet -> Hotspot & tethering`.
@@ -66,7 +66,7 @@ If Owlmic Mic or Owlmic Cam shows an error, or if your phone cannot discover you
 ## 4. Camera / Video Issues
 
 ### "Owlmic Cam" Shows Black Screen or Placeholder
-- The placeholder screen (*"Owlmic Cam · Open Owlmic on your phone"*) is displayed whenever the camera is turned **OFF** on your phone.
+- The placeholder screen (centered Owlmic owl symbol on black) is displayed whenever the camera is turned **OFF** on your phone.
 - Tap the **Camera** tile on your phone to turn it ON.
 - If prompted, ensure you have granted Android camera permissions.
 

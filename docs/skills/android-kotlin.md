@@ -42,8 +42,8 @@
    - **Center Playground**:
      - Dot grid and watermark owl when idle.
      - Camera preview with auto zoom-to-fit (cover) framing and optical crop border lines for explicit target aspect ratios.
-     - Compact expandable format HUD (50 × 29 dp closed, 180 × 128 dp open) for Resolution (FHD/HD/480p), FPS (60/30/24), and Aspect Ratio (Auto/16:9/4:3/1:1/3:4/9:16) with 4s idle auto-dim and dual-axis motion.
-     - Centered 208 dp waveform container (fixed-width bars so amplitude doesn't stretch horizontally on drawer expansion); docked waveform capsule when camera on, expandable into mic hardware faders and toggles.
+     - Compact expandable ratio & orientation HUD (75 × 44 dp closed, 150 × 132 dp open) for Aspect Ratio (`Auto`/Full, `16:9`, `4:3`, `2:1`, `1:1`, `1:2`, `3:4`, `9:16`) and landscape/portrait switch with 4s idle auto-dim and dual-axis motion, alongside Preview, Mirror, and Flip buttons.
+     - Centered waveform container (288 dp max; fixed-width bars so amplitude doesn't stretch horizontally on drawer expansion) morphing to a 236 dp docked capsule when camera is on, expandable into mic hardware faders and toggles.
    - **Drawers**:
      - Connection Drawer: Inline handshake sweep (`sync-beam` animated gradient line on the connection row), inline Add Host row (`+`), and 6-column transport footer (refresh + 4 link toggles).
      - Help Drawer: 2x3 bento grid (How-to, Privacy, Rate, GitHub, Donate, Credits) with subpages.

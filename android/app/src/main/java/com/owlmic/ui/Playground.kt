@@ -46,7 +46,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.Alignment
@@ -99,7 +98,7 @@ fun Playground(seq: TurnSequence, state: AppState, drawer: Drawer?, modifier: Mo
     var micOpen by remember { mutableStateOf(false) }
     var camMenuOpen by remember { mutableStateOf(false) }
     var camMenuTouches by remember { mutableIntStateOf(0) }
-    var previewHidden by rememberSaveable { mutableStateOf(false) }
+    val previewHidden = (state.settings["camera.hidePreview"] ?: SettingsModel.find("camera.hidePreview")?.default) == "on"
     val physicalSideways = seq.targetTurn != TURN_NONE
     var prevPhysicalSideways by remember { mutableStateOf(physicalSideways) }
     var pendingRatio by remember { mutableStateOf<Pair<String, String>?>(null) }
@@ -174,7 +173,9 @@ fun Playground(seq: TurnSequence, state: AppState, drawer: Drawer?, modifier: Mo
             },
             onCamMenuClose = { camMenuOpen = false },
             onCamMenuInteract = { camMenuTouches++ },
-            onPreviewToggle = { previewHidden = !previewHidden },
+            onPreviewToggle = {
+                Owlmic.post(AppMsg.Setting("camera.hidePreview", if (previewHidden) "off" else "on"))
+            },
             onTouch = { touches++ },
             onStrip = onStrip,
         )

@@ -37,7 +37,7 @@ Deep-dive architectural specifications, protocols, media pipelines, and develope
 | **[`building.md`](technical/building.md)** | Building Android (Gradle/NDK) and PC (Cargo/MSVC/GNU), dependencies, environment setup |
 | **[`releasing.md`](technical/releasing.md)** | Packaging Inno Setup installer, APK/AAB signing, GitHub Releases, Google Play distribution |
 
-### 1.4 Desktop Crates Architecture (`desktop/crates/`)
+### 1.3 Desktop Crates Architecture (`desktop/crates/`)
 The desktop companion server is partitioned into 13 decoupled crates under Rust 2024:
 - **`owlmic-app`**: Application entry point, tray lifecycle, Win32 message loop & Linux event handling.
 - **`owlmic-devices`**: System virtual audio endpoints (WASAPI / PipeWire), camera frame feeder, and repair engine.
@@ -49,17 +49,17 @@ The desktop companion server is partitioned into 13 decoupled crates under Rust 
 - **`owlmic-proto`**: Wire Protocol v3 framing, binary envelopes, JSON control framing, and serialization.
 - **`owlmic-session`**: Cryptographic trust (TOFU), NIST P-256 ECDH key exchange, AES-256-GCM cipher, 4-digit code confirmation.
 - **`owlmic-settings`**: Thread-safe configuration store (`owlmic.json`), schema validation, and bidirectional state sync.
-- **`owlmic-ui`**: Native Win32 GDI/Direct2D dark OLED flyout UI (< 15 ms open time, zero webview overhead) and tray widgets.
+- **`owlmic-ui`**: Native Win32 Direct2D / GDI dark OLED flyout UI (312 × 312 px, < 15 ms open time, zero webview overhead) and tray widgets.
 - **`owlmic-vcam`**: Windows 11 Media Foundation virtual camera COM server (`owlmic_vcam.dll`) and shared memory ring buffer.
 - **`owlmic-windows`**: Windows platform integration: WASAPI audio loopback, registry property store, COM setup.
 
-### 1.5 Shared Design & Assets
+### 1.4 Shared Design & Assets
 - **[`shared/design/`](../shared/design/)**: Canonical cross-platform schemas — `tokens.json` (OLED palette, typography, geometry), `copy.json` (UI strings and product name invariant), `settings.json` (versioned settings schema).
 - **[`shared/design/prototypes/`](../shared/design/prototypes/)**: Interactive HTML UI blueprints for Android + PC layout exploration.
 - **[`shared/assets/`](../shared/assets/)**: Single source of truth for shared visual assets — `brand/` (master owl SVG marks), `icons/` (tray and status glyphs), `fonts/` (shared UI fonts).
 - **[`shared/vendor/`](../shared/vendor/)**: Centralized third-party submodules (`opus/`).
 
-### 1.6 Automation & Scripts
+### 1.5 Automation & Scripts
 - **[`scripts/menu.py`](../scripts/menu.py)**: Unified interactive developer & release menu (build, check, verify, deps, clean, hooks).
 - **[`scripts/core/build.py`](../scripts/core/build.py)**: Interactive and CLI release packaging tool routing artifacts to `releases/`.
 - **[`scripts/core/verify-repo-invariants.py`](../scripts/core/verify-repo-invariants.py)**: Zero-dependency Python 3 checker for product name casing, binary ban, Tokio restrictions, JSON validity, and version lockstep.
@@ -67,10 +67,10 @@ The desktop companion server is partitioned into 13 decoupled crates under Rust 
 - **[`scripts/core/setup-hooks.py`](../scripts/core/setup-hooks.py)**: Cross-platform Git hooks setup (`core.hooksPath` configuration).
 - **[`scripts/hooks/`](../scripts/hooks/)**: Git `pre-commit` (invariants + cargo fmt) and `commit-msg` (Conventional Commits enforcement).
 
-### 1.7 Project History
-- **[`CHANGELOG.md`](CHANGELOG.md)**: Release history and version milestones starting from v0.1.0.
+### 1.6 Project History
+- **[`CHANGELOG.md`](CHANGELOG.md)**: Release history and version milestones from v0.1.0 through v1.0.0.
 
-### 1.8 Modular Domain Skills (`docs/skills/`)
+### 1.7 Modular Domain Skills (`docs/skills/`)
 Specialized context rulebooks routed from the root [`AGENTS.md`](../AGENTS.md) across three priority tiers:
 - **[Domain Skills Catalog Index](skills/README.md)**: Complete guide to the 3-tier operational priority system.
 - **Priority 1 (Always Active)**:

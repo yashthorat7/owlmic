@@ -105,14 +105,14 @@ This document describes the capture, encoding, transmission, jitter compensation
   - Fill or Fit (`camera.framing`) is the PC's: how the virtual camera, always 1920x1080, shows a picture whose shape differs from its own. Fit (the default) shows all of a 4:3 picture with bars at the sides; Fill crops its top and bottom.
 - **Hardware Encoder**: Feeds GPU textures directly into Android's hardware `MediaCodec` H.264 encoder.
   - Generates Annex B byte streams with inline SPS and PPS headers on every IDR keyframe.
-  - Configurable bitrate: ~2.5 Mbps for 720p, ~4.5 Mbps for 1080p.
+  - Starting bitrate adapts by resolution (`360p`–`1080p`), frame rate (`24`–`60 fps`), and link type (`VideoPlan`: `3–10 Mbps` on Wi-Fi and `8–24 Mbps` wired for `720p`/`1080p`).
 
 ### PC Video Reassembly & Rendering
 - **Reassembly Engine (`reassembly.rs`)**:
   - Collects slices into full frames based on `frame_id`, `fragment_index`, and `fragment_count`.
   - If a fragment is lost, the entire frame is dropped and LinkHub throttles a `KEYFRAME_REQUEST` back to the phone (max once every 500 ms).
 - **Backpressure & Drop Policy**: Queue depth is strictly 1 (`KEEP_ONLY_LATEST`). Intermediate frames are dropped immediately if the decoder falls behind. Multi-slice frames are preserved until the slice sequence completes to prevent partial decoding corruption or 1-frame-per-few-seconds freezes.
-- **Preview Cadence (`preview.rs`)**: Feeds the Win32 GDI preview at a stable 30 FPS (33 ms) update cadence while the virtual camera pipeline processes at full capture rate (up to 60 FPS).
+- **Preview Cadence (`preview.rs`)**: Feeds the Win32 Direct2D / GDI preview at a stable 30 FPS (33 ms) update cadence while the virtual camera pipeline processes at full capture rate (up to 60 FPS).
 - **Visible Aperture Decoding (`decoder.rs`)**: Decodes H.264 into NV12 buffers, clipping to `MF_MT_MINIMUM_DISPLAY_APERTURE` visible width to eliminate 16-byte macroblock stride skew and preserve exact aspect ratio.
 - **Shared Memory Ring (`shared.rs`)**:
   - Writes decoded NV12 frames to a lock-free, atomic shared memory ring buffer.

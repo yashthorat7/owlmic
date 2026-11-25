@@ -109,6 +109,7 @@
     "setting.camera.ratio": "Ratio",
     "setting.camera.framing": "Framing",
     "setting.camera.mirror": "Mirror",
+    "setting.camera.hidePreview": "Hide preview",
     "setting.speaker.quietPc": "Quiet PC speakers",
     "setting.link.usbDebugging": "USB debugging",
     "setting.link.usbTethering": "USB tethering",
