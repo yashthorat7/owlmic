@@ -32,10 +32,10 @@ This document describes the capture, encoding, transmission, jitter compensation
   - **USB Connections**: Streamed uncompressed as raw 16-bit little-endian PCM for maximum fidelity and zero CPU overhead.
   - **Wi-Fi**: Encoded in real-time via `libopus` at 48 kbps mono with in-band Forward Error Correction (FEC) and Voice/Audio speech profile.
   - **Bluetooth**: Encoded via `libopus` at 24 kbps mono.
-- **Phone Processing**: Android's noise suppressor runs from noise reduction level 5 up. The phone never boosts the mic; the leveling and the volume are applied on the PC.
+- **Phone Processing**: Android's `NoiseSuppressor` runs from noise reduction level 5 up and toggles live via `setEnabled` on the active Oboe session (crossing levels 4 ↔ 5 never reopens the capture stream). The phone never boosts the mic; the leveling and the volume are applied on the PC.
 - **Voice Isolation** (`mic.isolation`, on by default): while the mic and the Speaker are both on, the Speaker's sound is kept out of the mic, so the other side of a call never hears itself.
   - The mic opens on the voice communication preset and the Speaker on voice communication usage, both on Oboe's normal path (the low latency path skips the phone's voice processing on many devices). Android's `AcousticEchoCanceler` is attached to the mic's own session.
-  - Out of the phone's own speaker (no headphones), the phone goes into `MODE_IN_COMMUNICATION` with the built-in speaker as the communication device, which most phones need for the canceller to hear what plays; its previous mode comes back when either side stops (`Echo.kt`, `CallMode`).
+  - Out of the phone's own speaker (no headphones), the phone goes into `MODE_IN_COMMUNICATION` with the built-in speaker as the communication device, which most phones need for the canceller to hear what plays; its previous mode comes back when either side stops (`Echo.kt`, `CallMode`). Plugging in or unplugging wired/Bluetooth headphones mid-session triggers `MediaMsg.OutputChanged` so `CallMode` switches immediately without restarting streams.
   - A residual echo suppressor (`EchoSuppressor`) catches what a weak or missing canceller leaves: it learns how loud the Speaker comes back into the mic (the quietest the mic gets, relative to what played in the last 300 ms, over 3 s) and turns the mic down 24 dB while it hears no more than that echo. A voice 6 dB above the echo passes, so both sides can talk at once; where the canceller works, the learned echo is faint and nothing is turned down.
   - Off: the plain mic (voice recognition preset, low latency) and media playback, none of the above.
 
@@ -48,21 +48,21 @@ This document describes the capture, encoding, transmission, jitter compensation
   - Compares the average fill level of the jitter buffer against crystal oscillator variations between the phone and PC sound cards.
   - Gently speeds up or slows down playback pitch by at most ±0.2% using a smooth cubic interpolator, eliminating audible clicks, skips, or buffer under-runs.
 - **DSP Chain** (`desktop/crates/owlmic-media/src/audio/dsp`), in order: RNNoise, noise gate, normalization, volume, soft limiter, one 10 ms frame at a time.
-  - **Room Floor** (`floor.rs`): each frame's RMS level, and the room's noise floor under it (the quietest frame of the last 2 s; digital silence teaches it nothing). A frame 10 dB above the floor is speech. The gate and the normalization decide from this, so a far voice is treated like a near one.
+  - **Room Floor** (`floor.rs`): tracks each frame's RMS level and the room's noise floor under it (the quietest frame of the last 2 s; exact digital zeros at or below -99 dBFS teach it nothing, while ultra-quiet or hardware-suppressed silences down to -98 dBFS still teach the floor). When RNNoise is active, the floor measures the time-aligned pre-RNNoise raw frame (`self.dry`) and skips frames RNNoise classifies as high-confidence speech (`vad >= 0.65`) so continuous speech cannot poison the floor. Speech detection and the noise gate also combine the floor margin with RNNoise `vad_prob` and pass audio safely before a floor is learned.
   - **Noise Reduction** (`mic.noiseReduction`, a 0 to 10 slider) sets the phone's suppressor, the RNNoise mix (`nnnoiseless`) and the gate:
 
     | Level | Phone suppressor | PC RNNoise | PC noise gate |
     | :--- | :--- | :--- | :--- |
     | 0 | off | off | off |
     | 1 to 4 | off | 15, 30, 45, 60% mixed in | off |
-    | 5 (default) | on | 100%, only when the phone has no suppressor | off |
+    | 5 (default) | on | 75% mixed in (100% when the phone has no suppressor) | off |
     | 6 to 10 | on | 100% | closes on what is not 4, 6, 8, 10 or 12 dB above the room |
 
-  - **Noise Gate**: open while frames stand above the room's floor by its margin, and 150 ms after (through the gaps between syllables); it opens in 2 ms and closes over 60 ms, down to -30 dB.
-  - **Speech Normalization (AGC)** (`mic.autoLevel`, on by default): brings speech to -20 dBFS RMS from anywhere between about -50 and 0 dBFS (-20 to +30 dB), so how far someone sits from the phone doesn't show. Only speech frames move it: a speech level that follows louder syllables quickly and quieter ones slowly sets the gain, which comes down fast and goes up gently, settling well under a second. Between words the gain holds, so the room never swells up in the pauses. The gain ramps across each frame (no zipper noise), and a frame whose peak would pass 29000 is turned down from its first sample.
+  - **Noise Gate**: open while frames stand above the room's floor by its margin (or pass RNNoise VAD), and 150 ms after (through the gaps between syllables); it opens in 2 ms and closes over 60 ms, down to -30 dB.
+  - **Speech Normalization (AGC)** (`mic.autoLevel`, on by default): brings speech to -20 dBFS RMS across -20 to +36 dB (noise-floor-capped in loud rooms via `(-36 - floor_db).clamp(12, 36)`), so how far someone sits from the phone doesn't show. Only speech frames move it; between words the gain holds so room noise never swells up in pauses. When a user moves from close to far (after a >= 250 ms pause and 20 ms confirmed quieter speech > 6 dB lower, or a 120 ms sustained drop during continuous speech), `Agc` re-anchors to the new distance and transitions along a blended cubic smoothstep / ease-out curve (120 ms up, 40 ms down). Sudden loud bursts clamp per sample under `29000` with a 1 ms (48-sample) ramp and upward `speech_db` tracking to prevent clicks and bounce-back.
   - **Volume** (`mic.volume`, -12 to +12 dB in 3 dB steps, 0 by default): a gain on top of the normalization, smoothed with it, so it works whether Auto level is on or off.
   - **Soft-Knee Limiter**: above 28000 peaks round off before full scale, so neither the normalization nor the volume clips. With every stage off the audio passes untouched.
-  - **Live RMS Audio Metering (`pipeline/mod.rs`)**: Computes real-time frame RMS level and writes normalized (0–100) volume to a shared atomic meter (`Arc<AtomicU32>`), driving the dynamic audio waveform visualization in the PC UI without allocation or lock contention.
+  - **Live RMS Audio Metering (`pipeline/mod.rs`)**: Computes real-time frame RMS level and writes normalized (0–100) volume to a shared atomic meter (`Arc<AtomicU32>`), driving the dynamic audio waveform and volume meter on PC and Android via the shared `waveLevel` curve (`WAVE_THRESHOLD = 0.08`, `WAVE_EXPONENT = 0.7`, `WAVE_GAIN = 1.2`).
 
 ---
 

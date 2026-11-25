@@ -1241,13 +1241,19 @@ impl Panel {
         match which {
             DragFader::Nr => {
                 let ratio = ((x - ac.nr_fader.x) / ac.nr_fader.w).clamp(0.0, 1.0);
-                if let Some(action) = self.state.click(Target::NrFader(ratio * 10.0)) {
+                let step = (ratio * 10.0).round() as i32;
+                if step != self.state.mic_nr_value().round() as i32
+                    && let Some(action) = self.state.click(Target::NrFader(ratio * 10.0))
+                {
                     (self.ui.on_action)(action);
                 }
             }
             DragFader::Vol => {
                 let ratio = ((x - ac.vol_fader.x) / ac.vol_fader.w).clamp(0.0, 1.0);
-                if let Some(action) = self.state.click(Target::VolFader(ratio * 100.0)) {
+                if let Some(action) = self.state.click(Target::VolFader(ratio * 100.0))
+                    && let Action::Set(_, ref next) = action
+                    && next != self.state.value("mic.volume")
+                {
                     (self.ui.on_action)(action);
                 }
             }
@@ -1612,7 +1618,14 @@ impl Panel {
         p.circle(knob_x + 6.0, rect.y + rect.h / 2.0, 6.0, knob);
     }
 
-    fn draw_hardware_fader(&mut self, rect: Rect, value: f32, live: Option<f32>, expand_t: f32) {
+    fn draw_hardware_fader(
+        &mut self,
+        rect: Rect,
+        value: f32,
+        live: Option<f32>,
+        from_middle: bool,
+        expand_t: f32,
+    ) {
         let p = &mut self.painter;
         let track_h = lerp(7.0, 9.0, expand_t);
         let track_y = rect.y + (rect.h - track_h) / 2.0;
@@ -1630,10 +1643,16 @@ impl Panel {
             }
         }
 
-        let fill_w = (rect.w * value.clamp(0.0, 1.0)).max(0.0);
+        let pos = rect.w * value.clamp(0.0, 1.0);
+        let (fill_x, fill_w) = if from_middle {
+            let mid = rect.w * 0.5;
+            (rect.x + pos.min(mid), (pos - mid).abs())
+        } else {
+            (rect.x, pos.max(0.0))
+        };
         if fill_w > 1.0 {
             p.fill_rounded(
-                Rect::new(rect.x, track_y, fill_w, track_h),
+                Rect::new(fill_x, track_y, fill_w, track_h),
                 track_h / 2.0,
                 WHITE,
             );
@@ -1641,7 +1660,7 @@ impl Panel {
 
         // White vertical cap with 1.5 px black halo (matching .fader-cap box-shadow)
         let cap_h = lerp(13.0, 16.0, expand_t);
-        let cap_x = (rect.x + fill_w).clamp(rect.x + 1.5, rect.right() - 1.5);
+        let cap_x = (rect.x + pos).clamp(rect.x + 1.5, rect.right() - 1.5);
         let cap_y = rect.y + (rect.h - cap_h) / 2.0;
         p.fill_rounded(
             Rect::new(cap_x - 2.75, cap_y - 1.5, 5.5, cap_h + 3.0),
@@ -1656,7 +1675,6 @@ impl Panel {
         let ac = l::audio_controls(panel);
         let nr_val = s.mic_nr_value();
         let vol_val = s.mic_volume_percent();
-        let norm_muted = vol_val <= 0.0;
         let iso_t = self.anim.iso_sw_t.now();
         let norm_t = self.anim.norm_sw_t.now();
         let nr_exp = self.anim.nr_drag_t.now();
@@ -1673,14 +1691,14 @@ impl Panel {
         self.draw_owl_switch(ac.iso_switch, iso_t, false);
 
         self.painter.text(
-            crate::messages::SETTING_MIC_NORMALIZATION,
+            crate::messages::SETTING_MIC_AUTO_LEVEL,
             ac.norm_label,
             Font::Body,
-            if norm_muted { WHITE_36 } else { WHITE },
+            WHITE,
             Align::Left,
             false,
         );
-        self.draw_owl_switch(ac.norm_switch, norm_t, norm_muted);
+        self.draw_owl_switch(ac.norm_switch, norm_t, false);
 
         self.painter.text(
             crate::messages::SETTING_MIC_NOISE_REDUCTION,
@@ -1698,7 +1716,7 @@ impl Panel {
             Align::Right,
             false,
         );
-        self.draw_hardware_fader(ac.nr_fader, nr_val / 10.0, None, nr_exp);
+        self.draw_hardware_fader(ac.nr_fader, nr_val / 10.0, None, false, nr_exp);
 
         self.painter.text(
             crate::messages::SETTING_MIC_VOLUME,
@@ -1723,13 +1741,9 @@ impl Panel {
             false,
         );
         let vf = vol_val / 100.0;
-        let raw_level = if norm_muted {
-            0.0
-        } else {
-            wave_level(f32::from_bits(self.ui.meter.load(Ordering::Relaxed)))
-        };
+        let raw_level = wave_level(f32::from_bits(self.ui.meter.load(Ordering::Relaxed)));
         self.anim.vol_live = lerp(self.anim.vol_live, raw_level, 0.35);
-        self.draw_hardware_fader(ac.vol_fader, vf, Some(self.anim.vol_live), vol_exp);
+        self.draw_hardware_fader(ac.vol_fader, vf, Some(self.anim.vol_live), true, vol_exp);
     }
 
     fn draw_main(&mut self, cam_on: bool, mic_on: bool, _cam_menu: bool, _quick_audio: bool) {
@@ -2935,7 +2949,7 @@ fn open(link: Link) {
 fn wave_level(raw_level: f32) -> f32 {
     const WAVE_THRESHOLD: f32 = 0.08;
     const WAVE_EXPONENT: f32 = 0.7;
-    const WAVE_GAIN: f32 = 1.5;
+    const WAVE_GAIN: f32 = 1.2;
     let v = ((raw_level - WAVE_THRESHOLD) / (1.0 - WAVE_THRESHOLD)).clamp(0.0, 1.0);
     (v.powf(WAVE_EXPONENT) * WAVE_GAIN).min(1.0)
 }
@@ -3480,10 +3494,11 @@ mod tests {
     #[test]
     fn wave_level_matches_android_sensitivity_curve() {
         assert_eq!(wave_level(0.08), 0.0);
-        assert!((wave_level(0.16) - 0.27).abs() < 0.02);
-        assert!((wave_level(0.25) - 0.46).abs() < 0.02);
-        assert!((wave_level(0.50) - 0.86).abs() < 0.02);
-        assert_eq!(wave_level(0.65), 1.0);
+        assert!((wave_level(0.16) - 0.22).abs() < 0.02);
+        assert!((wave_level(0.25) - 0.37).abs() < 0.02);
+        assert!((wave_level(0.50) - 0.69).abs() < 0.02);
+        assert!((wave_level(0.65) - 0.86).abs() < 0.02);
+        assert_eq!(wave_level(0.80), 1.0);
         assert_eq!(wave_level(1.0), 1.0);
     }
 

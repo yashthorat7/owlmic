@@ -673,14 +673,18 @@ private fun WaveformDock(
             Column(
                 Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp))
-                    .background(Color.Black)
-                    .border(1.dp, Color(0x26FFFFFF), RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp))
-                    .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 16.dp, vertical = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(14.dp),
+                    .background(Color.Black),
             ) {
-                MicControls(state)
+                Box(Modifier.fillMaxWidth().height(1.dp).background(Color(0x26FFFFFF)))
+                Column(
+                    Modifier
+                        .fillMaxWidth()
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = 16.dp, vertical = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp),
+                ) {
+                    MicControls(state)
+                }
             }
         }
     }

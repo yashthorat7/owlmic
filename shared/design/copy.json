@@ -100,7 +100,6 @@
     "setting.mic.volume": "Volume",
     "setting.mic.isolation": "Voice isolation",
     "setting.mic.autoLevel": "Auto level",
-    "setting.mic.normalization": "Normalization",
     "setting.camera.lens": "Lens",
     "setting.camera.quality": "Quality",
     "setting.camera.frameRate": "Frame rate",

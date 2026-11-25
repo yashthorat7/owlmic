@@ -152,7 +152,7 @@ fun waveLevel(level: Float): Float {
 }
 
 private const val WAVE_EXPONENT = 0.7f
-private const val WAVE_GAIN = 1.5f
+private const val WAVE_GAIN = 1.2f
 
 /** Switches directional ratios between landscape (x:y) and portrait (y:x) to match phone orientation. */
 fun flipRatioForOrientation(ratio: String, sideways: Boolean): String = when (ratio) {

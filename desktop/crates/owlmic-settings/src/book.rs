@@ -9,12 +9,15 @@ use std::collections::BTreeMap;
 
 pub type Book = BTreeMap<String, Versioned>;
 
-/// The current value, or the design's default.
+/// The current value, or the design's default (filtering out invalid legacy values).
 pub fn value<'a>(book: &'a Book, id: &str) -> &'a str {
+    let Some(def) = find(id) else {
+        return "";
+    };
     book.get(id)
         .map(|v| v.value.as_str())
-        .or_else(|| find(id).map(|d| d.default))
-        .unwrap_or("")
+        .filter(|v| def.values.contains(v))
+        .unwrap_or(def.default)
 }
 
 /// A local change. `None` for an unknown setting or a value the setting doesn't have.
@@ -70,10 +73,11 @@ pub fn shared_snapshot(book: &Book) -> Vec<SettingChange> {
         .filter(|d| d.scope == Scope::Shared)
         .map(|d| {
             let v = book.get(d.id);
+            let valid = v.filter(|v| d.values.contains(&v.value.as_str()));
             SettingChange {
                 id: d.id.to_owned(),
-                value: v.map_or(d.default, |v| v.value.as_str()).to_owned(),
-                version: v.map_or(0, |v| v.version),
+                value: valid.map_or(d.default, |v| v.value.as_str()).to_owned(),
+                version: valid.map_or(0, |v| v.version),
             }
         })
         .collect()

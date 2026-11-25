@@ -22,15 +22,15 @@ All setting keys, allowable value enums, scopes, and target UI visibility rules 
 
 | Setting ID | Values | Default | Scope | Shown On | Description |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| `mic.noiseReduction` | `0` to `10` | `5` | shared | phone, pc | Noise reduction strength: 0 is off; 1 to 4 PC only and gentle; 5 the phone's suppressor; 6 to 10 adds the PC's denoiser and a noise gate that wants more above the room at each level ([media.md](media.md)) |
+| `mic.noiseReduction` | `0` to `10` | `5` | shared | phone, pc | Noise reduction strength: 0 is off; 1 to 4 PC RNNoise (15–60%); 5 adds phone suppressor and 75% PC RNNoise (100% if phone has none); 6 to 10 full PC RNNoise plus an adaptive noise gate (4–12 dB over room floor) ([media.md](media.md)) |
 | `mic.volume` | `-12`, `-9`, `-6`, `-3`, `0`, `3`, `6`, `9`, `12` | `0` | shared | phone, pc | Volume in dB, applied on the PC after the normalization |
-| `mic.isolation` | `on`, `off` | `on` | shared | phone, pc | Keeps the Speaker's sound out of the mic: Android's echo canceller in communication mode, with the phone's own echo suppressor behind it |
-| `mic.autoLevel` | `on`, `off` | `on` | shared | phone, pc | The PC's speech normalization (AGC): the voice at one loudness from near or far |
+| `mic.isolation` | `on`, `off` | `on` | shared | phone, pc | Keeps the Speaker's sound out of the mic: Android's echo canceller in communication mode (refreshing on headset plug/unplug), with the phone's own echo suppressor behind it |
+| `mic.autoLevel` | `on`, `off` | `on` | shared | phone, pc | The PC's eased speech normalization (AGC, -20 to +36 dB): keeps the voice at one steady loudness from near or far |
 | `camera.lens` | `back`, `front` | `front` | shared | phone, pc | Active camera lens |
 | `camera.quality` | `auto`, `480p`, `720p`, `1080p` | `auto` | shared | phone, pc | Video streaming resolution |
-| `camera.frameRate` | `24`, `30`, `60` | `24` | shared | phone, pc | Video capture frame rate |
+| `camera.frameRate` | `24`, `30`, `60` | `60` | shared | phone, pc | Video capture frame rate |
 | `camera.orientation` | `auto`, `landscape`, `portrait` | `auto` | shared | phone | Camera sensor orientation lock |
-| `camera.ratio` | `full`, `16:9`, `4:3`, `1:1`, `3:4`, `9:16` | `full` | shared | phone, pc | Shape of the picture the PC receives: the sensor's whole frame, or a crop the user picks |
+| `camera.ratio` | `full`, `16:9`, `4:3`, `2:1`, `1:1`, `1:2`, `3:4`, `9:16` | `full` | shared | phone, pc | Shape of the picture the PC receives: the sensor's whole frame, or a crop the user picks |
 | `camera.framing` | `fill`, `fit` | `fit` | pc | pc | How the PC's 16:9 virtual camera shows a picture of another shape: `fit` (the default) shows all of it with bars, `fill` crops it |
 | `camera.mirror` | `off`, `on` | `off` | shared | phone, pc | Horizontal video mirroring synced between phone preview and PC preview/virtual camera |
 | `speaker.quietPc` | `on`, `off` | `on` | pc | pc | Mute PC physical speakers during loopback |

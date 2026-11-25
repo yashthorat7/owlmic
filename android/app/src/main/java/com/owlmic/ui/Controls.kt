@@ -84,8 +84,7 @@ fun Modifier.onAnyTouch(onTouch: () -> Unit): Modifier = pointerInput(Unit) {
 @Composable
 fun ColumnScope.MicControls(state: AppState) {
     SettingToggle(state, "mic.isolation", Copy.string.setting_mic_isolation)
-    val isolationOn = (state.settings["mic.isolation"] ?: SettingsModel.find("mic.isolation")?.default) == "on"
-    SettingToggle(state, "mic.autoLevel", Copy.string.setting_mic_auto_level, enabled = isolationOn)
+    SettingToggle(state, "mic.autoLevel", Copy.string.setting_mic_auto_level)
     SettingSlider(state, "mic.noiseReduction", Copy.string.setting_mic_noise_reduction)
     SettingSlider(state, "mic.volume", Copy.string.setting_mic_volume, fromMiddle = true, showLive = true)
 }

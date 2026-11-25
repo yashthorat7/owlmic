@@ -1,5 +1,5 @@
 use super::agc::Agc;
-use super::floor::Floor;
+use super::floor::{Floor, Frame};
 use super::gate::Gate;
 use nnnoiseless::DenoiseState;
 
@@ -75,34 +75,53 @@ impl AudioDsp {
             }
 
             // Only run denoise if strength is high enough
-            let frame = if strength_ratio > 0.001 {
-                let _vad = self
+            let (frame, vad_prob, raw_floor) = if strength_ratio > 0.001 {
+                // Measure room floor on the time-aligned raw frame before overwriting `self.dry`,
+                // but skip frames RNNoise strongly identifies as speech so continuous talking doesn't
+                // poison the room floor before a pause occurs.
+                let vad = self
                     .denoise
                     .process_frame(&mut self.scratch_out, &self.scratch_in);
+                let raw_floor = if vad < 0.65 {
+                    self.floor.measure(&self.dry)
+                } else {
+                    self.floor.current()
+                };
 
                 for (&dry, denoised_ref) in self.dry.iter().zip(self.scratch_out.iter_mut()) {
                     let denoised = *denoised_ref;
                     *denoised_ref = dry * (1.0 - strength_ratio) + denoised * strength_ratio;
                 }
                 self.dry = self.scratch_in;
-                &mut self.scratch_out
+                (&mut self.scratch_out, Some(vad), Some(raw_floor))
             } else {
                 self.dry = self.scratch_in;
-                &mut self.scratch_in
+                (&mut self.scratch_in, None, None)
             };
 
             if p.gate_margin_db.is_none() && !leveled {
                 // Nothing measures the room: the floor starts afresh when something does.
                 self.floor.reset();
+                self.agc.reset();
             } else {
-                let measured = self.floor.measure(&frame[..]);
+                let mut measured = match raw_floor {
+                    Some(raw) => Frame {
+                        level_db: super::floor::level_db(&frame[..]),
+                        floor_db: raw.floor_db,
+                        vad_prob,
+                    },
+                    None => self.floor.measure(&frame[..]),
+                };
+                measured.vad_prob = vad_prob;
                 if let Some(margin) = p.gate_margin_db {
                     self.gate
-                        .process(&mut frame[..], measured.is_above(margin as f32));
+                        .process(&mut frame[..], measured.gate_open(margin as f32));
                 }
                 if leveled {
                     self.agc
                         .process(&mut frame[..], measured, p.normalize, volume);
+                } else {
+                    self.agc.reset();
                 }
             }
 
@@ -113,6 +132,7 @@ impl AudioDsp {
     }
 
     pub fn reset(&mut self) {
+        self.denoise = DenoiseState::new();
         self.scratch_in.fill(0.0);
         self.scratch_out.fill(0.0);
         self.dry.fill(0.0);

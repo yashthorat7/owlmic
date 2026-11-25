@@ -128,10 +128,11 @@ class ScreenModelTest {
     @Test
     fun theSoundWaveReachesWellUpForNormalSpeechAndTheTopWhenLoud() {
         assertEquals(0f, waveLevel(0.08f), 0f)
-        assertEquals(0.27f, waveLevel(0.16f), 0.02f)
-        assertEquals(0.46f, waveLevel(0.25f), 0.02f)
-        assertEquals(0.86f, waveLevel(0.50f), 0.02f)
-        assertEquals(1f, waveLevel(0.65f), 0.001f)
+        assertEquals(0.22f, waveLevel(0.16f), 0.02f)
+        assertEquals(0.37f, waveLevel(0.25f), 0.02f)
+        assertEquals(0.69f, waveLevel(0.50f), 0.02f)
+        assertEquals(0.86f, waveLevel(0.65f), 0.02f)
+        assertEquals(1f, waveLevel(0.80f), 0.001f)
         assertEquals(1f, waveLevel(1f), 0.001f)
     }
 
