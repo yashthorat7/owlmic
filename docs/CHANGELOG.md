@@ -12,7 +12,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Bidirectional Feature Sync (Hive Mind)**:
   - Synchronized feature toggling (`STATE` `0x20`) across Android and PC companion; activating or pausing mic, camera, or speaker on either device updates the other in real time.
 - **Audio DSP & Live Waveform Metering**:
-  - Real-time RMS audio metering in `owlmic-media` published via lock-free atomic meter to the PC UI, driving live audio waveforms matching user speech levels.
+  - Real-time RMS audio metering in `owlmic-media` published via lock-free atomic meter to the PC UI, driving live audio waveforms tuned (`WAVE_GAIN = 1.2`) to preserve headroom for loud notes across Android and Windows.
+  - Eased `Agc` auto-level normalization (`mic.autoLevel`, `-20` to `+36 dB`) with fast pause-onset re-anchoring, smoothstep/ease-out gain transitions, noise-floor capping, and click-free burst protection.
+  - Pre-denoiser raw noise floor measurement with RNNoise VAD fallback (`-99 dBFS` digital-zero guard) and `75%` PC RNNoise at default level `5` when phone hardware suppression is present.
+  - Live Android `NoiseSuppressor` toggling without reopening Oboe capture, plus live `CallMode` headset hot-plug refreshes (`OutputChanged`).
+  - Independent `Auto level` toggleability on Android and Windows, aligned `"Auto level"` UI label, center-filled `-12` to `+12 dB` volume fader on Windows, and straight top-bordered mic-only quick panel on Android.
 - **Connection Drawer & Transport Controls**:
   - Support for offline transport configuration: USB, tethering, Wi-Fi, and Bluetooth links can be toggled without requiring an active phone session, persisting locally and synchronizing on connect.
   - Interactive 420 ms spinning feedback on the PC refresh button.

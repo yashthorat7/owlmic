@@ -281,3 +281,53 @@ fn auto_level_off_leaves_the_voice_as_it_came() {
     run(&mut AudioDsp::new(), &mut samples, only_denoise(0));
     assert_eq!(samples, copy);
 }
+
+#[test]
+fn moving_from_near_to_far_recovers_within_150ms() {
+    let (mut near, _, _) = talk(2.0, -8.0, -72.0);
+    let mut pause = vec![3i16; 480 * 50]; // 500 ms quiet pause while walking away
+    let (mut far, voiced_far, _) = talk(2.0, -45.0, -72.0);
+    let mut dsp = AudioDsp::new();
+    run(&mut dsp, &mut near, leveled());
+    run(&mut dsp, &mut pause, leveled());
+    run(&mut dsp, &mut far, leveled());
+
+    // After just 150 ms (15 frames), the eased re-anchor should already be near target.
+    let early = voiced_level(&far, &voiced_far, 0.15);
+    assert!(
+        (-24.0..=-16.0).contains(&early),
+        "near-to-far stayed too quiet at 150 ms: {early} dBFS"
+    );
+}
+
+#[test]
+fn digital_silence_between_words_still_levels_and_passes_gate() {
+    let mut dsp = AudioDsp::new();
+    let mut silence = vec![0i16; 480 * 30];
+    let p = Processing {
+        denoise_pct: 75,
+        gate_margin_db: Some(8),
+        normalize: true,
+        volume_db: 0,
+    };
+    run(&mut dsp, &mut silence, p);
+
+    let (mut far, voiced_far, _) = talk(2.0, -42.0, -95.0);
+    run(&mut dsp, &mut far, p);
+    let out = voiced_level(&far, &voiced_far, 0.5);
+    assert!(
+        (-25.0..=-15.0).contains(&out),
+        "speech after digital silence failed to level/open gate: {out} dBFS"
+    );
+}
+
+#[test]
+fn very_far_voice_in_quiet_room_reaches_target() {
+    let (mut far, voiced_far, _) = talk(4.0, -52.0, -78.0);
+    run(&mut AudioDsp::new(), &mut far, leveled());
+    let out = voiced_level(&far, &voiced_far, 1.5);
+    assert!(
+        (-24.0..=-16.0).contains(&out),
+        "very far voice landed at {out} dBFS"
+    );
+}

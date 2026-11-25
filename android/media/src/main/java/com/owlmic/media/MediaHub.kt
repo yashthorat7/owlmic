@@ -33,6 +33,8 @@ sealed interface MediaMsg {
 
     class Speaker(val format: SpeakerFormat?, val voiceCommunication: Boolean, val wireless: Boolean) : MediaMsg
 
+    data object OutputChanged : MediaMsg
+
     /** Step 1 of the recovery ladder: restart [feature] at its source. */
     class Restart(val feature: Feature) : MediaMsg
 
@@ -137,6 +139,7 @@ class MediaHub(
                     speakerFormat = f
                 }
             }
+            MediaMsg.OutputChanged -> callMode.update(micIsolated, speakerIsolated)
             is MediaMsg.Restart -> when (message.feature) {
                 Feature.MIC -> mic.restart()
                 Feature.CAMERA -> camera.restartEncoder()

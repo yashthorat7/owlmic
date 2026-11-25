@@ -229,7 +229,10 @@ class AppHub(private val app: Application, private val onState: (AppState) -> Un
             AppMsg.Reconnect -> link.post(LinkMsg.Reconnect)
             AppMsg.TryBluetooth -> link.post(LinkMsg.TryBluetooth)
             AppMsg.Opened -> link.post(LinkMsg.Opened)
-            is AppMsg.Output -> state = state.copy(speakerOutput = message.output)
+            is AppMsg.Output -> {
+                state = state.copy(speakerOutput = message.output)
+                media.post(MediaMsg.OutputChanged)
+            }
             is AppMsg.Thermal -> {
                 thermal = message.status
                 media.post(MediaMsg.Thermal(message.status))

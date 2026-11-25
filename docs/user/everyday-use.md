@@ -30,7 +30,7 @@ Once paired, Owlmic operates transparently. This guide covers daily controls, sw
 
 - **Camera, mic and speaker tiles**: tap to turn each one on or off. Long-press a tile for its settings. They stay dimmed until your PC is connected.
 - **Preview area**: shows the owl while everything is off.
-  - **Mic only**: the sound wave fills the area and follows your voice. The round button at the bottom right opens the mic's settings: noise reduction (all the way left is off), volume (0 dB in the middle), voice isolation (keeps what the phone's speaker plays out of the mic) and auto level (keeps your voice at the same level near or far).
+  - **Mic only**: the sound wave fills the area and follows your voice. Tap the waveform to slide up the mic's settings from the bottom: voice isolation (keeps what the phone's speaker plays out of the mic), auto level (keeps your voice at the same loudness near or far), noise reduction (all the way left is off), and volume (`-12` to `+12 dB`, `0 dB` in the middle).
   - **Camera on**: the whole picture the PC gets, with a blurred copy of it only where it leaves room. It starts with the front camera, and your own view is mirrored like a mirror; the PC always gets the picture the right way round. The round buttons at the top right turn your own view off and on (the PC still gets the picture), mirror your view, and flip between the lenses. With the mic on too, the wave sits in a capsule at the bottom; tap it for the mic's settings. The buttons stay faint until you touch the picture.
   - Only when you need to do something does a short message show, such as the 4-digit code to check on your PC.
 - **Link tile** (top right): shows the link in use (Wi-Fi, USB debugging, USB tethering or Bluetooth) once connected, a globe that gently dims in and out while Owlmic looks for your PC, or an alert when something needs you. Tap it to open your PCs:
@@ -45,7 +45,7 @@ Once paired, Owlmic operates transparently. This guide covers daily controls, sw
 
 Click the **Owl icon** in your Windows taskbar system tray:
 - **Bidirectional Controls (Hive Mind)**: Toggling the **Camera**, **Mic**, or **Speaker** button on your PC companion immediately toggles the hardware capture, streaming, and UI tiles on your Android phone, and vice versa. Neither device gets out of sync.
-- **Microphone Waveform Dock**: Displays a live, dynamic audio waveform that responds in real time to your voice level. Clicking the waveform opens the quick audio controls (voice isolation, speech normalization, noise reduction slider, and volume).
+- **Microphone Waveform Dock**: Displays a live, dynamic audio waveform that responds in real time to your voice level. Clicking the waveform opens the quick audio controls (voice isolation, auto level, noise reduction slider, and volume).
 - **Camera Live Preview**: Displays a smooth 30 FPS low-latency preview of your video feed with resolution, framerate, and aspect ratio controls.
 - **Connection Drawer**: Tap the connection button in the bottom dock to review your PC's IP, active phone link, toggle supported transports (USB debugging, tethering, Wi-Fi, Bluetooth) online or offline, and refresh nearby devices. Tap any bottom feature button to close the drawer.
 - **Speaker Tile**: Toggle PC audio redirection. When enabled, Owlmic captures Windows system audio and streams it to your phone.

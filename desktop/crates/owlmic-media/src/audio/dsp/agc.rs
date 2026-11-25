@@ -12,22 +12,36 @@ use super::floor::Frame;
 /// Where speech lands, as frame RMS in dBFS.
 const TARGET_DB: f32 = -20.0;
 
-/// A voice 2 m from the phone needs about +25 dB; a shout up close about -15 dB.
-const MAX_GAIN_DB: f32 = 30.0;
+/// Up to +36 dB brings a 3–4 m far voice to -20 dBFS when the room is quiet; -20 dB tames close shouts.
+const MAX_GAIN_DB: f32 = 36.0;
 const MIN_GAIN_DB: f32 = -20.0;
+/// Never lift the room noise floor above this dBFS when floor is known, unless SNR demands minimum headroom.
+const MAX_NOISE_OUT_DB: f32 = -36.0;
+const MIN_FLOOR_CAP_DB: f32 = 12.0;
 
-/// The speech level follows a louder frame by this much of the difference, a quieter one by the
-/// second: syllables vary by 10 dB or more, and the level should sit near the loud ones.
-const LEVEL_UP: f32 = 0.3;
-const LEVEL_DOWN: f32 = 0.08;
+/// Normal continuous-speech tracking: quick on louder syllables, gentle on softer ones.
+const LEVEL_UP: f32 = 0.35;
+const LEVEL_DOWN: f32 = 0.06;
 
-/// The gain moves towards where it should be by these fractions a frame: fast down (a voice that
-/// came closer), gentler up. Together they settle well under a second.
-const GAIN_DOWN: f32 = 0.5;
-const GAIN_UP: f32 = 0.15;
+/// Continuous gain tracking rates per 10 ms frame when not running an eased step transition.
+const GAIN_DOWN: f32 = 0.45;
+const GAIN_UP: f32 = 0.16;
 
-/// The peak catch keeps a frame's loudest sample under this.
+/// Pause frames (250 ms) before a quieter utterance triggers fast onset re-anchoring.
+const PAUSE_REANCHOR_FRAMES: u32 = 25;
+/// Consecutive quieter speech frames (20 ms) before re-anchoring after a pause.
+const ONSET_CONFIRM_FRAMES: u32 = 2;
+/// Consecutive quieter speech frames (120 ms) while talking continuously before catching up.
+const SUSTAINED_DROP_FRAMES: u32 = 12;
+const DROP_THRESHOLD_DB: f32 = 6.0;
+
+/// Easing curve duration (in 10 ms frames) for large distance changes.
+const EASE_UP_FRAMES: u32 = 12;
+const EASE_DOWN_FRAMES: u32 = 4;
+
+/// Peak protection ceiling and maximum sample-ramp length on sudden loud bursts.
 const PEAK: f32 = 29_000.0;
+const BURST_RAMP_SAMPLES: usize = 48;
 
 pub struct Agc {
     /// The smoothed level of speech frames, in dBFS; none before the first one.
@@ -36,6 +50,19 @@ pub struct Agc {
     gain_db: f32,
     /// The linear gain (leveling and volume) the last frame ended with: the next one ramps from it.
     applied: f32,
+    /// Non-speech frames since last speech.
+    silence_frames: u32,
+    /// Whether the previous pause exceeded `PAUSE_REANCHOR_FRAMES` at the start of this utterance.
+    after_long_pause: bool,
+    /// Consecutive speech frames more than `DROP_THRESHOLD_DB` quieter than `speech_db`.
+    quiet_streak: u32,
+    /// Peak level seen during the current `quiet_streak` so onset locks onto the voiced syllable.
+    quiet_peak_db: f32,
+    /// Active dB-space easing curve state for large distance transitions.
+    ease_start_db: f32,
+    ease_target_db: f32,
+    ease_step: u32,
+    ease_len: u32,
 }
 
 impl Agc {
@@ -44,6 +71,21 @@ impl Agc {
             speech_db: None,
             gain_db: 0.0,
             applied: 1.0,
+            silence_frames: 0,
+            after_long_pause: true,
+            quiet_streak: 0,
+            quiet_peak_db: -100.0,
+            ease_start_db: 0.0,
+            ease_target_db: 0.0,
+            ease_step: 0,
+            ease_len: 0,
+        }
+    }
+
+    fn max_gain_for(frame: Frame) -> f32 {
+        match frame.floor_db {
+            Some(floor) => (MAX_NOISE_OUT_DB - floor).clamp(MIN_FLOOR_CAP_DB, MAX_GAIN_DB),
+            None => MAX_GAIN_DB,
         }
     }
 
@@ -54,44 +96,117 @@ impl Agc {
         if samples.is_empty() {
             return;
         }
+        let speech = normalize && frame.is_speech();
         let want_db = if normalize {
-            if frame.is_speech() {
+            if speech {
                 let level = frame.level_db;
-                let speech = match self.speech_db {
+                let was_long_pause = self.silence_frames >= PAUSE_REANCHOR_FRAMES;
+                if self.silence_frames > 0 {
+                    self.after_long_pause = was_long_pause;
+                    self.quiet_streak = 0;
+                    self.quiet_peak_db = -100.0;
+                }
+                self.silence_frames = 0;
+
+                let updated = match self.speech_db {
                     None => level,
-                    Some(s) if level > s => s + (level - s) * LEVEL_UP,
-                    Some(s) => s + (level - s) * LEVEL_DOWN,
+                    Some(s) if level > s => {
+                        self.quiet_streak = 0;
+                        s + (level - s) * LEVEL_UP
+                    }
+                    Some(s) if s - level > DROP_THRESHOLD_DB => {
+                        self.quiet_streak = self.quiet_streak.saturating_add(1);
+                        self.quiet_peak_db = self.quiet_peak_db.max(level);
+                        let confirm = if self.after_long_pause {
+                            ONSET_CONFIRM_FRAMES
+                        } else {
+                            SUSTAINED_DROP_FRAMES
+                        };
+                        if self.quiet_streak >= confirm {
+                            self.quiet_streak = 0;
+                            self.after_long_pause = false;
+                            self.quiet_peak_db
+                        } else {
+                            s + (level - s) * LEVEL_DOWN
+                        }
+                    }
+                    Some(s) => {
+                        self.quiet_streak = 0;
+                        s + (level - s) * LEVEL_DOWN
+                    }
                 };
-                self.speech_db = Some(speech);
+                self.speech_db = Some(updated);
+            } else {
+                self.silence_frames = self.silence_frames.saturating_add(1);
+                if self.silence_frames >= PAUSE_REANCHOR_FRAMES {
+                    self.after_long_pause = true;
+                }
+                self.quiet_streak = 0;
             }
-            // No speech yet: hold where the gain is.
+            let max_gain = Self::max_gain_for(frame);
             self.speech_db.map_or(self.gain_db, |s| {
-                (TARGET_DB - s).clamp(MIN_GAIN_DB, MAX_GAIN_DB)
+                (TARGET_DB - s).clamp(MIN_GAIN_DB, max_gain)
             })
         } else {
+            self.silence_frames = 0;
+            self.quiet_streak = 0;
             0.0
         };
-        let rate = if want_db < self.gain_db {
-            GAIN_DOWN
-        } else {
-            GAIN_UP
-        };
-        // Leveling on, only speech moves the gain; off, it returns to unity at any time.
-        if !normalize || frame.is_speech() {
-            self.gain_db += (want_db - self.gain_db) * rate;
+
+        if !normalize || speech {
+            let delta = want_db - self.gain_db;
+            if delta.abs() > 3.0 {
+                let len = if delta > 0.0 {
+                    EASE_UP_FRAMES
+                } else {
+                    EASE_DOWN_FRAMES
+                };
+                if self.ease_len == 0 || (want_db - self.ease_target_db).abs() > 2.0 {
+                    self.ease_start_db = self.gain_db;
+                    self.ease_target_db = want_db;
+                    self.ease_step = 0;
+                    self.ease_len = len;
+                }
+            }
+            if self.ease_len > 0 {
+                self.ease_step += 1;
+                let t = (self.ease_step as f32 / self.ease_len as f32).clamp(0.0, 1.0);
+                // Smooth ease-in-out cubic blended with ease-out so onset lifts immediately without overshoot.
+                let smooth = t * t * (3.0 - 2.0 * t);
+                let out_curve = 1.0 - (1.0 - t) * (1.0 - t);
+                let eased = 0.5 * smooth + 0.5 * out_curve;
+                self.gain_db =
+                    self.ease_start_db + (self.ease_target_db - self.ease_start_db) * eased;
+                if self.ease_step >= self.ease_len {
+                    self.ease_len = 0;
+                }
+            } else {
+                let rate = if want_db < self.gain_db {
+                    GAIN_DOWN
+                } else {
+                    GAIN_UP
+                };
+                self.gain_db += delta * rate;
+            }
         }
 
         let mut end = db_to_gain(self.gain_db) * volume;
-        // A voice that suddenly came close: no frame goes past the peak, from its first sample.
         let peak = samples.iter().fold(0.0f32, |m, s| m.max(s.abs()));
         let mut ramp = samples.len();
         if peak * end > PEAK {
             end = PEAK / peak;
             if normalize {
                 self.gain_db = gain_to_db(end / volume);
+                self.ease_len = 0;
+                if speech {
+                    self.speech_db = Some(
+                        self.speech_db
+                            .map_or(frame.level_db, |s| s.max(frame.level_db)),
+                    );
+                }
             }
-            // Down at once: a ramp from the old gain would overshoot on the loud samples.
-            ramp = 0;
+            // Fast 1 ms ramp instead of 0-sample step to prevent clicks while clamping peaks.
+            ramp = samples.len().min(BURST_RAMP_SAMPLES);
         }
 
         let start = self.applied;
@@ -100,11 +215,15 @@ impl Agc {
                 *sample = 0.0;
                 continue;
             }
-            let g = if i < ramp {
+            let mut g = if i < ramp {
                 start + (end - start) * (i + 1) as f32 / ramp as f32
             } else {
                 end
             };
+            let abs_s = sample.abs();
+            if abs_s * g > PEAK {
+                g = PEAK / abs_s;
+            }
             *sample = soft_limit(*sample * g);
         }
         self.applied = end;

@@ -143,18 +143,18 @@ A sender announces each stream with STREAM_START before its first packet.
 
 | Stream | Link | STREAM_START | Payload |
 | :--- | :--- | :--- | :--- |
-| 1 Mic | USB debugging, USB tethering | `{"stream":1,"codec":"pcm","sampleRate":48000,"channels":1,"frameMs":10}` | Signed 16-bit little-endian mono, 10 ms per packet |
-| 1 Mic | Wi-Fi | `{"stream":1,"codec":"opus","sampleRate":48000,"channels":1,"frameMs":10}` | Opus, 48 kbps, in-band FEC |
-| 1 Mic | Bluetooth | `{"stream":1,"codec":"opus","sampleRate":48000,"channels":1,"frameMs":20}` | Opus, 24 kbps |
+| 1 Mic | USB debugging, USB tethering | `{"stream":1,"codec":"pcm","sampleRate":48000,"channels":1,"frameMs":10,"noiseSuppressor":true\|false}` | Signed 16-bit little-endian mono, 10 ms per packet |
+| 1 Mic | Wi-Fi | `{"stream":1,"codec":"opus","sampleRate":48000,"channels":1,"frameMs":10,"noiseSuppressor":true\|false}` | Opus, 48 kbps, in-band FEC |
+| 1 Mic | Bluetooth | `{"stream":1,"codec":"opus","sampleRate":48000,"channels":1,"frameMs":20,"noiseSuppressor":true\|false}` | Opus, 24 kbps |
 | 2 Camera | All but Bluetooth | `{"stream":2,"codec":"h264","width":W,"height":H,"fps":F}` | H.264 Annex B; every keyframe carries SPS and PPS |
 | 3 Speaker | USB debugging, USB tethering | `{"stream":3,"codec":"pcm","sampleRate":48000,"channels":2,"frameMs":10}` | Signed 16-bit little-endian, interleaved stereo |
 | 3 Speaker | Wi-Fi | `{"stream":3,"codec":"opus","sampleRate":48000,"channels":2,"frameMs":10}` | Opus, 128 kbps, in-band FEC |
 | 3 Speaker | Bluetooth | `{"stream":3,"codec":"opus","sampleRate":48000,"channels":2,"frameMs":20}` | Opus, 64 kbps |
 
-- The mic's STREAM_START may add `"noiseSuppressor": false` when the phone has no noise suppressor of its own; the PC then adds its own when the setting asks for noise reduction on the phone.
+- The mic's STREAM_START includes `"noiseSuppressor"` (`true` when the phone exposes a platform noise suppressor, `false` otherwise). At default noise reduction (`5`), the PC mixes `75%` RNNoise alongside the phone's suppressor (or `100%` if `noiseSuppressor` is `false`); at `1`–`4` the PC runs `15%`–`60%` RNNoise alone; at `6`–`10` the PC runs `100%` RNNoise plus an adaptive noise gate.
 - The PC asks for a keyframe with KEYFRAME_REQUEST.
 - **State Synchronization (Hive Mind):** `STATE` (`0x20`) is bidirectional. Either side may send `STATE` with a feature set to `off`, `on`, or `paused`. Toggling a feature on the phone or PC companion immediately synchronizes capture, hardware rendering, and button states across both devices.
-- **Settings Synchronization:** `SETTINGS` (`0x21`) synchronizes versioned configuration pairs across peers (`changes: [{id, value, version}]`). Shared settings include audio DSP controls, camera format choices, and transport toggles (`link.usbDebugging`, `link.usbTethering`, `link.wifi`, `link.bluetooth`). Transport toggles configured on PC while offline are stored locally and synchronized upon session activation.
+- **Settings Synchronization:** `SETTINGS` (`0x21`) synchronizes versioned configuration pairs across peers (`changes: [{id, value, version}]`). Shared settings include audio DSP controls (`mic.noiseReduction`, `mic.volume`, `mic.isolation`, `mic.autoLevel`), camera format choices (`camera.lens`, `camera.quality`, `camera.frameRate`, `camera.ratio`, `camera.mirror`), and transport toggles (`link.usbDebugging`, `link.usbTethering`, `link.wifi`, `link.bluetooth`). Transport toggles configured on PC while offline are stored locally and synchronized upon session activation.
 
 ## 7. Versions
 

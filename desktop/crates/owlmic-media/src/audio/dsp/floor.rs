@@ -3,9 +3,10 @@
 //! that floor, so the decisions hold at any distance from the mic: a far voice is quieter, but so
 //! is nothing else.
 
-/// Frames quieter than this carry no signal (digital silence, a paused or starting mic): they
-/// teach the floor nothing.
-const NO_SIGNAL_DB: f32 = -90.0;
+/// Exact digital silence (all-zero frames from a paused/starting mic) carries no signal: it
+/// teaches the floor nothing. Ultra-quiet rooms or phone-suppressed silences down to -98 dBFS
+/// still teach the floor so speech isn't mistaken for room noise.
+const NO_SIGNAL_DB: f32 = -99.0;
 
 /// The floor is the quietest frame of the last 2 s: speech always has a dip that long, a room's
 /// noise never does.
@@ -41,18 +42,45 @@ pub struct Frame {
     pub level_db: f32,
     /// The room's noise floor, or none yet (nothing but silence so far).
     pub floor_db: Option<f32>,
+    /// RNNoise speech probability (0..1) when denoiser ran on this frame.
+    pub vad_prob: Option<f32>,
 }
 
 impl Frame {
     /// Clearly above the room: someone is talking.
     pub fn is_speech(&self) -> bool {
-        self.is_above(SPEECH_ABOVE_FLOOR_DB) && self.level_db > SPEECH_MIN_DB
+        if self.level_db <= SPEECH_MIN_DB {
+            return false;
+        }
+        match (self.floor_db, self.vad_prob) {
+            (Some(floor), Some(vad)) => {
+                self.level_db > floor + SPEECH_ABOVE_FLOOR_DB
+                    || (vad >= 0.55 && self.level_db > floor + 4.0)
+            }
+            (Some(floor), None) => self.level_db > floor + SPEECH_ABOVE_FLOOR_DB,
+            // When the phone's own suppressor outputs digital silence between words, floor stays None.
+            (None, Some(vad)) => vad >= 0.45 || self.level_db > -55.0,
+            (None, None) => false,
+        }
     }
 
     /// At least `margin_db` above the floor.
+    #[cfg(test)]
     pub fn is_above(&self, margin_db: f32) -> bool {
         self.floor_db
             .is_some_and(|floor| self.level_db > floor + margin_db)
+    }
+
+    /// Whether the noise gate should stay open for this frame.
+    pub fn gate_open(&self, margin_db: f32) -> bool {
+        match self.floor_db {
+            Some(floor) => {
+                self.level_db > floor + margin_db
+                    || (self.vad_prob.is_some_and(|v| v >= 0.6) && self.level_db > floor + 3.0)
+            }
+            // Before a room floor is learned (e.g. phone NS sends zeros in silence), never mute active speech.
+            None => self.vad_prob.is_some_and(|v| v >= 0.35) || self.level_db > -62.0,
+        }
     }
 }
 
@@ -87,14 +115,29 @@ impl Floor {
                 self.in_block = 0;
             }
         }
-        let floor_db = self
-            .blocks
+        let floor_db = self.current_floor();
+        Frame {
+            level_db,
+            floor_db,
+            vad_prob: None,
+        }
+    }
+
+    pub fn current(&self) -> Frame {
+        Frame {
+            level_db: -100.0,
+            floor_db: self.current_floor(),
+            vad_prob: None,
+        }
+    }
+
+    fn current_floor(&self) -> Option<f32> {
+        self.blocks
             .iter()
             .chain(std::iter::once(&self.current))
             .flatten()
             .copied()
-            .reduce(f32::min);
-        Frame { level_db, floor_db }
+            .reduce(f32::min)
     }
 
     pub fn reset(&mut self) {

@@ -129,7 +129,7 @@
     ratio: 'Auto',
     mirror: true,
     nr: 5,
-    vol: 80,
+    vol: 0,
     voiceIso: true,
     normalization: true,
     audioLevel: 0,
@@ -196,9 +196,9 @@
     const gap = lg ? 'gap-2' : 'gap-1';
     el.innerHTML = `
       <div class="flex items-center justify-between ${txt}"><span>Voice isolation</span><div class="owl-switch is-on js-iso-sw"></div></div>
-      <div class="norm-row js-norm-row flex items-center justify-between ${txt}"><span>Normalization</span><div class="owl-switch is-on js-norm-sw"></div></div>
+      <div class="norm-row js-norm-row flex items-center justify-between ${txt}"><span>Auto level</span><div class="owl-switch is-on js-norm-sw"></div></div>
       <div class="flex flex-col ${gap} ${lg ? 'pt-0.5' : ''}"><div class="flex justify-between ${txt}"><span>Noise reduction</span><span class="js-nr-val tabular-nums ${val} text-white/60">5</span></div><div class="fader js-nr-fader"><div class="fader-track"><div class="fader-fill"></div></div><div class="fader-cap"></div><input type="range" class="js-nr-sl" min="0" max="10" value="5" aria-label="Noise reduction" /></div></div>
-      <div class="flex flex-col ${gap}"><div class="flex justify-between ${txt}"><span>Volume</span><span class="js-vol-val tabular-nums ${val} text-white/60">80%</span></div><div class="fader js-vol-fader"><div class="fader-track"><div class="fader-live"></div><div class="fader-fill"></div></div><div class="fader-cap"></div><input type="range" class="js-vol-sl" min="0" max="100" value="80" aria-label="Volume" /></div></div>`;
+      <div class="flex flex-col ${gap}"><div class="flex justify-between ${txt}"><span>Volume</span><span class="js-vol-val tabular-nums ${val} text-white/60">0 dB</span></div><div class="fader js-vol-fader"><div class="fader-track"><div class="fader-live"></div><div class="fader-fill"></div></div><div class="fader-cap"></div><input type="range" class="js-vol-sl" min="-12" max="12" step="3" value="0" aria-label="Volume" /></div></div>`;
   });
 
   const buildTransportFooter = (side) => {
@@ -516,13 +516,12 @@
     }
 
     if (ok && state.mic) {
-      const vf = state.vol / 100;
       if (Math.random() < 0.14) wTgt = Math.random() * 0.82 + 0.12;
       else if (Math.random() < 0.2) wTgt = 0.06;
       state.audioLevel += (wTgt - state.audioLevel) * 0.24;
-      const raw = state.audioLevel * vf;
-      const eff = state.normalization && vf > 0 ? Math.min(1, Math.pow(raw, 0.65) * 0.92 + vf * 0.18) : raw;
-      normLvl += (eff - normLvl) * 0.18;
+      const v = Math.min(1, Math.max(0, (state.audioLevel - 0.08) / 0.92));
+      const loud = Math.min(1, Math.pow(v, 0.7) * 1.2);
+      normLvl += (loud - normLvl) * 0.18;
 
       const mid = (CFG.bars - 1) / 2;
       const mDocked = $('m-waveDock').classList.contains('is-docked');
@@ -533,8 +532,7 @@
       for (let i = 0; i < CFG.bars; i++) {
         const env = Math.max(0.2, Math.cos((Math.abs(i - mid) / mid) * Math.PI * 0.46));
         const mot = (Math.sin(wt * 5.2 + i * 0.52) + Math.sin(wt * 9.1 + i * 1.1) * 0.5) / 1.5;
-        const bst = vf === 0 ? 0 : Math.max(0, eff * 2.15);
-        const normH = vf === 0 ? 0 : Math.min(1, Math.max(0.08, (bst * 0.95 + (mot + 1) * 0.14 * (0.2 + bst)) * env));
+        const normH = Math.min(1, Math.max(0.08, (loud * 0.95 + (mot + 1) * 0.14 * (0.2 + loud)) * env));
         mWaveBars[i].style.height = `${(mMin + (mMax - mMin) * normH).toFixed(1)}px`;
         if (state.pc.flyoutOpen) pWaveBars[i].style.height = `${(pMin + (pMax - pMin) * normH).toFixed(1)}px`;
       }
@@ -602,16 +600,19 @@
   };
 
   const syncAudio = () => {
-    const nrP = `${state.nr * 10}%`, vP = `${state.vol}%`;
-    $$('.js-nr-fader').forEach(f => { f.style.setProperty('--width', nrP); f.style.setProperty('--pos', nrP); });
+    const nrP = `${state.nr * 10}%`;
+    const pos = ((state.vol + 12) / 24) * 100;
+    const fillLeft = `${Math.min(50, pos)}%`;
+    const fillWidth = `${Math.abs(pos - 50)}%`;
+    const volText = state.vol > 0 ? `+${state.vol} dB` : `${state.vol} dB`;
+    $$('.js-nr-fader').forEach(f => { f.style.setProperty('--left', '0%'); f.style.setProperty('--width', nrP); f.style.setProperty('--pos', nrP); });
     $$('.js-nr-sl').forEach(s => s.value = state.nr);
     $$('.js-nr-val').forEach(el => el.textContent = state.nr);
-    $$('.js-vol-fader').forEach(f => { f.style.setProperty('--width', vP); f.style.setProperty('--pos', vP); if (!state.vol) f.style.setProperty('--live', '0%'); });
+    $$('.js-vol-fader').forEach(f => { f.style.setProperty('--left', fillLeft); f.style.setProperty('--width', fillWidth); f.style.setProperty('--pos', `${pos}%`); });
     $$('.js-vol-sl').forEach(s => s.value = state.vol);
-    $$('.js-vol-val').forEach(el => el.textContent = vP);
+    $$('.js-vol-val').forEach(el => el.textContent = volText);
     $$('.js-iso-sw').forEach(el => el.classList.toggle('is-on', state.voiceIso));
     $$('.js-norm-sw').forEach(el => el.classList.toggle('is-on', state.normalization));
-    $$('.js-norm-row').forEach(el => el.classList.toggle('is-muted', state.vol === 0));
   };
 
   // Clean, borderless connection rows (no pills, no duplicate transport text)

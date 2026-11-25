@@ -32,12 +32,12 @@ Network Transmission (UDP :7655 / TCP :7653) ───────────�
 3. **Android Capture Invariants**:
    - Implemented in C++ via Google Oboe (`android/media/src/main/cpp/`).
    - **Zero heap allocations on the audio callback thread**: all sample transfer buffers and ring queues must be pre-allocated during pipeline initialization.
-   - Voice isolation (`mic.isolation`): binds Android `AcousticEchoCanceler` to the microphone session and engages `EchoSuppressor` (-24 dB residual suppression) when the speaker loopback is active.
+   - Voice isolation (`mic.isolation`): binds Android `AcousticEchoCanceler` to the microphone session, engages `EchoSuppressor` (-24 dB residual suppression) when speaker loopback is active, and refreshes `CallMode` automatically on headset connect/disconnect (`OutputChanged`). Android `NoiseSuppressor.enabled` toggles live on the active Oboe session without reopening the stream.
 4. **PC Jitter Buffer & Drift Resampler**:
    - Adaptive jitter buffer targets 10 ms depth on wired links and 20–30 ms on Wi-Fi. Missing packets trigger Opus Packet Loss Concealment (PLC).
    - Cubic drift resampler adjusts playback rate by at most **$\pm 0.2\%$** to lock to the phone's crystal oscillator without audible clicks or skips.
 5. **PC DSP Chain Order**:
-   - Execute strictly per frame: `Room Noise Floor` -> `RNNoise / nnnoiseless mix` -> `Noise Gate (-30 dB)` -> `Speech Normalization (AGC to -20 dBFS)` -> `Volume gain` -> `Soft-knee limiter (threshold 28,000)`.
+   - Execute strictly per frame: `Room Noise Floor` (measured on aligned pre-RNNoise raw audio when denoiser runs, ignoring `vad >= 0.65`, `-99 dBFS` zero threshold) -> `RNNoise / nnnoiseless mix` (`0%` at 0, `15–60%` at 1–4, `75%` at 5 when phone NS exists or `100%`, `100%` at 6–10) -> `Noise Gate (-30 dB)` -> `Speech Normalization (AGC to -20 dBFS, -20..+36 dB with eased distance re-anchoring)` -> `Volume gain` -> `Soft-knee limiter (threshold 28,000)`.
 
 ---
 

@@ -115,7 +115,15 @@ class MicPipeline(
         generation++
     }
 
-    private class Capture(val handle: Long, val effects: List<AudioEffect>) {
+    private class Capture(
+        val handle: Long,
+        val effects: List<AudioEffect>,
+        val noiseSuppressor: NoiseSuppressor?,
+    ) {
+        fun setNoiseReduction(enabled: Boolean) {
+            runCatching { noiseSuppressor?.enabled = enabled }
+        }
+
         fun close() {
             effects.forEach { runCatching { it.release() } }
             Oboe.close(handle)
@@ -132,16 +140,23 @@ class MicPipeline(
         if (handle == 0L) return null
         val session = Oboe.sessionId(handle)
         val effects = mutableListOf<AudioEffect>()
+        var ns: NoiseSuppressor? = null
         if (session > 0) {
             // Automatic gain made voices pump in the first version; it stays off whatever the preset turns on.
             if (AutomaticGainControl.isAvailable()) runCatching { AutomaticGainControl.create(session)?.let { it.enabled = false; effects += it } }
-            if (NoiseSuppressor.isAvailable()) runCatching { NoiseSuppressor.create(session)?.let { it.enabled = c.noiseReduction; effects += it } }
+            if (NoiseSuppressor.isAvailable()) runCatching {
+                NoiseSuppressor.create(session)?.let {
+                    it.enabled = c.noiseReduction
+                    ns = it
+                    effects += it
+                }
+            }
             // The voice preset asks for the echo canceller; attached to the mic's own session, it is on for sure.
             if (AcousticEchoCanceler.isAvailable()) {
                 runCatching { AcousticEchoCanceler.create(session)?.let { it.enabled = c.voiceCommunication; effects += it } }
             }
         }
-        return Capture(handle, effects)
+        return Capture(handle, effects, ns)
     }
 
     private fun loop(mine: Int) {
@@ -162,11 +177,13 @@ class MicPipeline(
         var frames = 0
         while (generation == mine) {
             val want = config ?: break
-            if (restartRequested || want.voiceCommunication != cfg.voiceCommunication || want.noiseReduction != cfg.noiseReduction) {
+            if (restartRequested || want.voiceCommunication != cfg.voiceCommunication) {
                 restartRequested = false
                 capture?.close()
                 capture = open(want)
                 filled = 0
+            } else if (want.noiseReduction != cfg.noiseReduction) {
+                capture?.setNoiseReduction(want.noiseReduction)
             }
             if (want.codec != cfg.codec) {
                 encoder?.close()

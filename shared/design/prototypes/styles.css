@@ -148,13 +148,13 @@ body {
 .dock-settings-wrap { display: grid; grid-template-rows: 0fr; opacity: 0; transition: grid-template-rows 320ms var(--ease), opacity 200ms var(--ease); }
 .waveform-dock.is-docked.is-expanded .dock-settings-wrap { grid-template-rows: 1fr; opacity: 1; }
 
-.fader { position: relative; height: 22px; display: flex; align-items: center; --width: 50%; --pos: 50%; --live: 0%; }
+.fader { position: relative; height: 22px; display: flex; align-items: center; --left: 0%; --width: 50%; --pos: 50%; --live: 0%; }
 .pc-window .fader { height: 20px; }
 .fader-track { position: relative; width: 100%; height: 8px; border-radius: 4px; background: rgba(255,255,255,.14); overflow: hidden; transition: height 140ms ease; }
 .pc-window .fader-track { height: 7px; }
 .fader:active .fader-track { height: 10px; }
 .pc-window .fader:active .fader-track { height: 9px; }
-.fader-fill { position: absolute; inset: 0 auto 0 0; width: var(--width); background: #FFF; border-radius: 3px; }
+.fader-fill { position: absolute; top: 0; bottom: 0; left: var(--left); width: var(--width); background: #FFF; border-radius: 3px; }
 .fader-live { position: absolute; inset: 0 auto 0 0; width: var(--live); background: rgba(255,255,255,.28); pointer-events: none; transition: width 70ms linear; }
 .fader-cap { position: absolute; left: var(--pos); top: 50%; width: 2.5px; height: 14px; border-radius: 2px; background: #FFF; transform: translate(-50%, -50%); box-shadow: 0 0 0 1.5px #000; pointer-events: none; transition: height 140ms ease; }
 .pc-window .fader-cap { height: 13px; }
@@ -168,7 +168,6 @@ body {
 .pc-window .owl-switch { width: 34px; height: 18px; }
 .pc-window .owl-switch::after { width: 12px; height: 12px; }
 .pc-window .owl-switch.is-on::after { transform: translateX(16px); }
-.norm-row.is-muted { opacity: 0.36; }
 
 /* Shared transport footer, drawers & inline sync beam */
 .conn-toggle { background: #000; border-color: rgba(255,255,255,.14); transition: background-color 140ms ease, border-color 140ms ease; }

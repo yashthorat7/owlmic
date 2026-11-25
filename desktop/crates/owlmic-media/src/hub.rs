@@ -69,7 +69,8 @@ const NOISE_DEFAULT: u8 = 5;
 ///
 /// - 0: nothing, on the phone or the PC.
 /// - 1 to 4: the phone's suppressor is off, the PC mixes in 15, 30, 45 or 60% RNNoise.
-/// - 5: the phone's suppressor; the PC's full RNNoise only when the phone has none.
+/// - 5: the phone's suppressor plus 75% PC RNNoise (100% when the phone has none), so sliding past
+///   4 never drops noise reduction.
 /// - 6 to 10: both, and a gate that quiets what is left between words: whatever is not 4, 6, 8,
 ///   10 or 12 dB louder than the room. Measured against the room, it treats a far voice like a
 ///   near one.
@@ -77,7 +78,7 @@ pub fn noise_plan(level: u8, phone_has_ns: bool) -> (u32, Option<i32>) {
     match level.min(10) {
         0 => (0, None),
         l @ 1..=4 => (15 * l as u32, None),
-        5 => (if phone_has_ns { 0 } else { 100 }, None),
+        5 => (if phone_has_ns { 75 } else { 100 }, None),
         l => (100, Some(2 * l as i32 - 8)),
     }
 }
@@ -577,8 +578,8 @@ mod tests {
         assert_eq!(noise_plan(4, false), (60, None));
         assert_eq!(
             noise_plan(5, true),
-            (0, None),
-            "today's default: the phone's own"
+            (75, None),
+            "default runs PC RNNoise alongside the phone's suppressor"
         );
         assert_eq!(noise_plan(5, false), (100, None));
         assert_eq!(noise_plan(6, true), (100, Some(4)));
