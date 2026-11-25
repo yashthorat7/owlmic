@@ -135,4 +135,22 @@ class PacketsTest {
         assertEquals(Stream.CARRIER_HELLO, MediaHeader.decode(p, p.size)!!.stream)
         assertArrayEquals(session + mac, p.copyOfRange(MediaHeader.LEN, p.size))
     }
+
+    @Test
+    fun sharedFrameCounterKeepsVideoFrameIdsMonotonicAcrossPacketizers() {
+        val router = MediaRouter()
+        val first = Packetizer(null, nextFrame = router::nextVideoFrame)
+        val second = Packetizer(null, nextFrame = router::nextVideoFrame)
+        val emitted = mutableListOf<Pair<Long, Int>>()
+        fun capture(p: ByteArray) {
+            val h = MediaHeader.decode(p, p.size)!!
+            val f = FragmentHeader.decode(p.copyOfRange(MediaHeader.LEN, p.size))!!
+            emitted += h.seq to f.frame
+        }
+        assertTrue(first.video(10, true, byteArrayOf(1), 0, 1, ::capture))
+        assertTrue(first.video(20, false, byteArrayOf(2), 0, 1, ::capture))
+        assertTrue(second.video(30, true, byteArrayOf(3), 0, 1, ::capture))
+        assertTrue(second.video(40, false, byteArrayOf(4), 0, 1, ::capture))
+        assertEquals(listOf(0L to 0, 1L to 1, 0L to 2, 1L to 3), emitted)
+    }
 }

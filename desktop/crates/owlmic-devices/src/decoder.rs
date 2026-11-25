@@ -164,6 +164,7 @@ impl Decoder {
     /// Pulls every ready picture, keeping and copying only the newest.
     fn drain(&mut self, copy_output: bool) -> Result<bool> {
         let mut latest: Option<IMFSample> = None;
+        let mut flushed_prior = false;
         loop {
             if let Some(s) = &self.out {
                 unsafe {
@@ -195,9 +196,18 @@ impl Decoder {
                         }
                         return Ok(true);
                     }
-                    return Ok(false);
+                    return Ok(flushed_prior);
                 }
-                Err(e) if e.code() == MF_E_TRANSFORM_STREAM_CHANGE => self.choose_output()?,
+                Err(e) if e.code() == MF_E_TRANSFORM_STREAM_CHANGE => {
+                    // Copy any sample yielded under the previous format before choose_output updates self.size.
+                    if let Some(s) = latest.take() {
+                        if copy_output {
+                            self.copy_out(&s)?;
+                        }
+                        flushed_prior = true;
+                    }
+                    self.choose_output()?;
+                }
                 Err(e) => return Err(e),
             }
         }
@@ -371,9 +381,15 @@ mod tests {
                 enc.ProcessInput(0, &in_sample, 0).unwrap();
                 let _ = enc.ProcessMessage(MFT_MESSAGE_COMMAND_DRAIN, 0);
 
+                let enc_out_size = enc
+                    .GetOutputStreamInfo(0)
+                    .map(|i| i.cbSize)
+                    .unwrap_or(0)
+                    .max(w * h * 3 / 2)
+                    .max(256 * 1024);
                 loop {
                     let out_sample = MFCreateSample().unwrap();
-                    let out_buf = MFCreateMemoryBuffer(256 * 1024).unwrap();
+                    let out_buf = MFCreateMemoryBuffer(enc_out_size).unwrap();
                     out_sample.AddBuffer(&out_buf).unwrap();
 
                     let mut out_data = [MFT_OUTPUT_DATA_BUFFER {
@@ -456,5 +472,18 @@ mod tests {
             "Expected at least 4 decoded landscape frames after switch, got {}",
             landscape
         );
+    }
+
+    #[test]
+    #[ignore = "needs Media Foundation, which Windows N and Server editions lack"]
+    fn the_decoder_follows_midstream_resolution_switch() {
+        let _com = crate::audio::Com::init();
+        let mut d = Decoder::new().unwrap();
+        let first = encode_and_decode_frames(&mut d, 640, 360, 5, 0);
+        assert!(first >= 4, "got {first} frames before switch");
+        let second = encode_and_decode_frames(&mut d, 1280, 720, 5, 200_000);
+        assert!(second >= 4, "got {second} frames after upsize switch");
+        let third = encode_and_decode_frames(&mut d, 640, 360, 5, 400_000);
+        assert!(third >= 4, "got {third} frames after downsize switch");
     }
 }

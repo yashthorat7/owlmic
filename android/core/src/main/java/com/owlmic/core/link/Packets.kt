@@ -11,9 +11,12 @@ import com.owlmic.core.proto.Stream
  * and its own seq; on wireless links the seq is also the AES-GCM counter. Each packet is one allocation: the header,
  * the payload and the tag are written straight into it.
  */
-class Packetizer(private val sealing: Crypto.Sealing?, firstSeq: Long = 0) {
+class Packetizer(
+    private val sealing: Crypto.Sealing?,
+    firstSeq: Long = 0,
+    private val nextFrame: () -> Int = localFrameCounter(),
+) {
     private val seq = LongArray(4) { firstSeq }
-    private var frame = 0
 
     /**
      * True once a stream's seq is about to wrap on a sealed link. A wrapped seq would repeat a GCM nonce under the
@@ -40,8 +43,7 @@ class Packetizer(private val sealing: Crypto.Sealing?, firstSeq: Long = 0) {
     ): Boolean {
         val count = fragmentCount(length)
         if (count > Frames.MAX_FRAGMENTS || !room(Stream.CAMERA, count)) return false
-        val f = frame
-        frame = (frame + 1) and 0xFFFF
+        val f = nextFrame() and 0xFFFF
         for (i in 0 until count) {
             val start = i * Frames.MAX_FRAGMENT_PAYLOAD
             val size = minOf(Frames.MAX_FRAGMENT_PAYLOAD, length - start)
@@ -92,6 +94,15 @@ class Packetizer(private val sealing: Crypto.Sealing?, firstSeq: Long = 0) {
         const val SEQ_LIMIT = 0xFFFFFFFFL - 2 * Frames.MAX_FRAGMENTS
 
         fun fragmentCount(length: Int) = maxOf(1, (length + Frames.MAX_FRAGMENT_PAYLOAD - 1) / Frames.MAX_FRAGMENT_PAYLOAD)
+    }
+}
+
+private fun localFrameCounter(): () -> Int {
+    var frame = 0
+    return {
+        val current = frame
+        frame = (frame + 1) and 0xFFFF
+        current
     }
 }
 

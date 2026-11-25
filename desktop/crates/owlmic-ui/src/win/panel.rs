@@ -1089,10 +1089,7 @@ impl Panel {
         }
         let hidden = new.cam_preview_hidden();
         self.ui.preview.set_wanted(self.visible && !hidden);
-        if !matches!(new.connection, Connection::Connected { .. })
-            || !matches!(new.camera, Feature::On | Feature::Restarting)
-            || hidden
-        {
+        if !new.connected() || !matches!(new.camera, Feature::On | Feature::Restarting) || hidden {
             self.ui.preview.clear();
             self.painter.clear_preview();
         }

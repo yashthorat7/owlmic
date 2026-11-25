@@ -1,6 +1,7 @@
 package com.owlmic.core.link
 
 import com.owlmic.core.proto.Stream
+import java.util.concurrent.atomic.AtomicInteger
 
 /** Where encoded media goes. Media pipelines call this from their own threads; it never passes through a hub. */
 interface MediaOut {
@@ -27,11 +28,15 @@ class MediaPath(val carrier: MediaCarrier, val out: Packetizer, val inbound: Unp
  */
 class MediaRouter : MediaOut {
     @Volatile private var path: MediaPath? = null
+    private val nextFrame = AtomicInteger(0)
 
     @Volatile var speaker: SpeakerSink? = null
 
     /** What the speaker stream looks like on arrival, for the Monitor's report. */
     val speakerStats = InboundStats()
+
+    /** Monotonic 16-bit video frame id shared across link switches so PC reassembly stays continuous. */
+    fun nextVideoFrame(): Int = nextFrame.getAndIncrement() and 0xFFFF
 
     fun use(p: MediaPath?) {
         path = p

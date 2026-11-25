@@ -374,4 +374,81 @@ class LinkHubTest {
         assertTrue(events.none { it is LinkEvent.Held })
         hub.close()
     }
+
+    @Test
+    fun activeWifiUpgradesToUsbDebuggingWhenTunnelAppears() {
+        val router = MediaRouter()
+        val hub = LinkHub(store(), router, null, null, { "Pixel" }, "Pixel 8", 34, { null }, { false }, { events.put(it) }, { clock }, seekerFactory = { noopSeeker })
+        thread(isDaemon = true) {
+            runCatching {
+                keepAlive(welcomeNext())
+                val control = welcomeNext()
+                val mediaSock = server.accept().also { open += it }
+                check(mediaSock.getInputStream().read() == Frames.CHANNEL_MEDIA)
+                control.send(Switch(LinkKind.USB_DEBUGGING.wire))
+                keepAlive(control)
+            }
+        }
+
+        hub.post(LinkMsg.Found(candidate(LinkKind.WIFI)))
+        connectedOver(LinkKind.WIFI)
+
+        val tunnel = Candidate(null, "", LinkKind.USB_DEBUGGING, tcpPort = server.localPort, opened = Socket(loopback, server.localPort).also { open += it })
+        hub.post(LinkMsg.Found(tunnel))
+        connectedOver(LinkKind.USB_DEBUGGING)
+        assertEquals(LinkKind.USB_DEBUGGING, next<LinkEvent.Switched>().link)
+        hub.close()
+    }
+
+    @Test
+    fun unusedUsbTunnelSocketIsDroppedDuringProbationAndRecoversAfterCableProbation() {
+        val released = java.util.concurrent.atomic.AtomicInteger(0)
+        val countingSeeker = object : SeekerApi {
+            override var pace = Seeker.Pace.SEARCHING
+            override fun burst() {}
+            override fun tunnelReleased() {
+                released.incrementAndGet()
+            }
+            override fun close() {}
+        }
+        val hub = LinkHub(store(), MediaRouter(), null, null, { "Pixel" }, "Pixel 8", 34, { null }, { false }, { events.put(it) }, { clock }, seekerFactory = { countingSeeker })
+        thread(isDaemon = true) {
+            runCatching {
+                keepAlive(welcomeNext())
+                // First standby tunnel attempt fails immediately.
+                server.accept().close()
+                // Second socket opened during 1 s cable probation is dropped by LinkHub before sending any bytes.
+                server.accept().use { s -> s.getInputStream().read() }
+                // Third valid standby tunnel succeeds after cable probation (1 s).
+                val control = welcomeNext()
+                val mediaSock = server.accept().also { open += it }
+                check(mediaSock.getInputStream().read() == Frames.CHANNEL_MEDIA)
+                control.send(Switch(LinkKind.USB_DEBUGGING.wire))
+                keepAlive(control)
+            }
+        }
+
+        hub.post(LinkMsg.Found(candidate(LinkKind.WIFI)))
+        connectedOver(LinkKind.WIFI)
+
+        fun tunnelSocket() = Socket(loopback, server.localPort).also { open += it }
+        hub.post(LinkMsg.Found(Candidate(null, "", LinkKind.USB_DEBUGGING, tcpPort = server.localPort, opened = tunnelSocket())))
+        val deadline = System.currentTimeMillis() + 5_000
+        while (released.get() < 1 && System.currentTimeMillis() < deadline) Thread.sleep(20)
+        assertTrue(released.get() >= 1)
+
+        // While within 1 s cable probation, a pre-opened tunnel socket must be dropped immediately instead of kept stale.
+        val duringProbation = tunnelSocket()
+        hub.post(LinkMsg.Found(Candidate(null, "", LinkKind.USB_DEBUGGING, tcpPort = server.localPort, opened = duringProbation)))
+        val dropDeadline = System.currentTimeMillis() + 5_000
+        while (!duringProbation.isClosed && System.currentTimeMillis() < dropDeadline) Thread.sleep(20)
+        assertTrue(duringProbation.isClosed)
+
+        // After 1 s cable probation, a fresh tunnel connects and switches cleanly.
+        clock += 1_100
+        hub.post(LinkMsg.Found(Candidate(null, "", LinkKind.USB_DEBUGGING, tcpPort = server.localPort, opened = tunnelSocket())))
+        connectedOver(LinkKind.USB_DEBUGGING)
+        assertEquals(LinkKind.USB_DEBUGGING, next<LinkEvent.Switched>().link)
+        hub.close()
+    }
 }

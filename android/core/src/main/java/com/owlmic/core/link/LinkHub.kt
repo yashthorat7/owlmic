@@ -262,11 +262,12 @@ class LinkHub(
             return
         }
         val k = key(c)
-        if (c.link == LinkKind.USB_DEBUGGING && c.opened != null && (hasTunnel() || (failures[k]?.second ?: 0) > now())) {
+        val t = now()
+        if (c.link == LinkKind.USB_DEBUGGING && c.opened != null && !canAcceptTunnelNow(k, t)) {
             drop(c)
             return
         }
-        val previous = candidates.put(k, c to now())?.first
+        val previous = candidates.put(k, c to t)?.first
         previous?.takeIf { it.opened !== c.opened }?.let(::drop)
         // The other phone left: try at once rather than after the busy backoff.
         if (previous?.busy == true && !c.busy) failures.remove(k)
@@ -274,6 +275,23 @@ class LinkHub(
             Phase.SEARCHING, Phase.HELD, Phase.WAITING, Phase.BUSY -> decide()
             Phase.ACTIVE -> upgrade()
             else -> Unit
+        }
+        // Never leave a pre-opened tunnel socket idling in candidates past the PC's first-byte timeout.
+        if (c.link == LinkKind.USB_DEBUGGING && c.opened != null && candidates[k]?.first === c) {
+            candidates.remove(k)
+            drop(c)
+        }
+    }
+
+    private fun canAcceptTunnelNow(k: String, t: Long): Boolean {
+        if (attempt != null || hasTunnel() || (failures[k]?.second ?: 0) > t) return false
+        return when (phase) {
+            Phase.ACTIVE -> {
+                val a = active ?: return false
+                (probation[k] ?: 0) <= t && LinkKind.USB_DEBUGGING.ordinal < a.link.ordinal && standby?.link != LinkKind.USB_DEBUGGING
+            }
+            Phase.SEARCHING, Phase.HELD, Phase.WAITING, Phase.BUSY -> true
+            else -> false
         }
     }
 
@@ -356,7 +374,8 @@ class LinkHub(
             channel = when (c.link) {
                 LinkKind.USB_DEBUGGING -> {
                     val pre = c.opened as? Socket
-                    tcp(if (pre != null && !pre.isClosed) pre else dial(InetAddress.getLoopbackAddress(), Proto.PORT_CONTROL))
+                    val port = c.tcpPort.takeIf { it > 0 } ?: Proto.PORT_CONTROL
+                    tcp(if (pre != null && !pre.isClosed) pre else dial(InetAddress.getLoopbackAddress(), port))
                 }
                 LinkKind.USB_TETHERING, LinkKind.WIFI -> tcp(dial(c.host ?: error("no address"), c.tcpPort))
                 LinkKind.BLUETOOTH -> bluetooth!!.connect(c.btAddress ?: error("no address"), BLUETOOTH_DIAL_MS).let { s -> ControlChannel(s.inputStream, s.outputStream, s) }
@@ -386,7 +405,13 @@ class LinkHub(
     private fun open(c: Candidate, channel: ControlChannel, w: Handshake.Result.Welcomed): LinkSession {
         val wireless = c.link.isWireless
         if (wireless) channel.sealing = ControlSealing(w.keys.phoneToPc, w.keys.pcToPhone)
-        val path = newPath(c, channel, w, Packetizer(if (wireless) Crypto.Sealing(w.keys.phoneToPc) else null), Unpacker(if (wireless) Crypto.Sealing(w.keys.pcToPhone) else null))
+        val path = newPath(
+            c,
+            channel,
+            w,
+            Packetizer(if (wireless) Crypto.Sealing(w.keys.phoneToPc) else null, nextFrame = router::nextVideoFrame),
+            Unpacker(if (wireless) Crypto.Sealing(w.keys.pcToPhone) else null),
+        )
         return LinkSession(c, c.link, channel, w, path, c.hotspot)
     }
 
@@ -394,7 +419,9 @@ class LinkHub(
         var holder: MediaPath? = null
         val receive = { b: ByteArray, n: Int -> holder?.let { router.received(it, b, n) } ?: Unit }
         val carrier = when (c.link) {
-            LinkKind.USB_DEBUGGING -> TunnelCarrier(Proto.PORT_CONTROL, receive) { holder?.let { p -> sessionOf(p)?.let { post(LinkMsg.Closed(it)) } } }
+            LinkKind.USB_DEBUGGING -> TunnelCarrier(c.tcpPort.takeIf { it > 0 } ?: Proto.PORT_CONTROL, receive) {
+                holder?.let { p -> sessionOf(p)?.let { post(LinkMsg.Closed(it)) } }
+            }
             LinkKind.USB_TETHERING, LinkKind.WIFI -> UdpCarrier(c.host!!, c.mediaPort, wifi?.forHost(c.host), receive)
             LinkKind.BLUETOOTH -> SharedStreamCarrier(channel) { holder?.let { p -> sessionOf(p)?.let { post(LinkMsg.Closed(it)) } } }
         }
@@ -477,7 +504,7 @@ class LinkHub(
                 }
             }
             is Handshake.Result.KeyChanged -> {
-                if (c.link == LinkKind.USB_DEBUGGING) seeker.tunnelReleased()
+                if (c.link == LinkKind.USB_DEBUGGING) releaseTunnelIfIdle()
                 backoff(c, KEY_CHANGED_RETRY_MS)
                 if (a.purpose == Purpose.STANDBY || phase == Phase.HELD || phase == Phase.WAITING) return
                 keyChangedPc = r.pcId
@@ -492,7 +519,7 @@ class LinkHub(
                 if (c.link == LinkKind.USB_DEBUGGING) releaseTunnelIfIdle()
                 backoff(c, null)
                 if (a.purpose == Purpose.STANDBY) {
-                    probation[key(c)] = now() + PROBATION_MS
+                    probation[key(c)] = now() + if (c.link.isCable) CABLE_PROBATION_MS else PROBATION_MS
                 } else if (phase != Phase.HELD && phase != Phase.WAITING) {
                     failing(c)
                     searching(fresh = false)

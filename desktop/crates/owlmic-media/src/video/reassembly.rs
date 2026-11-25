@@ -30,6 +30,7 @@ pub struct Reassembler {
     partial: BTreeMap<u16, Partial>,
     last_done: Option<u16>,
     need_keyframe: bool,
+    allow_reset: bool,
     last_request: Option<Instant>,
 }
 
@@ -68,8 +69,19 @@ impl Reassembler {
             out.request_keyframe = true;
             out.dropped += expired;
         }
-        if self.last_done.is_some_and(|d| !after(frame, d)) || index >= count {
+        if index >= count {
             return self.finish(out, now);
+        }
+        let reset_epoch = self.allow_reset && self.last_done.is_some_and(|d| !after(frame, d));
+        if self.last_done.is_some_and(|d| !after(frame, d)) && !(reset_epoch && keyframe) {
+            if reset_epoch {
+                self.need_keyframe = true;
+                out.request_keyframe = true;
+            }
+            return self.finish(out, now);
+        }
+        if reset_epoch && !self.partial.contains_key(&frame) {
+            self.partial.clear();
         }
         let p = self.partial.entry(frame).or_insert_with(|| Partial {
             parts: vec![None; count as usize],
@@ -96,19 +108,23 @@ impl Reassembler {
             return self.finish(out, now);
         }
         let done = self.partial.remove(&frame).unwrap();
-        // Anything older that is still incomplete can never be decoded now.
-        let mut stale_count = 0u64;
-        self.partial.retain(|f, _| {
-            let keep = after(*f, frame);
-            if !keep {
-                stale_count += 1;
+        if self.allow_reset && done.keyframe {
+            self.partial.clear();
+        } else {
+            // Anything older that is still incomplete can never be decoded now.
+            let mut stale_count = 0u64;
+            self.partial.retain(|f, _| {
+                let keep = after(*f, frame);
+                if !keep {
+                    stale_count += 1;
+                }
+                keep
+            });
+            if stale_count > 0 {
+                self.need_keyframe = true;
+                out.request_keyframe = true;
+                out.dropped += stale_count;
             }
-            keep
-        });
-        if stale_count > 0 {
-            self.need_keyframe = true;
-            out.request_keyframe = true;
-            out.dropped += stale_count;
         }
         self.last_done = Some(frame);
         if self.need_keyframe && !done.keyframe {
@@ -118,6 +134,7 @@ impl Reassembler {
         }
         if done.keyframe {
             self.need_keyframe = false;
+            self.allow_reset = false;
         }
         let total: usize = done.parts.iter().flatten().map(Vec::len).sum();
         let mut data = Vec::with_capacity(total);
@@ -142,6 +159,13 @@ impl Reassembler {
         self.partial.clear();
         self.last_done = None;
         self.need_keyframe = true;
+        self.allow_reset = false;
+        self.last_request = None;
+    }
+
+    /// Permits a link switch to re-anchor frame ids on the next complete keyframe without dropping queued frames.
+    pub fn allow_reset(&mut self) {
+        self.allow_reset = true;
         self.last_request = None;
     }
 
@@ -233,5 +257,46 @@ mod tests {
     fn frame_ids_wrap() {
         assert!(after(0, u16::MAX));
         assert!(!after(u16::MAX, 0));
+    }
+
+    #[test]
+    fn allow_reset_keeps_forward_frames_and_reanchors_on_restarted_keyframe() {
+        let t = Instant::now();
+        let mut r = Reassembler::default();
+        assert!(r.push(500, 0, 1, true, 10, b"k500", t).frame.is_some());
+
+        // Forward continuation stays smooth after a link switch.
+        r.allow_reset();
+        assert_eq!(
+            r.push(501, 0, 1, false, 20, b"p501", t)
+                .frame
+                .map(|f| f.data),
+            Some(b"p501".to_vec())
+        );
+
+        // A stale incomplete frame plus a restarted delta frame request a keyframe cleanly.
+        r.push(502, 0, 2, false, 30, b"half", t);
+        let p = r.push(1, 0, 1, false, 40, b"p1", t);
+        assert!(p.frame.is_none());
+        assert!(p.request_keyframe);
+
+        // Multi-fragment restarted keyframe re-anchors last_done and discards old partials.
+        assert_eq!(r.push(0, 0, 2, true, 50, b"K0a", t).frame, None);
+        let k = r.push(0, 1, 2, true, 50, b"K0b", t);
+        assert_eq!(k.frame.map(|f| f.data), Some(b"K0aK0b".to_vec()));
+        assert_eq!(
+            r.push(
+                1,
+                0,
+                1,
+                false,
+                60,
+                b"p1_next",
+                t + Duration::from_millis(120)
+            )
+            .frame
+            .map(|f| f.data),
+            Some(b"p1_next".to_vec())
+        );
     }
 }

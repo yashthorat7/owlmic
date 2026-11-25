@@ -216,7 +216,9 @@ impl MediaHub {
                     return;
                 }
                 self.camera_on = true;
-                if !self.is_paused(Feature::Camera) {
+                if self.camera_active {
+                    self.media.video.allow_frame_reset();
+                } else if !self.is_paused(Feature::Camera) {
                     self.set_camera_active(true);
                 }
             }
@@ -324,12 +326,14 @@ impl Hub for MediaHub {
     fn handle(&mut self, msg: MediaMsg) {
         match msg {
             MediaMsg::Link(link) => {
-                self.link = Some(link);
+                let prev = self.link.replace(link);
                 self.media.mic.set_link(link);
                 self.update_speaker();
                 if link == LINK_BLUETOOTH {
                     self.camera_on = false;
                     self.set_camera_active(false);
+                } else if self.camera_active && prev != Some(link) {
+                    self.media.video.allow_frame_reset();
                 }
             }
             MediaMsg::Ended => self.end(),
@@ -707,5 +711,37 @@ mod tests {
             ..State::default()
         })));
         assert!(!take(&events).contains(&MediaEvent::Camera(true)));
+    }
+
+    #[test]
+    fn switching_active_link_keeps_camera_on_and_allows_frame_reset() {
+        let (mut h, events) = hub();
+        h.handle(MediaMsg::Link(3));
+        h.handle(start(STREAM_CAMERA, "h264"));
+        assert!(take(&events).contains(&MediaEvent::Camera(true)));
+
+        h.media.video.fragment(200, 0, 1, true, 0, b"wifi");
+        h.handle(MediaMsg::Link(1));
+        h.handle(start(STREAM_CAMERA, "h264"));
+        assert!(
+            !take(&events).contains(&MediaEvent::Camera(false)),
+            "switching from Wi-Fi to USB must not stop CameraOutput"
+        );
+        // Queued Wi-Fi frame stays available, and restarted USB keyframe is also accepted.
+        assert_eq!(
+            h.media
+                .video
+                .next_frame(Duration::ZERO)
+                .map(|n| n.frame.data),
+            Some(b"wifi".to_vec())
+        );
+        h.media.video.fragment(0, 0, 1, true, 1, b"usb");
+        assert_eq!(
+            h.media
+                .video
+                .next_frame(Duration::ZERO)
+                .map(|n| n.frame.data),
+            Some(b"usb".to_vec())
+        );
     }
 }

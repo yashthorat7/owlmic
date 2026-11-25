@@ -212,8 +212,11 @@ class CameraPipeline(
         val needsCamera = previous == null || capture == null || previous.lens != next.lens ||
             next.plan.shortSide > capture.plan.shortSide || next.plan.fps > capture.plan.fps ||
             framing(next.ratio) != framing(capture.ratio)
-        // A new size or shape needs a new encoder; another lens or orientation only needs a fresh keyframe.
-        val needsEncoder = previous == null || previous.plan != next.plan || previous.ratio != next.ratio
+        // A new size or shape needs a new encoder; link/bitrate/fps changes tune the running encoder in place.
+        val needsEncoder = previous == null ||
+            previous.plan.longSide != next.plan.longSide ||
+            previous.plan.shortSide != next.plan.shortSide ||
+            previous.ratio != next.ratio
         val resetOpt = previous == null || previous.quality != next.quality || previous.plan.fps != next.plan.fps || previous.link != next.link
         val targetRot = targetRotationFor(next.orientation, rotation)
         if (!needsCamera && preview != null && preview?.targetRotation != targetRot) {
@@ -222,16 +225,26 @@ class CameraPipeline(
         }
         val rotInFlight = !needsCamera && pendingRot != null
         r.handler.post {
-            if (resetOpt || optimizer == null) {
-                val opt = StreamOptimizer(next.quality, next.plan.fps, next.link)
-                opt.setThermal(thermal)
-                optimizer = opt
-                activePlan = opt.current
+            if (!needsCamera) {
+                if (resetOpt || optimizer == null) {
+                    val opt = StreamOptimizer(next.quality, next.plan.fps, next.link)
+                    opt.setThermal(thermal)
+                    optimizer = opt
+                    activePlan = opt.current
+                }
+                val effPlan = activePlan ?: next.plan
+                val effFps = if (capturedFps in 1 until effPlan.fps) capturedFps else effPlan.fps
+                r.fps = effFps.coerceAtLeast(24)
+                if (needsEncoder && !rotInFlight) {
+                    newEncoder()
+                } else if (!needsEncoder) {
+                    encoded?.let { (w, h) -> encoder?.setBitrate(bitrateFor(effPlan, w, h)) }
+                    encoder?.requestKeyframe()
+                }
+            } else {
+                // Keep the running encoder alive through CameraX rebind so KEY_REPEAT_PREVIOUS_FRAME_AFTER sustains output.
+                encoder?.requestKeyframe()
             }
-            val effPlan = activePlan ?: next.plan
-            val effFps = if (!needsCamera && capturedFps in 1 until effPlan.fps) capturedFps else effPlan.fps
-            r.fps = effFps.coerceAtLeast(24)
-            if (needsEncoder && !rotInFlight) newEncoder() else if (!needsEncoder) encoder?.requestKeyframe()
             r.setPreviewAspect(previewAspect, previewBorderPx)
             previewSurface?.let { (s, w, h) -> r.setPreview(s, w, h) }
         }
@@ -257,6 +270,14 @@ class CameraPipeline(
             if (config !== next || lifecycle !== owner) return@addListener
             val provider = ready.get()
             provider.unbindAll()
+            if (resetOpt) {
+                r.handler.post {
+                    val opt = StreamOptimizer(next.quality, next.plan.fps, next.link)
+                    opt.setThermal(thermal)
+                    optimizer = opt
+                    activePlan = opt.current
+                }
+            }
             val glExecutor = Executor { r.handler.post(it) }
             // The front lens is the default; a phone or tablet without the lens asked for gets the other one.
             val front = if (next.lens == Lens.FRONT) {
@@ -310,9 +331,11 @@ class CameraPipeline(
                 captured = next
                 capturedFps = appliedFps
                 r.handler.post {
-                    val effFps = (activePlan ?: next.plan).fps.coerceAtMost(appliedFps).coerceAtLeast(24)
+                    val effPlan = activePlan ?: next.plan
+                    val effFps = effPlan.fps.coerceAtMost(appliedFps).coerceAtLeast(24)
                     r.fps = effFps
-                    if (encoder != null && appliedFps != next.plan.fps) newEncoder()
+                    encoded?.let { (w, h) -> encoder?.setBitrate(bitrateFor(effPlan, w, h)) }
+                    encoder?.requestKeyframe()
                 }
             }
             onHealth(if (bound.isSuccess) Health.Ok else Health.Failed("no usable camera"))
@@ -337,20 +360,25 @@ class CameraPipeline(
     private fun newEncoder() {
         val r = renderer ?: return
         val c = config ?: return
-        r.setEncoder(null, 0, 0)
-        encoder?.release()
-        encoder = null
-        encoded = null
         val base = activePlan ?: c.plan
         val plan = if (capturedFps in 24 until base.fps) base.copy(fps = capturedFps) else base
         val (w, h) = outputSize(plan, c.ratio, r.uprightFrame()) ?: return
         val initialBitrate = bitrateFor(plan, w, h)
-        val e = runCatching {
-            VideoEncoder(
-                w, h, plan.fps, initialBitrate,
-                onFrame = { pts, key, data, len -> if (!paused && !out.video(pts, key, data, 0, len)) post(::pictureRefused) },
-                onError = { post(::encoderFailed) },
-            )
+        fun create() = VideoEncoder(
+            w, h, plan.fps, initialBitrate,
+            onFrame = { pts, key, data, len -> if (!paused && !out.video(pts, key, data, 0, len)) post(::pictureRefused) },
+            onError = { post(::encoderFailed) },
+        )
+        // Build the replacement before detaching the live encoder so frames never stall; fall back to release-first on single-instance codecs.
+        var prev = encoder
+        val e = runCatching { create() }.recoverCatching {
+            if (prev == null) throw it
+            r.setEncoder(null, 0, 0)
+            prev.release()
+            prev = null
+            encoder = null
+            encoded = null
+            create()
         }.getOrElse {
             onHealth(Health.Failed("no video encoder"))
             return
@@ -359,6 +387,7 @@ class CameraPipeline(
         encoded = w to h
         r.fps = plan.fps.coerceAtLeast(24)
         r.setEncoder(e.inputSurface, w, h)
+        prev?.release()
         onFormat(w, h, plan.fps)
     }
 

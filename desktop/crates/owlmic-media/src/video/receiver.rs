@@ -133,6 +133,14 @@ impl VideoReceiver {
         (self.request_keyframe)();
     }
 
+    /// Allows a stream or link switch to re-anchor frame numbering on a keyframe without clearing buffered video.
+    pub fn allow_frame_reset(&self) {
+        self.reassembler
+            .lock()
+            .unwrap_or_else(|p| p.into_inner())
+            .allow_reset();
+    }
+
     /// Drops queued frames and partial fragments when the camera stops or pauses.
     pub fn clear(&self) {
         self.queue.lock().unwrap_or_else(|p| p.into_inner()).clear();

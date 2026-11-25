@@ -49,6 +49,8 @@ class Seeker(
     /** Set while a found tunnel is being tried, so the PC isn't dialled again meanwhile. */
     @Volatile private var tunnelBusy = false
 
+    @Volatile private var lastTunnelAt = 0L
+
     private val resolved = HashMap<String, Pair<InetAddress?, Long>>()
 
     /** The probe socket bound to the current Wi-Fi network, with its own receive thread. Probe thread only. */
@@ -64,6 +66,7 @@ class Seeker(
     /** Starts a new burst: the app opened, or a network came or went. */
     override fun burst() {
         burstAt = System.currentTimeMillis()
+        lastTunnelAt = 0L
         wake.withLock { woken.signalAll() }
     }
 
@@ -199,7 +202,9 @@ class Seeker(
                 Pace.CONNECTED -> TUNNEL_CONNECTED_EVERY_MS
                 Pace.CONNECTED_BY_USB_DEBUGGING -> null
             }
-            if (every != null && !tunnelBusy) {
+            val now = System.currentTimeMillis()
+            if (every != null && !tunnelBusy && now - lastTunnelAt >= every) {
+                lastTunnelAt = now
                 val socket = Socket()
                 try {
                     socket.tcpNoDelay = true
@@ -211,8 +216,12 @@ class Seeker(
                 }
             }
             wake.withLock {
-                val waitMs = every ?: TUNNEL_CONNECTED_EVERY_MS
-                if (open && waitMs > 0) runCatching { woken.await(waitMs, TimeUnit.MILLISECONDS) }
+                val waitMs = if (every == null || tunnelBusy) {
+                    TUNNEL_CONNECTED_EVERY_MS
+                } else {
+                    (lastTunnelAt + every - System.currentTimeMillis()).coerceAtLeast(1L)
+                }
+                if (open) runCatching { woken.await(waitMs, TimeUnit.MILLISECONDS) }
             }
         }
     }
