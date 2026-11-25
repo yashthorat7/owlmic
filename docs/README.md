@@ -61,7 +61,7 @@ The desktop companion server is partitioned into 13 decoupled crates under Rust 
 
 ### 1.6 Automation & Scripts
 - **[`scripts/menu.py`](../scripts/menu.py)**: Unified interactive developer & release menu (build, check, verify, deps, clean, hooks).
-- **[`scripts/core/build.py`](../scripts/core/build.py)**: Interactive and CLI release packaging tool routing artifacts to `dist/`.
+- **[`scripts/core/build.py`](../scripts/core/build.py)**: Interactive and CLI release packaging tool routing artifacts to `releases/`.
 - **[`scripts/core/verify-repo-invariants.py`](../scripts/core/verify-repo-invariants.py)**: Zero-dependency Python 3 checker for product name casing, binary ban, Tokio restrictions, JSON validity, and version lockstep.
 - **[`scripts/core/check.py`](../scripts/core/check.py)**: Master pre-flight validator (invariants + Rust fmt/clippy/test + Android lint).
 - **[`scripts/core/setup-hooks.py`](../scripts/core/setup-hooks.py)**: Cross-platform Git hooks setup (`core.hooksPath` configuration).
@@ -86,7 +86,7 @@ Specialized context rulebooks routed from the root [`AGENTS.md`](../AGENTS.md) a
   - **[`protocol-design-sync.md`](skills/protocol-design-sync.md)**: Wire Protocol v3 framing, vector test lockstep, tokens and copy sync.
 - **Priority 3 (Explicit User Request Only)**:
   - **[`git-workflow.md`](skills/git-workflow.md)**: Strict read-only agent rule, convenient `git add .` staging, Conventional Commits.
-  - **[`build-and-bundle.md`](skills/build-and-bundle.md)**: Developer menu, dependency caching, and `dist/` release bundles.
+  - **[`build-and-bundle.md`](skills/build-and-bundle.md)**: Developer menu, dependency caching, and `releases/` release bundles.
   - **[`website.md`](skills/website.md)**: React 19, TypeScript, and Vite website standards.
 
 ---

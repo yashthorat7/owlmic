@@ -59,7 +59,7 @@ Least priority; kept out of context until explicitly requested by the user:
 | Skill File | Scope / Trigger | Core Invariants |
 |---|---|---|
 | **[`git-workflow.md`](git-workflow.md)** | Version control, PRs & sync (on user request only) | Strict read-only agent rule, single copy-paste commands, strict branch naming, <= 72 char commits. |
-| **[`build-and-bundle.md`](build-and-bundle.md)** | Developer menu & build system (`scripts/menu.py`, `scripts/core/build.py`) | Interactive developer menu, release binaries, installer packaging, or managing `dist/`. |
+| **[`build-and-bundle.md`](build-and-bundle.md)** | Developer menu & build system (`scripts/menu.py`, `scripts/core/build.py`) | Interactive developer menu, release binaries, installer packaging, or managing `releases/`. |
 | **[`website.md`](website.md)** | Website (`website/`) | React 19, TypeScript, Vite, zero telemetry, pure OLED tokens, lightweight bundle. |
 
 ---

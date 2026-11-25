@@ -1,0 +1,56 @@
+name: Linux package
+
+# Builds the Owlmic Linux binary and packages Owlmic-vX.Y.Z-linux-x86_64.tar.gz on Ubuntu.
+on:
+  workflow_dispatch:
+  # The Release workflow calls this one for version tags.
+  workflow_call:
+  pull_request:
+    paths:
+      - 'scripts/packaging/linux/**'
+      - 'scripts/core/build.py'
+      - 'desktop/Cargo.toml'
+      - 'desktop/crates/**'
+      - '.github/workflows/linux-package.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  linux:
+    name: Build the Linux package
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          submodules: recursive
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo registry and build artifacts
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            desktop/target
+          key: cargo-${{ runner.os }}-${{ hashFiles('desktop/Cargo.lock') }}
+          restore-keys: cargo-${{ runner.os }}-
+
+      - name: Build and package Linux tarball
+        run: python3 scripts/core/build.py --target linux
+
+      - name: Verify Linux archive contains binary
+        run: |
+          tarball=$(ls releases/Owlmic-v*-linux-x86_64.tar.gz)
+          tar -tzf "$tarball"
+          tar -tzf "$tarball" | grep -qx "owlmic"
+
+      - name: Upload Linux package
+        uses: actions/upload-artifact@v7
+        with:
+          name: owlmic-linux
+          path: releases/Owlmic-v*-linux-x86_64.tar.gz
+          if-no-files-found: error

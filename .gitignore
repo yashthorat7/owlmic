@@ -33,8 +33,8 @@
 **/target/
 **/*.rs.bk
 Cargo.lock.bak
-# Centralized distributables and packaging cache
-/dist/
+# Centralized release artifacts and packaging cache
+/releases/
 scripts/packaging/cache/
 scripts/packaging/windows/Output/
 scripts/packaging/windows/driver/

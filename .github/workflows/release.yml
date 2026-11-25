@@ -1,8 +1,8 @@
 name: Release
 
-# On a version tag: builds the Windows installer and owlmic.exe, and opens a draft GitHub Release with
-# them and their SHA-256 checksums. The Android APK is signed offline with the release key and added
-# to the draft by hand before it is published.
+# On a version tag: builds the Windows installer and Linux tarball, and opens a draft GitHub Release
+# with them and their SHA-256 checksums. The Android APK is signed offline with the release key
+# and added to the draft by hand before it is published.
 on:
   push:
     tags: ['v*']
@@ -15,26 +15,38 @@ jobs:
     name: Build the Windows downloads
     uses: ./.github/workflows/windows-installer.yml
 
+  linux:
+    name: Build the Linux package
+    uses: ./.github/workflows/linux-package.yml
+
   draft:
     name: Open the draft release
-    needs: windows
+    needs: [windows, linux]
     runs-on: ubuntu-latest
     steps:
       - name: Download the Windows build
         uses: actions/download-artifact@v7
         with:
           name: owlmic-windows
-          path: dist
+          path: releases
+
+      - name: Download the Linux build
+        uses: actions/download-artifact@v7
+        with:
+          name: owlmic-linux
+          path: releases
 
       - name: Write checksums
-        working-directory: dist
-        run: sha256sum *.exe > SHA256SUMS
+        working-directory: releases
+        run: |
+          mkdir -p others
+          find . -maxdepth 2 -type f \( -name '*.exe' -o -name '*.tar.gz' -o -name '*.apk' \) ! -name 'SHA256SUMS*' -printf '%P\n' | sort | xargs sha256sum > others/SHA256SUMS.txt
 
       - name: Create the draft release
         env:
           GH_TOKEN: ${{ github.token }}
         run: >
-          gh release create "$GITHUB_REF_NAME" dist/*
+          gh release create "$GITHUB_REF_NAME" releases/Owlmic-Setup-*.exe releases/Owlmic-v*-linux-x86_64.tar.gz releases/others/*
           --repo "$GITHUB_REPOSITORY"
           --draft --generate-notes
           --title "Owlmic $GITHUB_REF_NAME"

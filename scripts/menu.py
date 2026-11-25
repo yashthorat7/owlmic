@@ -54,11 +54,11 @@ def print_banner(version: str):
   Version:       {version}
 
   {YELLOW}[ Build & Package ]{RESET}
-  [1] Release Bundle       -> Full release bundle (all platforms -> dist/)
-  [2] Android Client APK   -> APK (dist/Owlmic-v{version}.apk)
-  [3] Windows Desktop      -> Installer + Portable (dist/)
-  [4] Linux Desktop        -> Portable Tarball (dist/)
-  [5] Clean dist/          -> Reset all build outputs
+  [1] Release Bundle       -> Full release bundle (all platforms -> releases/)
+  [2] Android Client APK   -> APK (releases/Owlmic-v{version}.apk)
+  [3] Windows Desktop      -> Installer + Portable (releases/)
+  [4] Linux Desktop        -> Portable Tarball (releases/)
+  [5] Clean releases/      -> Reset all build outputs
 
   {YELLOW}[ Verification & Quality ]{RESET}
   [6] Full Pre-Flight      -> Invariants + Rust + Android tests & lint
@@ -151,7 +151,7 @@ Usage:
 
 Commands:
   build [release|all|desktop|android|windows|linux]  Build target suite
-  clean                                         Clean dist/ directory
+  clean                                         Clean releases/ directory
   check [--fix]                                 Run pre-flight checks
   verify                                        Verify repo invariants
   deps [--check|--fetch]                        Audit or prefetch packaging dependencies
