@@ -5,7 +5,7 @@
 use super::draw::{Align, Font, Painter};
 use super::tray::{self, Tray};
 use crate::icons;
-use crate::layout::{self as l, CropMode, Drawer, HelpScreen, Rect, Screen, Target, WifiMode};
+use crate::layout::{self as l, Drawer, HelpScreen, Rect, Screen, Target, WifiMode};
 use crate::preview::Preview;
 use crate::view::{Action, Connection, Feature, Link, PanelState, indicator, link_icon};
 use owlmic_hub::Publisher;
@@ -177,6 +177,7 @@ struct Panel {
     cam_hud_at: Option<Instant>,
     cam_menu_open: bool,
     cam_menu_wide: Option<bool>,
+    cam_preview_hidden: bool,
     mic_quick_open: bool,
     dock_open: bool,
     hover: Option<Target>,
@@ -216,7 +217,8 @@ pub fn run(waker: &Waker, ui: Ui, open: bool) -> Result<()> {
         };
         RegisterClassExW(&class);
         let init_state = ui.state.read();
-        let anim = UiAnim::settled_for(&init_state, Drawer::None, false, false, false, false);
+        let anim =
+            UiAnim::settled_for(&init_state, Drawer::None, false, false, false, false, false);
         let panel = Box::new(Panel {
             hwnd: HWND::default(),
             state: init_state,
@@ -228,6 +230,7 @@ pub fn run(waker: &Waker, ui: Ui, open: bool) -> Result<()> {
             cam_hud_at: None,
             cam_menu_open: false,
             cam_menu_wide: None,
+            cam_preview_hidden: false,
             mic_quick_open: false,
             dock_open: false,
             hover: None,
@@ -434,6 +437,11 @@ struct UiAnim {
     help_sub_t: Tween,
     last_help: HelpScreen,
     cam_layer_t: Tween,
+    cam_preview_t: Tween,
+    cam_crop_from: Rect,
+    cam_crop_to: Rect,
+    cam_crop_t: Tween,
+    cam_crop_has_stream: bool,
     cam_hud_t: Tween,
     cam_menu_t: Tween,
     cam_orient_t: Tween,
@@ -458,6 +466,7 @@ impl UiAnim {
         cam_menu: bool,
         mic_quick: bool,
         dock_open: bool,
+        cam_preview_hidden: bool,
     ) -> Self {
         let cam_on = matches!(state.camera, Feature::On | Feature::Restarting) && state.connected();
         let mic_on = matches!(state.mic, Feature::On | Feature::Restarting) && state.connected();
@@ -495,6 +504,19 @@ impl UiAnim {
                 HelpScreen::HowTo
             },
             cam_layer_t: Tween::settled(if cam_on { 1.0 } else { 0.0 }, 180, Curve::EaseOut),
+            cam_preview_t: Tween::settled(
+                if cam_on && !cam_preview_hidden {
+                    1.0
+                } else {
+                    0.0
+                },
+                180,
+                Curve::EaseOut,
+            ),
+            cam_crop_from: l::cam_crop_rect(state.camera_ratio_label()).0,
+            cam_crop_to: l::cam_crop_rect(state.camera_ratio_label()).0,
+            cam_crop_t: Tween::settled(1.0, 280, Curve::EaseOutExpo),
+            cam_crop_has_stream: false,
             cam_hud_t: Tween::settled(if hud_bright { 1.0 } else { 0.15 }, 260, Curve::EaseOut),
             cam_menu_t: Tween::settled(if cam_menu { 1.0 } else { 0.0 }, 240, Curve::EaseOutExpo),
             cam_orient_t: Tween::settled(
@@ -623,6 +645,39 @@ impl Panel {
         self.cam_hud_at = Some(Instant::now());
     }
 
+    fn sync_cam_crop(&mut self, cam_on: bool, pw: usize, ph: usize) {
+        let ratio_lbl = self.state.camera_ratio_label();
+        let (target, _) = l::cam_crop_rect_for_stream(ratio_lbl, pw, ph);
+        if !cam_on || pw == 0 || ph == 0 {
+            self.anim.cam_crop_has_stream = false;
+            self.anim.cam_crop_from = target;
+            self.anim.cam_crop_to = target;
+            self.anim.cam_crop_t.snap(1.0);
+            return;
+        }
+        if !self.anim.cam_crop_has_stream {
+            self.anim.cam_crop_has_stream = true;
+            self.anim.cam_crop_from = target;
+            self.anim.cam_crop_to = target;
+            self.anim.cam_crop_t.snap(1.0);
+            return;
+        }
+        if (self.anim.cam_crop_to.x - target.x).abs() > 0.5
+            || (self.anim.cam_crop_to.y - target.y).abs() > 0.5
+            || (self.anim.cam_crop_to.w - target.w).abs() > 0.5
+            || (self.anim.cam_crop_to.h - target.h).abs() > 0.5
+        {
+            self.anim.cam_crop_from = lerp_rect(
+                self.anim.cam_crop_from,
+                self.anim.cam_crop_to,
+                self.anim.cam_crop_t.now(),
+            );
+            self.anim.cam_crop_to = target;
+            self.anim.cam_crop_t.snap(0.0);
+            self.anim.cam_crop_t.set(1.0);
+        }
+    }
+
     fn sync_tweens(&mut self) {
         let cam_on = self.cam_active();
         let mic_on = self.mic_active();
@@ -654,6 +709,21 @@ impl Panel {
                 });
         }
         self.anim.cam_layer_t.set(if cam_on { 1.0 } else { 0.0 });
+        let (pw, ph) = self.ui.preview.size();
+        let has_frame = self.ui.preview.seq() > 0 && pw > 0 && ph > 0;
+        self.sync_cam_crop(cam_on, pw, ph);
+        if !has_frame {
+            self.painter.clear_preview();
+            self.anim.cam_preview_t.snap(0.0);
+        } else {
+            self.anim
+                .cam_preview_t
+                .snap(if cam_on && !self.cam_preview_hidden {
+                    1.0
+                } else {
+                    0.0
+                });
+        }
         self.anim
             .cam_hud_t
             .set(if self.hud_is_bright() { 1.0 } else { 0.15 });
@@ -1016,6 +1086,12 @@ impl Panel {
         } else if !matches!(self.state.camera, Feature::On | Feature::Restarting) {
             self.touch_cam_hud();
         }
+        if !matches!(new.connection, Connection::Connected { .. })
+            || !matches!(new.camera, Feature::On | Feature::Restarting)
+        {
+            self.ui.preview.clear();
+            self.painter.clear_preview();
+        }
         if !matches!(new.mic, Feature::On | Feature::Restarting) {
             self.mic_quick_open = false;
             self.dock_open = false;
@@ -1134,7 +1210,7 @@ impl Panel {
             SetTimer(Some(self.hwnd), TIMER_PREVIEW, 16, None);
         }
         self.visible = true;
-        self.ui.preview.set_wanted(true);
+        self.ui.preview.set_wanted(!self.cam_preview_hidden);
         self.sync_tweens();
         self.invalidate();
     }
@@ -1172,8 +1248,18 @@ impl Panel {
         self.unhover_since = None;
         self.hidden_at = Some(Instant::now());
         self.shown_at = None;
-        self.anim = UiAnim::settled_for(&self.state, Drawer::None, false, false, false, false);
+        self.anim = UiAnim::settled_for(
+            &self.state,
+            Drawer::None,
+            false,
+            false,
+            false,
+            false,
+            self.cam_preview_hidden,
+        );
         self.ui.preview.set_wanted(false);
+        self.ui.preview.clear();
+        self.painter.clear_preview();
     }
 
     fn show_tray_context_menu(&mut self) {
@@ -1436,6 +1522,18 @@ impl Panel {
                 } else {
                     self.cam_menu_wide = Some(!self.cam_wide());
                 }
+            }
+            Target::CamPreview => {
+                self.cam_menu_open = false;
+                self.cam_preview_hidden = !self.cam_preview_hidden;
+                self.ui
+                    .preview
+                    .set_wanted(!self.cam_preview_hidden && self.visible);
+                if self.cam_preview_hidden {
+                    self.ui.preview.clear();
+                    self.painter.clear_preview();
+                }
+                self.touch_cam_hud();
             }
             Target::Mirror | Target::Flip => {
                 self.cam_menu_open = false;
@@ -1752,13 +1850,21 @@ impl Panel {
         let c = l::PLAYGROUND;
         let (mid_x, mid_y) = (c.x + c.w / 2.0, c.y + c.h / 2.0);
         let cam_a = self.anim.cam_layer_t.now();
+        let preview_a = self.anim.cam_preview_t.now();
         let hud_mul = self.anim.cam_hud_t.now();
         let menu_t = self.anim.cam_menu_t.now();
         let cam_dock_t = self.anim.wave_dock_cam_t.now();
         let dock_exp_t = self.anim.dock_expand_t.now();
         let quick_t = self.anim.quick_audio_t.now();
 
-        if cam_a < 0.999 {
+        let (pw, ph) = self.ui.preview.size();
+        let seq = self.ui.preview.seq();
+        let has_frame = seq > 0 && pw > 0 && ph > 0;
+        if !has_frame {
+            self.painter.clear_preview();
+        }
+
+        if preview_a < 0.999 || !has_frame {
             self.painter.dots_grid(c.inset(12.0), 18.0, 1.0, 0x161616);
             if !mic_on {
                 let wm_alpha = if s.connected() { 0.07 } else { 0.07 * 0.45 };
@@ -1774,63 +1880,64 @@ impl Panel {
                 self.painter.clip(l::PLAYGROUND);
             }
             let pushed = self.painter.push_layer(l::PLAYGROUND, cam_a);
-            if cam_a < 0.999 {
+            if cam_on && !self.cam_preview_hidden && has_frame {
                 self.draw_playground_base();
-            }
 
-            let ratio_lbl = s.camera_ratio_label();
-            let (pw, ph) = self.ui.preview.size();
-            let (cam_rect, crop_mode) = l::cam_crop_rect_for_stream(ratio_lbl, pw, ph);
+                self.sync_cam_crop(cam_on, pw, ph);
+                let cam_rect = lerp_rect(
+                    self.anim.cam_crop_from,
+                    self.anim.cam_crop_to,
+                    self.anim.cam_crop_t.now(),
+                );
+                let inset_x = (cam_rect.x - c.x)
+                    .max(c.right() - cam_rect.right())
+                    .max(0.0);
+                let inset_y = (cam_rect.y - c.y)
+                    .max(c.bottom() - cam_rect.bottom())
+                    .max(0.0);
 
-            if self.ui.preview.seq() > 0 && pw > 0 && ph > 0 {
-                let seq = self.ui.preview.seq();
                 let preview = self.ui.preview.clone();
-                let ambient = (crop_mode != CropMode::None).then_some(l::PLAYGROUND);
+                let ambient = (inset_x > 0.5 || inset_y > 0.5).then_some(l::PLAYGROUND);
                 self.painter
                     .picture(cam_rect, ambient, pw, ph, seq, |copy| {
                         preview.read(|px| copy(px))
                     });
-            }
 
-            // 1 px crop seam border matching .cam-frame[data-crop]
-            match crop_mode {
-                CropMode::Pillar => {
-                    self.painter.line(
-                        cam_rect.x,
-                        cam_rect.y,
-                        cam_rect.x,
-                        cam_rect.bottom(),
-                        WHITE_22,
+                // 1 px optical crop borders fading smoothly near playground bounds
+                let alpha_x = (inset_x / 4.0).clamp(0.0, 1.0) * 0.22;
+                let alpha_y = (inset_y / 4.0).clamp(0.0, 1.0) * 0.22;
+                if alpha_x > 0.005 {
+                    self.painter.line_alpha(
+                        (cam_rect.x, cam_rect.y),
+                        (cam_rect.x, cam_rect.bottom()),
+                        WHITE,
+                        alpha_x,
                         1.0,
                     );
-                    self.painter.line(
-                        cam_rect.right(),
-                        cam_rect.y,
-                        cam_rect.right(),
-                        cam_rect.bottom(),
-                        WHITE_22,
-                        1.0,
-                    );
-                }
-                CropMode::Letter => {
-                    self.painter.line(
-                        cam_rect.x,
-                        cam_rect.y,
-                        cam_rect.right(),
-                        cam_rect.y,
-                        WHITE_22,
-                        1.0,
-                    );
-                    self.painter.line(
-                        cam_rect.x,
-                        cam_rect.bottom(),
-                        cam_rect.right(),
-                        cam_rect.bottom(),
-                        WHITE_22,
+                    self.painter.line_alpha(
+                        (cam_rect.right(), cam_rect.y),
+                        (cam_rect.right(), cam_rect.bottom()),
+                        WHITE,
+                        alpha_x,
                         1.0,
                     );
                 }
-                CropMode::None => {}
+                if alpha_y > 0.005 {
+                    self.painter.line_alpha(
+                        (cam_rect.x, cam_rect.y),
+                        (cam_rect.right(), cam_rect.y),
+                        WHITE,
+                        alpha_y,
+                        1.0,
+                    );
+                    self.painter.line_alpha(
+                        (cam_rect.x, cam_rect.bottom()),
+                        (cam_rect.right(), cam_rect.bottom()),
+                        WHITE,
+                        alpha_y,
+                        1.0,
+                    );
+                }
             }
 
             // Camera HUD controls (group-dimmed cleanly via layer opacity so backgrounds stay translucent)
@@ -1969,6 +2076,41 @@ impl Panel {
                 menu_radius,
                 lerp_color(WHITE_22, WHITE_36, menu_t),
                 1.0,
+            );
+
+            // Preview hide/show button next to Ratio menu
+            let preview_btn = Rect::new(
+                menu_rect.right() + 6.0,
+                l::CAM_MENU_BTN.y,
+                l::CAM_PREVIEW_BTN.w,
+                l::CAM_PREVIEW_BTN.h,
+            );
+            if self.cam_preview_hidden {
+                self.painter.fill_rounded(preview_btn, 7.0, WHITE);
+                self.painter.stroke_rounded(preview_btn, 7.0, WHITE, 1.0);
+            } else {
+                let bg = if self.is_hovered(Target::CamPreview) && self.hud_is_bright() {
+                    BTN_HOVER
+                } else {
+                    BLACK
+                };
+                self.painter.fill_rounded_alpha(preview_btn, 7.0, bg, 0.72);
+                self.painter.stroke_rounded(preview_btn, 7.0, WHITE_20, 1.0);
+            }
+            self.painter.icon(
+                if self.cam_preview_hidden {
+                    icons::EYE_OFF
+                } else {
+                    icons::EYE
+                },
+                preview_btn.x + preview_btn.w / 2.0,
+                preview_btn.y + preview_btn.h / 2.0,
+                13.0,
+                if self.cam_preview_hidden {
+                    BLACK
+                } else {
+                    WHITE
+                },
             );
 
             // Mirror button (white fill + black icon when active, translucent black when off)
@@ -3382,8 +3524,9 @@ mod tests {
 
             for (file_name, st, drawer, cam_hud, cam_menu, mic_quick, dock_open) in states {
                 let arc_st = Arc::new(st);
-                let anim =
-                    UiAnim::settled_for(&arc_st, drawer, cam_hud, cam_menu, mic_quick, dock_open);
+                let anim = UiAnim::settled_for(
+                    &arc_st, drawer, cam_hud, cam_menu, mic_quick, dock_open, false,
+                );
                 let mut panel = Panel {
                     hwnd: HWND::default(),
                     ui: Ui {
@@ -3400,6 +3543,7 @@ mod tests {
                     cam_hud_at: None,
                     cam_menu_open: cam_menu,
                     cam_menu_wide: None,
+                    cam_preview_hidden: false,
                     mic_quick_open: mic_quick,
                     dock_open,
                     hover: None,
@@ -3524,9 +3668,12 @@ mod tests {
             paired: true,
             ..Default::default()
         };
-        let anim = UiAnim::settled_for(&st, Drawer::Wifi, false, true, false, true);
+        let anim = UiAnim::settled_for(&st, Drawer::Wifi, false, true, false, true, false);
         assert!((anim.drawer_t.now() - 1.0).abs() < 1e-4);
         assert!((anim.cam_layer_t.now() - 1.0).abs() < 1e-4);
+        assert!((anim.cam_preview_t.now() - 1.0).abs() < 1e-4);
+        assert!((anim.cam_crop_t.now() - 1.0).abs() < 1e-4);
+        assert!(!anim.cam_crop_has_stream);
         assert!((anim.cam_menu_t.now() - 1.0).abs() < 1e-4);
         assert!((anim.dock_expand_t.now() - 1.0).abs() < 1e-4);
         assert!((anim.cam_hud_t.now() - 1.0).abs() < 1e-4);

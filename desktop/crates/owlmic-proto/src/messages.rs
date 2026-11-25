@@ -94,7 +94,7 @@ pub struct Ping {
     pub t: u64,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Report {
     pub loss_pct: f64,
@@ -105,6 +105,12 @@ pub struct Report {
     pub kbps: BTreeMap<String, u32>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub thermal: Option<u8>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cam_loss_pct: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cam_fps: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cam_drop_pct: Option<f64>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]

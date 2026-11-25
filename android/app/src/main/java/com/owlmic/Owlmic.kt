@@ -26,4 +26,9 @@ object Owlmic {
     fun setPreview(surface: Surface?, width: Int, height: Int) {
         hub?.media?.setPreview(surface, width, height)
     }
+
+    /** Target preview crop aspect ratio (null = fill playground) and optical border width in px. */
+    fun setPreviewAspect(aspect: Float?, borderPx: Int) {
+        hub?.media?.setPreviewAspect(aspect, borderPx)
+    }
 }

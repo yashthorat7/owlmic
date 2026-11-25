@@ -36,6 +36,8 @@
   external: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="2.45" stroke-linecap="butt" stroke-linejoin="round"><path d="M 6.5 17.5 L 17.5 6.5"/><path d="M 8.5 6.5 H 17.5 V 15.5"/></svg>`,
   close: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="2.3" stroke-linecap="butt" stroke-linejoin="round"><path d="M 6.5 6.5 L 17.5 17.5 M 17.5 6.5 L 6.5 17.5"/></svg>`,
   flip: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="2.3" stroke-linecap="butt" stroke-linejoin="round"><path d="M 4 11 V 8.55 A 2.8 2.8 0 0 1 6.8 5.75 H 19.25"/><path d="M 16.5 3 L 19.25 5.75 L 16.5 8.5"/><path d="M 20 13 V 15.45 A 2.8 2.8 0 0 1 17.2 18.25 H 4.75"/><path d="M 7.5 15.5 L 4.75 18.25 L 7.5 21"/></svg>`,
+  eye: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="2.3" stroke-linecap="butt" stroke-linejoin="round"><path d="M 2.5 12 C 5.5 6.5 8.5 5 12 5 C 15.5 5 18.5 6.5 21.5 12 C 18.5 17.5 15.5 19 12 19 C 8.5 19 5.5 17.5 2.5 12 Z"/><rect x="9.5" y="9.5" width="5" height="5" rx="2.2"/></svg>`,
+  'eye-off': `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="2.3" stroke-linecap="butt" stroke-linejoin="round"><path d="M 10.2 5.2 C 10.8 5.05 11.4 5 12 5 C 15.5 5 18.5 6.5 21.5 12 C 20.4 14.0 19.2 15.5 17.9 16.6"/><path d="M 14.1 18.6 C 13.4 18.9 12.7 19 12 19 C 8.5 19 5.5 17.5 2.5 12 C 3.8 9.6 5.2 7.9 6.7 6.8"/><path d="M 11.4 9.6 A 2.5 2.5 0 0 1 14.4 12.6"/><path d="M 9.6 11.4 A 2.5 2.5 0 0 0 12.6 14.4"/><path d="M 3.5 3.5 L 20.5 20.5"/></svg>`,
   phone: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="2.15" stroke-linejoin="round"><rect x="6.5" y="2.5" width="11" height="19" rx="2.5"/><path d="M 10.5 18 L 13.5 18" stroke-linecap="round"/></svg>`,
   unplug: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="2.3" stroke-linecap="butt" stroke-linejoin="round"><path d="M 5.3 8 H 4.5 A 2 2 0 0 0 2.5 10 V 14 A 2 2 0 0 0 4.5 16 H 10"/><path d="M 14 8 H 19.5 A 2 2 0 0 1 21.5 10 V 14 A 2 2 0 0 1 19.5 16 H 18.7"/><path d="M 4 4 L 20 20"/></svg>`,
   'git-branch': `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="2.15" stroke-linecap="butt" stroke-linejoin="round"><path d="M 15 20.5 V 16 Q 15 14.5 16.5 14.5 H 17.25 Q 19.5 14.5 19.5 12.25 V 7.4 L 18.1 3.75 L 15.1 5.4 H 8.9 L 5.9 3.75 L 4.5 7.4 V 12.25 Q 4.5 14.5 6.75 14.5 H 7.5 Q 9 14.5 9 16 V 20.5"/><path d="M 9 18.5 H 6.5 Q 5.25 18.5 5.25 17.25 Q 5.25 16.25 4.25 16.25 H 3.5"/></svg>`,
@@ -141,13 +143,13 @@
 
     phone: {
       powered: true, isLandscape: false,
-      drawer: null, camHud: false, camMenu: false, micQuick: false, dockOpen: false,
+      drawer: null, camHud: false, camMenu: false, camHidden: false, micQuick: false, dockOpen: false,
       links: { USB: true, Tethering: true, 'Wi-Fi': true, Bluetooth: true }
     },
     pc: {
       flyoutOpen: false,
       trayOverflowOpen: true,
-      drawer: null, camHud: false, camMenu: false, micQuick: false, dockOpen: false,
+      drawer: null, camHud: false, camMenu: false, camHidden: false, micQuick: false, dockOpen: false,
       links: { USB: true, Tethering: true, 'Wi-Fi': true, Bluetooth: true }
     }
   });
@@ -261,6 +263,7 @@
   const hudTimers = { phone: null, pc: null };
   let lastLink = null, wasConnected = false;
   let lastMIc = '', lastPIc = '', lastMRowSig = '', lastPRowSig = '';
+  let lastMPreviewHidden = null, lastPPreviewHidden = null;
 
   const triggerSyncFlash = () => {
     clearTimeout(flashTimer);
@@ -457,6 +460,9 @@
 
   const renderCamerasNow = () => {
     if (!state.camera || !activeLink()) return;
+    const drawM = state.phone.powered && !state.phone.camHidden;
+    const drawP = state.pc.flyoutOpen && !state.pc.camHidden;
+    if (!drawM && !drawP) return;
     const { w, h } = getSensorDims();
     const scale = Math.min(devicePixelRatio || 1, 2);
     const SW = Math.round(w * scale), SH = Math.round(h * scale);
@@ -472,8 +478,8 @@
       else { sh = Math.round(SW / activeAr); sy = Math.round((SH - sh) / 2); }
     }
 
-    if (state.phone.powered) blitFrame($('m-camBox'), $('m-camCanvas'), $('m-camAmbCanvas'), sx, sy, sw, sh, true);
-    if (state.pc.flyoutOpen) blitFrame($('p-camBox'), $('p-camCanvas'), $('p-camAmbCanvas'), sx, sy, sw, sh, false);
+    if (drawM) blitFrame($('m-camBox'), $('m-camCanvas'), $('m-camAmbCanvas'), sx, sy, sw, sh, true);
+    if (drawP) blitFrame($('p-camBox'), $('p-camCanvas'), $('p-camAmbCanvas'), sx, sy, sw, sh, false);
   };
 
   const syncMobilePg = () => {
@@ -802,12 +808,13 @@
     $('m-btnCam').classList.toggle('is-on', state.camera);
     $('m-btnMic').classList.toggle('is-on', state.mic);
     $('m-btnSpk').classList.toggle('is-on', state.speaker);
-    $('m-watermark').classList.toggle('opacity-0', state.camera || state.mic);
+    $('m-watermark').classList.toggle('opacity-0', (state.camera && !state.phone.camHidden) || state.mic);
 
     $('m-camLayer').classList.toggle('opacity-100', state.camera);
     $('m-camLayer').classList.toggle('pointer-events-auto', state.camera);
     $('m-camLayer').classList.toggle('opacity-0', !state.camera);
     $('m-camLayer').classList.toggle('pointer-events-none', !state.camera);
+    $('m-camLayer').classList.toggle('is-preview-hidden', state.phone.camHidden);
 
     const mHudOn = state.phone.camHud || state.phone.camMenu || (state.camera && state.mic && state.phone.dockOpen);
     syncRatioMenus();
@@ -815,6 +822,13 @@
     $('m-camHud').classList.toggle('is-quiet', !mHudOn);
     $('m-camMenuBox').classList.toggle('is-open', state.phone.camMenu);
     $('m-camRatioLabel').textContent = state.ratio;
+    $('m-btnPreview').classList.toggle('is-on', state.phone.camHidden);
+    $('m-btnPreview').setAttribute('aria-label', state.phone.camHidden ? 'Show preview' : 'Hide preview');
+    if (state.phone.camHidden !== lastMPreviewHidden) {
+      lastMPreviewHidden = state.phone.camHidden;
+      $('m-btnPreview').innerHTML = iconImg(state.phone.camHidden ? 'eye-off' : 'eye', 'w-[15px] h-[15px] owl-icon', 'Preview');
+      bindAllFallbacks($('m-btnPreview'));
+    }
     $('m-btnMirror').classList.toggle('is-on', state.mirror);
     $('m-camOrientIc').style.transform = wideRot;
     setOptionActive($$('.js-m-ratio'), state.ratio, 'ratio');
@@ -856,17 +870,25 @@
     $('p-btnMic').classList.toggle('is-on', state.mic);
     $('p-btnSpk').classList.toggle('is-on', state.speaker);
     $('p-btnHelp').classList.toggle('is-on', state.pc.drawer === 'help');
-    $('p-watermark').classList.toggle('opacity-0', state.camera || state.mic);
+    $('p-watermark').classList.toggle('opacity-0', (state.camera && !state.pc.camHidden) || state.mic);
 
     $('p-camLayer').classList.toggle('opacity-100', state.camera);
     $('p-camLayer').classList.toggle('pointer-events-auto', state.camera);
     $('p-camLayer').classList.toggle('opacity-0', !state.camera);
     $('p-camLayer').classList.toggle('pointer-events-none', !state.camera);
+    $('p-camLayer').classList.toggle('is-preview-hidden', state.pc.camHidden);
 
     const pHudOn = state.pc.camHud || state.pc.camMenu || (state.camera && state.mic && state.pc.dockOpen);
     $('p-camHud').classList.toggle('is-quiet', !pHudOn);
     $('p-camMenuBox').classList.toggle('is-open', state.pc.camMenu);
     $('p-camRatioLabel').textContent = state.ratio;
+    $('p-btnPreview').classList.toggle('is-on', state.pc.camHidden);
+    $('p-btnPreview').setAttribute('aria-label', state.pc.camHidden ? 'Show preview' : 'Hide preview');
+    if (state.pc.camHidden !== lastPPreviewHidden) {
+      lastPPreviewHidden = state.pc.camHidden;
+      $('p-btnPreview').innerHTML = iconImg(state.pc.camHidden ? 'eye-off' : 'eye', 'w-[13px] h-[13px] owl-icon', 'Preview');
+      bindAllFallbacks($('p-btnPreview'));
+    }
     $('p-btnMirror').classList.toggle('is-on', state.mirror);
     $('p-camOrientIc').style.transform = wideRot;
     setOptionActive($$('.js-p-ratio'), state.ratio, 'ratio');
@@ -938,7 +960,7 @@
     state.sim.phone = { USB: false, Tethering: false, 'Wi-Fi': true, Bluetooth: false };
     state.phone = {
       powered: true, isLandscape: false,
-      drawer: null, camHud: false, camMenu: false, micQuick: false, dockOpen: false,
+      drawer: null, camHud: false, camMenu: false, camHidden: false, micQuick: false, dockOpen: false,
       links: { USB: true, Tethering: true, 'Wi-Fi': true, Bluetooth: true }
     };
     if (wasLand) setOrientation(false);
@@ -959,7 +981,7 @@
     state.pc = {
       flyoutOpen: false,
       trayOverflowOpen: true,
-      drawer: null, camHud: false, camMenu: false, micQuick: false, dockOpen: false,
+      drawer: null, camHud: false, camMenu: false, camHidden: false, micQuick: false, dockOpen: false,
       links: { USB: true, Tethering: true, 'Wi-Fi': true, Bluetooth: true }
     };
     $('p-pairedRow').classList.remove('hidden');
@@ -1154,6 +1176,9 @@
       dev.camHud = true;
       scheduleHudDim(side);
       setOrientation(nextLand);
+    };
+    $(`${pfx}-btnPreview`).onclick = () => {
+      dev.camHud = true; dev.camMenu = false; dev.camHidden = !dev.camHidden; render(); scheduleHudDim(side);
     };
     $(`${pfx}-btnMirror`).onclick = () => {
       dev.camHud = true; dev.camMenu = false; state.mirror = !state.mirror; render(); scheduleHudDim(side);

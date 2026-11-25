@@ -13,17 +13,30 @@ data class VideoPlan(val longSide: Int, val shortSide: Int, val fps: Int, val bi
         fun of(quality: String, fps: Int, link: LinkKind): VideoPlan {
             val cable = link.isCable
             val p1080 = quality == "1080p" || (quality == "auto" && cable)
-            val f = fps.coerceIn(15, 60)
+            val p480 = quality == "480p"
+            val p360 = quality == "360p"
+            val f = fps.coerceIn(24, 60)
             val (wifi, wired) = when {
                 p1080 && f >= 60 -> 10_000 to 24_000
                 p1080 && f >= 30 -> 6_000 to 16_000
                 p1080 -> 5_000 to 13_000
+                p480 && f >= 60 -> 2_600 to 5_500
+                p480 && f >= 30 -> 1_600 to 3_600
+                p480 -> 1_200 to 2_800
+                p360 && f >= 60 -> 1_600 to 3_200
+                p360 && f >= 30 -> 1_000 to 2_200
+                p360 -> 750 to 1_600
                 f >= 60 -> 6_000 to 14_000
                 f >= 30 -> 4_000 to 10_000
                 else -> 3_000 to 8_000
             }
             val kbps = if (cable) wired else wifi
-            return if (p1080) VideoPlan(1920, 1080, f, kbps * 1_000) else VideoPlan(1280, 720, f, kbps * 1_000)
+            return when {
+                p1080 -> VideoPlan(1920, 1080, f, kbps * 1_000)
+                p480 -> VideoPlan(848, 480, f, kbps * 1_000)
+                p360 -> VideoPlan(640, 360, f, kbps * 1_000)
+                else -> VideoPlan(1280, 720, f, kbps * 1_000)
+            }
         }
     }
 }
@@ -196,4 +209,258 @@ fun coverCrop(w: Int, h: Int, ow: Int, oh: Int, cw: Int, ch: Int): Pair<Float, F
     val (sx, sy) = centerCrop(w, h, ow, oh)
     val (cx, cy) = centerCrop(ow, oh, cw, ch)
     return sx * cx to sy * cy
+}
+
+/**
+ * Picks the hardware AE FPS range for [targetFps] without letting auto-exposure drop below 24 fps
+ * (e.g. `[30, 30]` / `[24, 60]` always beats `[15, 60]`).
+ */
+fun selectFpsRange(ranges: List<Pair<Int, Int>>, targetFps: Int): Pair<Int, Int>? {
+    if (ranges.isEmpty()) return null
+    val norm = ranges.map { (lo, hi) ->
+        if (hi > 1000) (lo / 1000) to (hi / 1000) else lo to hi
+    }
+    val req = targetFps.coerceIn(24, 60)
+    val bestIdx = norm.indices.minWithOrNull(
+        compareBy<Int>(
+            { if (norm[it].second >= 24) 0 else 1 },
+            { if (norm[it].first >= 24) 0 else 1 },
+            { if (norm[it].second >= req) 0 else 1 },
+            { kotlin.math.abs(norm[it].second - req) },
+            { -norm[it].first },
+        ),
+    ) ?: return null
+    return ranges[bestIdx]
+}
+
+data class StreamAdjustment(
+    val plan: VideoPlan,
+    val resolutionChanged: Boolean,
+    val fpsChanged: Boolean,
+    val bitrateChanged: Boolean,
+)
+
+/**
+ * Adaptive stream controller maintaining >= 24 FPS smoothness as top priority:
+ * 1. When 60 fps is saturated, steps FPS 60 -> 30 first to preserve crisp resolution.
+ * 2. Trims bitrate within a resolution tier before stepping resolution down (1080p -> 720p -> 480p).
+ * 3. Never drops below 24 FPS under network or encoder pressure.
+ * 4. Smoothly climbs bitrate, resolution (up to ceiling / 1080p), and FPS back up when headroom holds.
+ */
+class StreamOptimizer(
+    val quality: String,
+    targetFps: Int,
+    val link: LinkKind,
+    private val now: () -> Long = System::currentTimeMillis,
+) {
+    private val requestedFps = targetFps.coerceIn(24, 60)
+    private var thermalStatus = 0
+
+    // Ideal is 720p unless the user explicitly requested 1080p.
+    private val startTier: Int = when (quality) {
+        "360p" -> TIER_360
+        "480p" -> TIER_480
+        "1080p" -> TIER_1080
+        else -> TIER_720
+    }
+    private val maxTierCeiling: Int = startTier
+
+    private var tier: Int = startTier
+    private var fps: Int = requestedFps
+    private var bitratePct: Int = if (link.isCable) 100 else 75
+    private var baselineRtt = 0
+    private var lastChangeAt = 0L
+    private var lastPromoteAt = 0L
+    private var promoteCooldownUntil = 0L
+    private var cleanSince = now()
+
+    val current: VideoPlan get() = buildPlan(tier, fps, bitratePct)
+
+    fun setThermal(status: Int): StreamAdjustment? {
+        if (status == thermalStatus) return null
+        thermalStatus = status
+        return enforceBounds()
+    }
+
+    fun report(
+        lossPct: Double,
+        rttMs: Int,
+        camLossPct: Double? = null,
+        camFps: Int? = null,
+        camDropPct: Double? = null,
+        measuredOutFps: Int? = null,
+        congested: Boolean = false,
+    ): StreamAdjustment? {
+        val t = now()
+        if (baselineRtt == 0 || rttMs in 1 until baselineRtt) baselineRtt = rttMs
+        val effectiveLoss = maxOf(lossPct, camLossPct ?: 0.0)
+        val risingRtt = baselineRtt > 0 && rttMs > baselineRtt * 3 / 2 && rttMs > baselineRtt + 30
+        val dropHigh = (camDropPct ?: 0.0) >= 3.5
+        val pcSlow = camFps != null && fps >= 24 && camFps in 1 until (fps * 78 / 100)
+        val captureSlow = measuredOutFps != null && measuredOutFps in 1 until (fps * 78 / 100)
+        val stressed = effectiveLoss > 2.0 || dropHigh || risingRtt || congested || pcSlow || captureSlow
+
+        if (stressed) {
+            cleanSince = t
+            if (lastPromoteAt > 0 && t - lastPromoteAt < PROMOTE_BACKOFF_WINDOW_MS) {
+                promoteCooldownUntil = t + PROMOTE_COOLDOWN_MS
+            }
+            if (t - lastChangeAt < DOWN_EVERY_MS) return null
+            val prevPlan = current
+            val hard = effectiveLoss > 8.0 || (camDropPct ?: 0.0) > 10.0 || pcSlow || captureSlow || congested
+            stepDown(hard)
+            return diff(prevPlan, t)
+        }
+
+        val veryClean = effectiveLoss < 1.0 && (camDropPct ?: 0.0) < 1.5 &&
+            (camFps == null || camFps >= fps * 88 / 100) &&
+            (measuredOutFps == null || measuredOutFps >= fps * 88 / 100)
+
+        val holdMs = if (tier < effectiveMaxTier() && bitratePct >= 100) UP_RES_EVERY_MS else UP_EVERY_MS
+        if (veryClean && t - cleanSince >= holdMs) {
+            if (t < promoteCooldownUntil && tier < effectiveMaxTier() && bitratePct >= 100) {
+                return null
+            }
+            val prevPlan = current
+            val upgraded = stepUp(t)
+            if (upgraded) {
+                cleanSince = t
+                return diff(prevPlan, t)
+            }
+        }
+        return null
+    }
+
+    fun onCongested(): StreamAdjustment? {
+        val t = now()
+        cleanSince = t
+        if (t - lastChangeAt < DOWN_EVERY_MS) return null
+        val prev = current
+        stepDown(hard = true)
+        return diff(prev, t)
+    }
+
+    fun refused(): StreamAdjustment? {
+        val t = now()
+        cleanSince = t
+        val prev = current
+        bitratePct = maxOf(MIN_BITRATE_PCT, bitratePct * 3 / 4)
+        if (bitratePct <= MIN_BITRATE_PCT && tier > TIER_360) {
+            tier -= 1
+            bitratePct = 85
+        }
+        return diff(prev, t)
+    }
+
+    private fun enforceBounds(): StreamAdjustment? {
+        val prev = current
+        val maxF = effectiveMaxFps()
+        val maxT = effectiveMaxTier()
+        var changed = false
+        if (fps > maxF) {
+            fps = maxF
+            changed = true
+        }
+        if (tier > maxT) {
+            tier = maxT
+            changed = true
+        }
+        return if (changed) diff(prev, now()) else null
+    }
+
+    private fun stepDown(hard: Boolean) {
+        // 1. High frame rate (>30, e.g. 60 fps): step to 30 fps first to keep current resolution smooth.
+        if (fps > 30) {
+            fps = 30
+            return
+        }
+        // 2. Hard decode/throughput shortfall: drop resolution tier immediately (720p -> 480p -> 360p) before going < 24 fps.
+        if (hard && tier > TIER_360) {
+            tier -= 1
+            bitratePct = 85
+            return
+        }
+        // 3. Moderate pressure: trim bitrate cleanly without restarting encoder.
+        if (bitratePct > 60) {
+            bitratePct = maxOf(60, bitratePct - 20)
+            return
+        }
+        // 4. Lower resolution before touching the 24 fps floor.
+        if (tier > TIER_360) {
+            tier -= 1
+            bitratePct = 85
+            return
+        }
+        // 5. Lowest resolution: can drop 30 -> 24, never below 24 fps, then trim bitrate to floor.
+        if (fps > 24) {
+            fps = 24
+            return
+        }
+        bitratePct = maxOf(MIN_BITRATE_PCT, bitratePct - 15)
+    }
+
+    private fun stepUp(t: Long): Boolean {
+        if (bitratePct < 100) {
+            bitratePct = minOf(100, bitratePct + 15)
+            return true
+        }
+        val maxT = effectiveMaxTier()
+        if (tier < maxT && t >= promoteCooldownUntil) {
+            tier += 1
+            bitratePct = 85
+            lastPromoteAt = t
+            return true
+        }
+        val maxF = effectiveMaxFps()
+        if (fps < maxF) {
+            fps = if (fps < 30 && maxF >= 30) 30 else maxF
+            lastPromoteAt = t
+            return true
+        }
+        return false
+    }
+
+    private fun effectiveMaxFps(): Int =
+        if (thermalStatus >= THERMAL_SEVERE) minOf(requestedFps, 24) else requestedFps
+
+    private fun effectiveMaxTier(): Int =
+        if (thermalStatus >= THERMAL_CRITICAL) minOf(maxTierCeiling, TIER_480) else maxTierCeiling
+
+    private fun buildPlan(t: Int, f: Int, pct: Int): VideoPlan {
+        val base = VideoPlan.of(tierName(t), f, link)
+        val bps = (base.bitrate.toLong() * pct / 100).toInt().coerceAtLeast(350_000)
+        return base.copy(bitrate = bps)
+    }
+
+    private fun diff(prev: VideoPlan, t: Long): StreamAdjustment? {
+        val next = current
+        if (next == prev) return null
+        lastChangeAt = t
+        return StreamAdjustment(
+            plan = next,
+            resolutionChanged = next.longSide != prev.longSide || next.shortSide != prev.shortSide,
+            fpsChanged = next.fps != prev.fps,
+            bitrateChanged = next.bitrate != prev.bitrate,
+        )
+    }
+
+    companion object {
+        const val TIER_360 = 0
+        const val TIER_480 = 1
+        const val TIER_720 = 2
+        const val TIER_1080 = 3
+        private const val MIN_BITRATE_PCT = 35
+        private const val DOWN_EVERY_MS = 2_000L
+        private const val UP_EVERY_MS = 6_000L
+        private const val UP_RES_EVERY_MS = 8_000L
+        private const val PROMOTE_BACKOFF_WINDOW_MS = 10_000L
+        private const val PROMOTE_COOLDOWN_MS = 20_000L
+
+        private fun tierName(t: Int) = when (t) {
+            TIER_1080 -> "1080p"
+            TIER_720 -> "720p"
+            TIER_480 -> "480p"
+            else -> "360p"
+        }
+    }
 }

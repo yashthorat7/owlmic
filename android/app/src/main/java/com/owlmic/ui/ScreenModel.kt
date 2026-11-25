@@ -172,3 +172,15 @@ fun toggleRatioOrientation(ratio: String): String? = when (ratio) {
     "1:2" -> "2:1"
     else -> null
 }
+
+/** Screen-space target aspect ratio (width / height) for [ratio], or null for full-playground cover. */
+fun previewTargetAspect(ratio: String, sideways: Boolean): Float? = when (ratio) {
+    "16:9" -> 16f / 9f
+    "4:3" -> 4f / 3f
+    "2:1" -> 2f
+    "1:1" -> 1f
+    "1:2" -> 0.5f
+    "3:4" -> 3f / 4f
+    "9:16" -> 9f / 16f
+    else -> null
+}?.let { if (sideways) 1f / it else it }

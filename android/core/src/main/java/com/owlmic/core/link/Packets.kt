@@ -24,13 +24,20 @@ class Packetizer(private val sealing: Crypto.Sealing?, firstSeq: Long = 0) {
 
     /** Null once [wornOut]. */
     fun audio(stream: Int, timestampUs: Long, data: ByteArray, offset: Int, length: Int): ByteArray? =
-        if (room(stream, 1)) packet(stream, false, timestampUs, data, offset, length, null) else null
+        if (room(stream, 1)) packet(stream, false, timestampUs, data, offset, length, false, 0, 0, 0) else null
 
     /**
      * Splits one encoded picture into fragments of at most [Frames.MAX_FRAGMENT_PAYLOAD] bytes and hands each packet to
      * [emit]. False, and nothing sent, for a picture over [Frames.MAX_FRAGMENTS] fragments or once [wornOut].
      */
-    fun video(timestampUs: Long, keyframe: Boolean, data: ByteArray, offset: Int, length: Int, emit: (ByteArray) -> Unit): Boolean {
+    fun video(
+        timestampUs: Long,
+        keyframe: Boolean,
+        data: ByteArray,
+        offset: Int,
+        length: Int,
+        emit: (ByteArray) -> Unit,
+    ): Boolean {
         val count = fragmentCount(length)
         if (count > Frames.MAX_FRAGMENTS || !room(Stream.CAMERA, count)) return false
         val f = frame
@@ -38,7 +45,7 @@ class Packetizer(private val sealing: Crypto.Sealing?, firstSeq: Long = 0) {
         for (i in 0 until count) {
             val start = i * Frames.MAX_FRAGMENT_PAYLOAD
             val size = minOf(Frames.MAX_FRAGMENT_PAYLOAD, length - start)
-            emit(packet(Stream.CAMERA, keyframe, timestampUs, data, offset + start, size, FragmentHeader(f, i, count)))
+            emit(packet(Stream.CAMERA, keyframe, timestampUs, data, offset + start, size, true, f, i, count))
         }
         return true
     }
@@ -54,14 +61,27 @@ class Packetizer(private val sealing: Crypto.Sealing?, firstSeq: Long = 0) {
         return !wornOut
     }
 
-    private fun packet(stream: Int, keyframe: Boolean, timestampUs: Long, data: ByteArray, offset: Int, length: Int, fragment: FragmentHeader?): ByteArray {
+    private fun packet(
+        stream: Int,
+        keyframe: Boolean,
+        timestampUs: Long,
+        data: ByteArray,
+        offset: Int,
+        length: Int,
+        fragmented: Boolean,
+        frameIdx: Int,
+        fragIdx: Int,
+        fragCount: Int,
+    ): ByteArray {
         val s = seq[stream]
         seq[stream] = (s + 1) and 0xFFFFFFFFL
-        val headerLength = if (fragment != null) FragmentHeader.LEN else 0
+        val headerLength = if (fragmented) FragmentHeader.LEN else 0
         val bodyLength = headerLength + length
         val out = ByteArray(MediaHeader.LEN + bodyLength + if (sealing != null) Crypto.TAG else 0)
-        MediaHeader(stream, keyframe, s, timestampUs and 0xFFFFFFFFL).encodeInto(out)
-        fragment?.encodeInto(out, MediaHeader.LEN)
+        MediaHeader.encodeInto(out, 0, stream, keyframe, s, timestampUs and 0xFFFFFFFFL)
+        if (fragmented) {
+            FragmentHeader.encodeInto(out, MediaHeader.LEN, frameIdx, fragIdx, fragCount)
+        }
         System.arraycopy(data, offset, out, MediaHeader.LEN + headerLength, length)
         sealing?.sealInPlace(stream, s, out, MediaHeader.LEN, bodyLength)
         return out

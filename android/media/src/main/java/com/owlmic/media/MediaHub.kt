@@ -27,7 +27,13 @@ sealed interface MediaMsg {
 
     class CameraPaused(val paused: Boolean) : MediaMsg
 
-    class CameraReport(val lossPct: Double, val rttMs: Int) : MediaMsg
+    class CameraReport(
+        val lossPct: Double,
+        val rttMs: Int,
+        val camLossPct: Double? = null,
+        val camFps: Int? = null,
+        val camDropPct: Double? = null,
+    ) : MediaMsg
 
     data object Keyframe : MediaMsg
 
@@ -84,6 +90,9 @@ class MediaHub(
     /** The camera preview tile's surface. Any thread; goes straight to the renderer. */
     fun setPreview(surface: Surface?, width: Int, height: Int) = camera.setPreview(surface, width, height)
 
+    /** Target preview crop aspect ratio (null = fill playground) and optical border width in px. Any thread. */
+    fun setPreviewAspect(aspect: Float?, borderPx: Int) = camera.setPreviewAspect(aspect, borderPx)
+
     /** The PC's loss reports come every 10 s; a missed one is replaced by the next. */
     override fun droppable(message: MediaMsg) = message is MediaMsg.MicLoss || message is MediaMsg.CameraReport
 
@@ -121,7 +130,7 @@ class MediaHub(
                 camera.paused = message.paused
                 if (!message.paused) camera.requestKeyframe()
             }
-            is MediaMsg.CameraReport -> camera.report(message.lossPct, message.rttMs)
+            is MediaMsg.CameraReport -> camera.report(message.lossPct, message.rttMs, message.camLossPct, message.camFps, message.camDropPct)
             MediaMsg.Keyframe -> camera.requestKeyframe()
             is MediaMsg.Speaker -> {
                 val f = message.format

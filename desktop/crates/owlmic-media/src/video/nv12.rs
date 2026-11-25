@@ -48,83 +48,7 @@ impl Nv12 {
     /// Scales this picture into `dst` (whose size stays), cropped or letterboxed, optionally
     /// mirrored. Bilinear for brightness, nearest for colour; `dst` is reused.
     pub fn shape_into(&self, dst: &mut Nv12, framing: Framing, mirror: bool) {
-        let (dw, dh) = (dst.width, dst.height);
-        let y_len = dw * dh;
-        dst.data.resize(Nv12::len_for(dw, dh), 0);
-        // The source window that maps onto the output, and the output window it fills.
-        let (sx, sy, sw, sh, ox, oy, ow, oh) = place(self.width, self.height, dw, dh, framing);
-        if !mirror
-            && (self.width, self.height) == (dw, dh)
-            && sx == 0
-            && sy == 0
-            && ox == 0
-            && oy == 0
-            && sw == dw
-            && sh == dh
-            && ow == dw
-            && oh == dh
-        {
-            let total = Nv12::len_for(dw, dh);
-            dst.data[..total].copy_from_slice(&self.data[..total]);
-            return;
-        }
-        let (y_dst, uv_dst) = dst.data.split_at_mut(y_len);
-        if ow < dw || oh < dh {
-            y_dst.fill(BLACK_Y);
-            uv_dst.fill(NEUTRAL_UV);
-        }
-        let src_y = self.y();
-        let x_lut: Vec<(usize, usize, u32, usize)> = (0..ow)
-            .map(|ox_i| {
-                let fx = (ox_i as f32 + 0.5) * sw as f32 / ow as f32 - 0.5;
-                let x0 = (fx.max(0.0) as usize).min(sw - 1);
-                let x1 = (x0 + 1).min(sw - 1);
-                let wx = ((fx - x0 as f32).clamp(0.0, 1.0) * 256.0) as u32;
-                let dx = if mirror {
-                    dw - 1 - (ox + ox_i)
-                } else {
-                    ox + ox_i
-                };
-                (sx + x0, sx + x1, wx, dx)
-            })
-            .collect();
-        for oy_i in 0..oh {
-            let fy = (oy_i as f32 + 0.5) * sh as f32 / oh as f32 - 0.5;
-            let y0 = (fy.max(0.0) as usize).min(sh - 1);
-            let y1 = (y0 + 1).min(sh - 1);
-            let wy = ((fy - y0 as f32).clamp(0.0, 1.0) * 256.0) as u32;
-            let w0 = 256 - wy;
-            let row0 = &src_y[(sy + y0) * self.width..];
-            let row1 = &src_y[(sy + y1) * self.width..];
-            let out_row = &mut y_dst[(oy + oy_i) * dw..];
-            for &(sx0, sx1, wx, dx) in &x_lut {
-                let top = row0[sx0] as u32 * (256 - wx) + row0[sx1] as u32 * wx;
-                let bottom = row1[sx0] as u32 * (256 - wx) + row1[sx1] as u32 * wx;
-                out_row[dx] = ((top * w0 + bottom * wy) >> 16) as u8;
-            }
-        }
-        let src_uv = self.uv();
-        let (ow2, oh2, ox2, oy2) = (ow / 2, oh / 2, ox / 2, oy / 2);
-        let uv_x_lut: Vec<(usize, usize)> = (0..ow2)
-            .map(|i| {
-                let si = (sx / 2 + i * (sw / 2) / ow2.max(1)).min(self.width / 2 - 1);
-                let di = if mirror {
-                    dw / 2 - 1 - (ox2 + i)
-                } else {
-                    ox2 + i
-                };
-                (si * 2, di * 2)
-            })
-            .collect();
-        for j in 0..oh2 {
-            let sj = (sy / 2 + j * (sh / 2) / oh2.max(1)).min(self.height / 2 - 1);
-            let src_row = sj * self.width;
-            let dst_row = (oy2 + j) * dw;
-            for &(si2, di2) in &uv_x_lut {
-                uv_dst[dst_row + di2] = src_uv[src_row + si2];
-                uv_dst[dst_row + di2 + 1] = src_uv[src_row + si2 + 1];
-            }
-        }
+        Nv12Shaper::new().shape_into(self, dst, framing, mirror);
     }
 
     /// BGR, 3 bytes a pixel, top row first: what softcam takes on Windows 10.
@@ -187,6 +111,178 @@ impl Nv12 {
             }
         }
         f
+    }
+}
+
+/// Reusable NV12 scaler/shaper that caches LUTs across frames for zero per-frame allocations.
+#[derive(Default)]
+pub struct Nv12Shaper {
+    key: Option<(usize, usize, usize, usize, Framing, bool)>,
+    window: (usize, usize, usize, usize, usize, usize, usize, usize),
+    x_lut: Vec<(usize, usize, u32, usize)>,
+    y_lut: Vec<(usize, usize, u32)>,
+    uv_x_lut: Vec<(usize, usize)>,
+    uv_y_lut: Vec<usize>,
+}
+
+impl Nv12Shaper {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    fn prepare(
+        &mut self,
+        sw: usize,
+        sh: usize,
+        dw: usize,
+        dh: usize,
+        framing: Framing,
+        mirror: bool,
+    ) {
+        let key = (sw, sh, dw, dh, framing, mirror);
+        if self.key == Some(key) {
+            return;
+        }
+        self.key = Some(key);
+        let w = place(sw, sh, dw, dh, framing);
+        self.window = w;
+        let (sx, sy, cw, ch, ox, _oy, ow, oh) = w;
+        if cw == ow && ch == oh {
+            self.x_lut.clear();
+            self.y_lut.clear();
+            self.uv_x_lut.clear();
+            self.uv_y_lut.clear();
+            return;
+        }
+        self.x_lut.clear();
+        self.x_lut.extend((0..ow).map(|ox_i| {
+            let fx = (ox_i as f32 + 0.5) * cw as f32 / ow as f32 - 0.5;
+            let x0 = (fx.max(0.0) as usize).min(cw - 1);
+            let x1 = (x0 + 1).min(cw - 1);
+            let wx = ((fx - x0 as f32).clamp(0.0, 1.0) * 256.0) as u32;
+            let dx = if mirror {
+                dw - 1 - (ox + ox_i)
+            } else {
+                ox + ox_i
+            };
+            (sx + x0, sx + x1, wx, dx)
+        }));
+        self.y_lut.clear();
+        self.y_lut.extend((0..oh).map(|oy_i| {
+            let fy = (oy_i as f32 + 0.5) * ch as f32 / oh as f32 - 0.5;
+            let y0 = (fy.max(0.0) as usize).min(ch - 1);
+            let y1 = (y0 + 1).min(ch - 1);
+            let wy = ((fy - y0 as f32).clamp(0.0, 1.0) * 256.0) as u32;
+            (sy + y0, sy + y1, wy)
+        }));
+        let (ow2, oh2, ox2) = (ow / 2, oh / 2, ox / 2);
+        self.uv_x_lut.clear();
+        self.uv_x_lut.extend((0..ow2).map(|i| {
+            let si = (sx / 2 + i * (cw / 2) / ow2.max(1)).min(sw / 2 - 1);
+            let di = if mirror {
+                dw / 2 - 1 - (ox2 + i)
+            } else {
+                ox2 + i
+            };
+            (si * 2, di * 2)
+        }));
+        self.uv_y_lut.clear();
+        self.uv_y_lut
+            .extend((0..oh2).map(|j| (sy / 2 + j * (ch / 2) / oh2.max(1)).min(sh / 2 - 1)));
+    }
+
+    pub fn shape_into(&mut self, src: &Nv12, dst: &mut Nv12, framing: Framing, mirror: bool) {
+        let (dw, dh) = (dst.width, dst.height);
+        let y_len = dw * dh;
+        dst.data.resize(Nv12::len_for(dw, dh), 0);
+        self.prepare(src.width, src.height, dw, dh, framing, mirror);
+        let (sx, sy, cw, ch, ox, oy, ow, oh) = self.window;
+
+        if !mirror
+            && (src.width, src.height) == (dw, dh)
+            && sx == 0
+            && sy == 0
+            && ox == 0
+            && oy == 0
+            && cw == dw
+            && ch == dh
+            && ow == dw
+            && oh == dh
+        {
+            let total = Nv12::len_for(dw, dh);
+            dst.data[..total].copy_from_slice(&src.data[..total]);
+            return;
+        }
+
+        let (y_dst, uv_dst) = dst.data.split_at_mut(y_len);
+        if ow < dw || oh < dh {
+            y_dst.fill(BLACK_Y);
+            uv_dst.fill(NEUTRAL_UV);
+        }
+        let src_y = src.y();
+        let src_uv = src.uv();
+
+        // Fast 1:1 unscaled path (e.g. 1080p mirrored or letterboxed without resampling).
+        if cw == ow && ch == oh {
+            if !mirror {
+                for row in 0..oh {
+                    let s = (sy + row) * src.width + sx;
+                    let d = (oy + row) * dw + ox;
+                    y_dst[d..d + ow].copy_from_slice(&src_y[s..s + ow]);
+                }
+                let (oh2, oy2, ox2, ow2) = (oh / 2, oy / 2, ox / 2, ow / 2);
+                for row in 0..oh2 {
+                    let s = (sy / 2 + row) * src.width + (sx & !1);
+                    let d = (oy2 + row) * dw + ox2 * 2;
+                    uv_dst[d..d + ow2 * 2].copy_from_slice(&src_uv[s..s + ow2 * 2]);
+                }
+            } else {
+                for row in 0..oh {
+                    let s_row = &src_y[(sy + row) * src.width + sx..][..ow];
+                    let d_row = &mut y_dst[(oy + row) * dw + (dw - ox - ow)..][..ow];
+                    for (d, &s) in d_row.iter_mut().rev().zip(s_row) {
+                        *d = s;
+                    }
+                }
+                let (oh2, oy2, ox2, ow2) = (oh / 2, oy / 2, ox / 2, ow / 2);
+                for row in 0..oh2 {
+                    let s_row = &src_uv[(sy / 2 + row) * src.width + (sx & !1)..][..ow2 * 2];
+                    let d_row = &mut uv_dst[(oy2 + row) * dw + (dw - (ox2 + ow2) * 2)..][..ow2 * 2];
+                    for (d_pair, s_pair) in d_row
+                        .as_chunks_mut::<2>()
+                        .0
+                        .iter_mut()
+                        .rev()
+                        .zip(s_row.as_chunks::<2>().0.iter())
+                    {
+                        d_pair[0] = s_pair[0];
+                        d_pair[1] = s_pair[1];
+                    }
+                }
+            }
+            return;
+        }
+
+        for (oy_i, &(y0, y1, wy)) in self.y_lut.iter().enumerate() {
+            let w0 = 256 - wy;
+            let row0 = &src_y[y0 * src.width..];
+            let row1 = &src_y[y1 * src.width..];
+            let out_row = &mut y_dst[(oy + oy_i) * dw..];
+            for &(sx0, sx1, wx, dx) in &self.x_lut {
+                let top = row0[sx0] as u32 * (256 - wx) + row0[sx1] as u32 * wx;
+                let bottom = row1[sx0] as u32 * (256 - wx) + row1[sx1] as u32 * wx;
+                out_row[dx] = ((top * w0 + bottom * wy) >> 16) as u8;
+            }
+        }
+        let oy2 = oy / 2;
+        for (j, &sj) in self.uv_y_lut.iter().enumerate() {
+            let src_row = sj * src.width;
+            let dst_row = (oy2 + j) * dw;
+            for &(si2, di2) in &self.uv_x_lut {
+                uv_dst[dst_row + di2] = src_uv[src_row + si2];
+                uv_dst[dst_row + di2 + 1] = src_uv[src_row + si2 + 1];
+            }
+        }
     }
 }
 

@@ -4,4 +4,4 @@ pub mod reassembly;
 pub mod receiver;
 
 pub use frame::Frame;
-pub use nv12::{Framing, Nv12};
+pub use nv12::{Framing, Nv12, Nv12Shaper};

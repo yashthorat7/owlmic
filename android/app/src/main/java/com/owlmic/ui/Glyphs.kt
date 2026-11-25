@@ -31,6 +31,8 @@ enum class Glyph(val elements: () -> List<GlyphPath>) {
     COFFEE({ GeneratedGlyphs.COFFEE }),
     COPY({ GeneratedGlyphs.COPY }),
     EXTERNAL({ GeneratedGlyphs.EXTERNAL }),
+    EYE({ GeneratedGlyphs.EYE }),
+    EYE_OFF({ GeneratedGlyphs.EYE_OFF }),
     FLIP({ GeneratedGlyphs.FLIP }),
     GIT_BRANCH({ GeneratedGlyphs.GIT_BRANCH }),
     GITHUB({ GeneratedGlyphs.GITHUB }),

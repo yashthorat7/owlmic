@@ -33,4 +33,23 @@ class PreviewFitTest {
         assertEquals(270, pictureTurn(180, front))
         assertNull(pictureTurn(45, back))
     }
+
+    @Test
+    fun opticalCropRectFitsAndInterpolatesSymmetricallyWithoutDistortion() {
+        val full = cropRectFor(null, 1080, 1400)
+        assertArrayEquals(floatArrayOf(0f, 0f, 1080f, 1400f), full, 0.01f)
+
+        val wide = cropRectFor(16f / 9f, 1080, 1400)
+        assertArrayEquals(floatArrayOf(0f, 396.25f, 1080f, 607.5f), wide, 0.01f)
+
+        val tall = cropRectFor(9f / 16f, 1080, 1400)
+        assertArrayEquals(floatArrayOf(146.25f, 0f, 787.5f, 1400f), tall, 0.01f)
+
+        val mid = interpolateCropRect(full, wide, 0.5f, 1080, 1400)
+        assertArrayEquals(floatArrayOf(0f, 198.125f, 1080f, 1003.75f), mid, 0.01f)
+
+        assertEquals(0f, easeOutExpo(0f), 0.0001f)
+        assertEquals(1f, easeOutExpo(1f), 0.0001f)
+        assertEquals(true, easeOutExpo(0.3f) > 0.65f)
+    }
 }

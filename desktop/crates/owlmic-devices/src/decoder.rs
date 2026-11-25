@@ -117,6 +117,16 @@ impl Decoder {
 
     /// One whole frame in; the decoded picture when the decoder has one ready.
     pub fn decode(&mut self, frame: &[u8], timestamp_us: u32) -> Result<Option<&Nv12>> {
+        self.decode_frame(frame, timestamp_us, true)
+    }
+
+    /// Decodes one frame, optionally skipping the CPU copy when newer frames wait behind it.
+    pub fn decode_frame(
+        &mut self,
+        frame: &[u8],
+        timestamp_us: u32,
+        copy_output: bool,
+    ) -> Result<Option<&Nv12>> {
         unsafe {
             let need = frame.len();
             if self.in_buf.as_ref().is_none_or(|(_, _, cap)| *cap < need) {
@@ -138,19 +148,22 @@ impl Decoder {
                     return Err(e);
                 }
                 // A picture is waiting; take it, then the input fits.
-                let got_prev = self.drain()?;
+                let got_prev = self.drain(false)?;
                 let (sample, _, _) = self.in_buf.as_ref().unwrap();
                 self.mft.ProcessInput(0, sample, 0)?;
-                let got_curr = self.drain()?;
+                let got_curr = self.drain(copy_output)?;
+                if !got_curr && got_prev && copy_output {
+                    return Ok(Some(&self.picture));
+                }
                 return Ok((got_prev || got_curr).then_some(&self.picture));
             }
-            Ok(self.drain()?.then_some(&self.picture))
+            Ok(self.drain(copy_output)?.then_some(&self.picture))
         }
     }
 
-    /// Pulls every ready picture, keeping the newest. True if there was one.
-    fn drain(&mut self) -> Result<bool> {
-        let mut got = false;
+    /// Pulls every ready picture, keeping and copying only the newest.
+    fn drain(&mut self, copy_output: bool) -> Result<bool> {
+        let mut latest: Option<IMFSample> = None;
         loop {
             if let Some(s) = &self.out {
                 unsafe {
@@ -172,11 +185,18 @@ impl Decoder {
             match result {
                 Ok(()) => {
                     if let Some(s) = sample {
-                        self.copy_out(&s)?;
-                        got = true;
+                        latest = Some(s);
                     }
                 }
-                Err(e) if e.code() == MF_E_TRANSFORM_NEED_MORE_INPUT => return Ok(got),
+                Err(e) if e.code() == MF_E_TRANSFORM_NEED_MORE_INPUT => {
+                    if let Some(s) = latest {
+                        if copy_output {
+                            self.copy_out(&s)?;
+                        }
+                        return Ok(true);
+                    }
+                    return Ok(false);
+                }
                 Err(e) if e.code() == MF_E_TRANSFORM_STREAM_CHANGE => self.choose_output()?,
                 Err(e) => return Err(e),
             }
@@ -204,21 +224,38 @@ impl Decoder {
             }
             let pitch = pitch.unsigned_abs() as usize;
             let dst = &mut self.picture.data;
-            for row in 0..visible_h {
-                std::ptr::copy_nonoverlapping(
-                    base.add(row * pitch),
-                    dst.as_mut_ptr().add(row * visible_w),
-                    visible_w,
-                );
-            }
-            let uv = base.add(pitch * coded_h);
-            for row in 0..visible_h / 2 {
-                std::ptr::copy_nonoverlapping(
-                    uv.add(row * pitch),
-                    dst.as_mut_ptr()
-                        .add(visible_w * visible_h + row * visible_w),
-                    visible_w,
-                );
+            if pitch == visible_w {
+                if visible_h == coded_h {
+                    std::ptr::copy_nonoverlapping(
+                        base,
+                        dst.as_mut_ptr(),
+                        visible_w * visible_h * 3 / 2,
+                    );
+                } else {
+                    std::ptr::copy_nonoverlapping(base, dst.as_mut_ptr(), visible_w * visible_h);
+                    std::ptr::copy_nonoverlapping(
+                        base.add(pitch * coded_h),
+                        dst.as_mut_ptr().add(visible_w * visible_h),
+                        visible_w * (visible_h / 2),
+                    );
+                }
+            } else {
+                for row in 0..visible_h {
+                    std::ptr::copy_nonoverlapping(
+                        base.add(row * pitch),
+                        dst.as_mut_ptr().add(row * visible_w),
+                        visible_w,
+                    );
+                }
+                let uv = base.add(pitch * coded_h);
+                for row in 0..visible_h / 2 {
+                    std::ptr::copy_nonoverlapping(
+                        uv.add(row * pitch),
+                        dst.as_mut_ptr()
+                            .add(visible_w * visible_h + row * visible_w),
+                        visible_w,
+                    );
+                }
             }
             if locked_2d {
                 planar.unwrap().Unlock2D()?;

@@ -20,7 +20,6 @@ use windows::Win32::UI::WindowsAndMessaging::{
     CreateIconIndirect, DestroyIcon, HICON, ICONINFO, SM_CXSMICON,
 };
 use windows::core::w;
-use windows_numerics::Vector2;
 
 pub const CALLBACK: u32 = windows::Win32::UI::WindowsAndMessaging::WM_APP + 2;
 const ID: u32 = 1;
@@ -113,55 +112,15 @@ fn owl_icon(white: bool, dpi: u32) -> HICON {
                         }
                     };
                     if let Ok(brush) = target.CreateSolidColorBrush(&color_rgb, None) {
-                        let k = size as f32 / 24.0;
-                        let p = |x: f32, y: f32| Vector2 { X: x * k, Y: y * k };
-                        if let Ok(geom) = d2d.CreatePathGeometry()
-                            && let Ok(sink) = geom.Open()
-                        {
-                            sink.SetFillMode(D2D1_FILL_MODE_ALTERNATE);
-                            let mut open = false;
-                            for seg in crate::brand::OWL_BODY {
-                                match *seg {
-                                    crate::glyph::Seg::Move(x, y) => {
-                                        if open {
-                                            sink.EndFigure(D2D1_FIGURE_END_CLOSED);
-                                        }
-                                        sink.BeginFigure(p(x, y), D2D1_FIGURE_BEGIN_FILLED);
-                                        open = true;
-                                    }
-                                    crate::glyph::Seg::Line(x, y) => sink.AddLine(p(x, y)),
-                                    crate::glyph::Seg::Cubic(c) => {
-                                        sink.AddBezier(&D2D1_BEZIER_SEGMENT {
-                                            point1: p(c[0], c[1]),
-                                            point2: p(c[2], c[3]),
-                                            point3: p(c[4], c[5]),
-                                        })
-                                    }
-                                    crate::glyph::Seg::Close if open => {
-                                        sink.EndFigure(D2D1_FIGURE_END_CLOSED);
-                                        open = false;
-                                    }
-                                    _ => {}
-                                }
-                            }
-                            if open {
-                                sink.EndFigure(D2D1_FIGURE_END_CLOSED);
-                            }
-                            let _ = sink.Close();
-                            target.FillGeometry(&geom, &brush, None);
-                        }
-                        for shape in crate::brand::OWL_PUPILS {
-                            if let crate::glyph::Shape::Circle { c, r } = *shape {
-                                target.FillEllipse(
-                                    &D2D1_ELLIPSE {
-                                        point: p(c.0, c.1),
-                                        radiusX: r * k,
-                                        radiusY: r * k,
-                                    },
-                                    &brush,
-                                );
-                            }
-                        }
+                        let center = size as f32 / 2.0;
+                        super::draw::draw_brand_owl(
+                            &d2d,
+                            &target,
+                            &brush,
+                            center,
+                            center,
+                            size as f32,
+                        );
                     }
                     let _ = target.EndDraw(None, None);
                 }

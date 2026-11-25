@@ -43,6 +43,7 @@ import com.owlmic.core.settings.SettingsHub
 import com.owlmic.core.settings.SettingsMsg
 import com.owlmic.core.settings.Store
 import com.owlmic.media.MediaEvent
+import com.owlmic.media.camera.StreamOptimizer
 import com.owlmic.media.MediaHub
 import com.owlmic.media.MediaMsg
 import com.owlmic.media.audio.MicCodec
@@ -357,9 +358,11 @@ class AppHub(private val app: Application, private val onState: (AppState) -> Un
     private fun cameraConfig(): CameraConfig {
         val s = state.settings
         val fps = s["camera.frameRate"]?.toIntOrNull() ?: 60
+        val quality = s["camera.quality"] ?: "auto"
+        val link = linkKind ?: LinkKind.WIFI
         return CameraConfig(
             lens = if ((s["camera.lens"] ?: SettingsModel.find("camera.lens")?.default) == "back") Lens.BACK else Lens.FRONT,
-            plan = VideoPlan.of(s["camera.quality"] ?: "auto", fps, linkKind ?: LinkKind.WIFI),
+            plan = StreamOptimizer(quality, fps, link).current,
             orientation = when (s["camera.orientation"]) {
                 "landscape" -> Orientation.LANDSCAPE
                 "portrait" -> Orientation.PORTRAIT
@@ -367,6 +370,8 @@ class AppHub(private val app: Application, private val onState: (AppState) -> Un
             },
             ratio = Ratio.of(s["camera.ratio"]),
             mirrorPreview = (s["camera.mirror"] ?: SettingsModel.find("camera.mirror")?.default) == "on",
+            quality = quality,
+            link = link,
         )
     }
 
@@ -600,7 +605,7 @@ class AppHub(private val app: Application, private val onState: (AppState) -> Un
             KeyframeRequest -> media.post(MediaMsg.Keyframe)
             is Report -> {
                 media.post(MediaMsg.MicLoss(m.lossPct.toInt()))
-                media.post(MediaMsg.CameraReport(m.lossPct, m.rttMs))
+                media.post(MediaMsg.CameraReport(m.lossPct, m.rttMs, m.camLossPct, m.camFps, m.camDropPct))
             }
             else -> Unit
         }

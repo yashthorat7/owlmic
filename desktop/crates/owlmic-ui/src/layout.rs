@@ -80,6 +80,8 @@ pub const CAM_ORIENT_BTN: Rect = Rect::new(
     CAM_EXPAND_MENU.w / 2.0,
     p::CAM_EXPAND_HEIGHT_PX,
 );
+pub const CAM_PREVIEW_BTN: Rect = Rect::new(CAM_MENU_BTN.right() + 6.0, 10.0, 25.0, 25.0);
+pub const CAM_PREVIEW_OPEN_BTN: Rect = Rect::new(CAM_EXPAND_MENU.right() + 6.0, 10.0, 25.0, 25.0);
 pub const CAM_MIRROR_BTN: Rect = Rect::new(246.0, 10.0, 25.0, 25.0);
 pub const CAM_FLIP_BTN: Rect = Rect::new(277.0, 10.0, 25.0, 25.0);
 
@@ -292,6 +294,7 @@ pub enum Target {
 
     // Camera controls
     CamMenu,
+    CamPreview,
     Ratio(&'static str),
     CamOrient,
     Mirror,
@@ -505,8 +508,16 @@ pub fn hit(screen: Screen, x: f32, y: f32) -> Option<Target> {
                     if CAM_EXPAND_MENU.contains(x, y) {
                         return Some(Target::CamMenu);
                     }
-                } else if CAM_MENU_BTN.contains(x, y) {
-                    return Some(Target::CamMenu);
+                    if CAM_PREVIEW_OPEN_BTN.contains(x, y) {
+                        return Some(Target::CamPreview);
+                    }
+                } else {
+                    if CAM_MENU_BTN.contains(x, y) {
+                        return Some(Target::CamMenu);
+                    }
+                    if CAM_PREVIEW_BTN.contains(x, y) {
+                        return Some(Target::CamPreview);
+                    }
                 }
 
                 if CAM_MIRROR_BTN.contains(x, y) {
@@ -726,6 +737,14 @@ mod tests {
             hit(cam_hud_screen, CAM_MENU_BTN.x + 2.0, CAM_MENU_BTN.y + 2.0,),
             Some(Target::CamMenu)
         );
+        assert_eq!(
+            hit(
+                cam_hud_screen,
+                CAM_PREVIEW_BTN.x + 2.0,
+                CAM_PREVIEW_BTN.y + 2.0,
+            ),
+            Some(Target::CamPreview)
+        );
         let open_ratio_screen = Screen::Main {
             cam_on: true,
             mic_on: false,
@@ -733,6 +752,14 @@ mod tests {
             quick_audio: false,
             cam_wide: false,
         };
+        assert_eq!(
+            hit(
+                open_ratio_screen,
+                CAM_PREVIEW_OPEN_BTN.x + 2.0,
+                CAM_PREVIEW_OPEN_BTN.y + 2.0,
+            ),
+            Some(Target::CamPreview)
+        );
         assert_eq!(
             hit(
                 open_ratio_screen,

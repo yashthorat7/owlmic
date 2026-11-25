@@ -264,4 +264,53 @@ class VideoPlanTest {
         assertTrue(passed(30, 15) in 44..46)
         assertTrue(passed(60, 30) in 89..91)
     }
+
+    @Test
+    fun fpsRangeSelectionNeverPicksBelow24LowerWhenStableRangeExists() {
+        val ranges = listOf(15_000 to 60_000, 24_000 to 60_000, 30_000 to 30_000, 12_000 to 30_000)
+        assertEquals(30_000 to 30_000, selectFpsRange(ranges, 30))
+        assertEquals(24_000 to 60_000, selectFpsRange(ranges, 60))
+        assertEquals(15_000 to 60_000, selectFpsRange(listOf(15_000 to 60_000, 15_000 to 30_000), 60))
+    }
+
+    @Test
+    fun streamOptimizerDrops60To30FirstAndNeverGoesBelow24Fps() {
+        var t = 10_000L
+        val opt = StreamOptimizer("1080p", 60, LinkKind.WIFI) { t }
+        assertEquals(1080, opt.current.shortSide)
+        assertEquals(60, opt.current.fps)
+
+        // First stress step at 60 fps lowers fps to 30 while preserving 1080p.
+        t += 2_000
+        val s1 = opt.report(lossPct = 4.0, rttMs = 20)
+        assertEquals(30, s1?.plan?.fps)
+        assertEquals(1080, s1?.plan?.shortSide)
+
+        // Sustained severe drops step 1080p -> 720p -> 480p -> 360p and stop at 24 fps floor.
+        repeat(12) {
+            t += 2_000
+            opt.report(lossPct = 10.0, rttMs = 20, camDropPct = 15.0)
+        }
+        assertTrue(opt.current.fps >= 24)
+        assertEquals(360, opt.current.shortSide)
+    }
+
+    @Test
+    fun streamOptimizerSlidesQualityBackUpWhenCleanHeadroomReturns() {
+        var t = 10_000L
+        val opt = StreamOptimizer("auto", 30, LinkKind.WIFI) { t }
+        // Starts at ideal 720p 30fps, steps down to 480p under pressure, and recovers back to 720p.
+        assertEquals(720, opt.current.shortSide)
+        t += 2_000
+        opt.report(lossPct = 10.0, rttMs = 20, camDropPct = 12.0)
+        assertEquals(480, opt.current.shortSide)
+
+        // Sustained clean reports climb 480p -> 720p cleanly without bloated 1080p promotions.
+        repeat(6) {
+            t += 8_500
+            opt.report(lossPct = 0.0, rttMs = 15, camLossPct = 0.0, camFps = opt.current.fps, camDropPct = 0.0)
+        }
+        assertEquals(720, opt.current.shortSide)
+        assertEquals(30, opt.current.fps)
+    }
 }

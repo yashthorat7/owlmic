@@ -5,9 +5,9 @@
 use std::collections::BTreeMap;
 use std::time::{Duration, Instant};
 
-const KEYFRAME_REQUEST_GAP: Duration = Duration::from_millis(500);
-/// Two frame intervals at the slowest frame rate the phone sends (15 fps when it is hot).
-const GIVE_UP_AFTER: Duration = Duration::from_millis(133);
+const KEYFRAME_REQUEST_GAP: Duration = Duration::from_millis(250);
+/// Two frame intervals at the slowest normal frame rate (24 fps).
+const GIVE_UP_AFTER: Duration = Duration::from_millis(90);
 const MAX_PARTIAL: usize = 8;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -37,6 +37,7 @@ pub struct Reassembler {
 pub struct Pushed {
     pub frame: Option<EncodedFrame>,
     pub request_keyframe: bool,
+    pub dropped: u64,
 }
 
 /// True when frame id `a` comes after `b`, with wrapping.
@@ -59,8 +60,14 @@ impl Reassembler {
     ) -> Pushed {
         let mut out = Pushed {
             frame: None,
-            request_keyframe: self.expire(now),
+            request_keyframe: false,
+            dropped: 0,
         };
+        let expired = self.expire(now);
+        if expired > 0 {
+            out.request_keyframe = true;
+            out.dropped += expired;
+        }
         if self.last_done.is_some_and(|d| !after(frame, d)) || index >= count {
             return self.finish(out, now);
         }
@@ -84,33 +91,39 @@ impl Reassembler {
                 self.partial.remove(&oldest);
                 self.need_keyframe = true;
                 out.request_keyframe = true;
+                out.dropped += 1;
             }
             return self.finish(out, now);
         }
         let done = self.partial.remove(&frame).unwrap();
         // Anything older that is still incomplete can never be decoded now.
-        let stale: Vec<u16> = self
-            .partial
-            .keys()
-            .copied()
-            .filter(|f| !after(*f, frame))
-            .collect();
-        if !stale.is_empty() {
+        let mut stale_count = 0u64;
+        self.partial.retain(|f, _| {
+            let keep = after(*f, frame);
+            if !keep {
+                stale_count += 1;
+            }
+            keep
+        });
+        if stale_count > 0 {
             self.need_keyframe = true;
             out.request_keyframe = true;
-            for f in stale {
-                self.partial.remove(&f);
-            }
+            out.dropped += stale_count;
         }
         self.last_done = Some(frame);
         if self.need_keyframe && !done.keyframe {
             out.request_keyframe = true;
+            out.dropped += 1;
             return self.finish(out, now);
         }
         if done.keyframe {
             self.need_keyframe = false;
         }
-        let data = done.parts.into_iter().flatten().flatten().collect();
+        let total: usize = done.parts.iter().flatten().map(Vec::len).sum();
+        let mut data = Vec::with_capacity(total);
+        for part in done.parts.into_iter().flatten() {
+            data.extend_from_slice(&part);
+        }
         out.frame = Some(EncodedFrame {
             data,
             keyframe: done.keyframe,
@@ -124,7 +137,15 @@ impl Reassembler {
         self.need_keyframe = true;
     }
 
-    /// Asks for a keyframe now, unless one was asked for less than 500 ms ago.
+    /// Discards any incomplete frames and waits for a fresh keyframe on the next stream.
+    pub fn reset(&mut self) {
+        self.partial.clear();
+        self.last_done = None;
+        self.need_keyframe = true;
+        self.last_request = None;
+    }
+
+    /// Asks for a keyframe now, unless one was asked for less than `KEYFRAME_REQUEST_GAP` ago.
     pub fn take_keyframe_request(&mut self, now: Instant) -> bool {
         if self
             .last_request
@@ -136,15 +157,15 @@ impl Reassembler {
         true
     }
 
-    fn expire(&mut self, now: Instant) -> bool {
+    fn expire(&mut self, now: Instant) -> u64 {
         let before = self.partial.len();
         self.partial
             .retain(|_, p| now.duration_since(p.first_seen) < GIVE_UP_AFTER);
-        if self.partial.len() < before {
+        let dropped = (before - self.partial.len()) as u64;
+        if dropped > 0 {
             self.need_keyframe = true;
-            return true;
         }
-        false
+        dropped
     }
 
     fn finish(&mut self, mut out: Pushed, now: Instant) -> Pushed {
@@ -205,6 +226,7 @@ mod tests {
         r.push(1, 0, 2, false, 0, b"x", t);
         let p = r.push(9, 0, 2, false, 0, b"y", t + Duration::from_millis(200));
         assert!(p.request_keyframe);
+        assert_eq!(p.dropped, 1);
     }
 
     #[test]

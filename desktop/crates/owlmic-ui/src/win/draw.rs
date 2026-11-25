@@ -44,6 +44,68 @@ fn color(rgb: u32) -> D2D1_COLOR_F {
     color_alpha(rgb, 1.0)
 }
 
+/// Draws the Owlmic owl symbol centered at `(cx, cy)` with width and height `size` in physical pixels.
+pub fn draw_brand_owl(
+    d2d: &ID2D1Factory,
+    target: &ID2D1RenderTarget,
+    brush: &ID2D1SolidColorBrush,
+    cx: f32,
+    cy: f32,
+    size: f32,
+) {
+    let k = size / BOX;
+    let (ox, oy) = (cx - size / 2.0, cy - size / 2.0);
+    let p = move |x: f32, y: f32| Vector2 {
+        X: ox + x * k,
+        Y: oy + y * k,
+    };
+    unsafe {
+        if let Ok(geometry) = d2d.CreatePathGeometry()
+            && let Ok(sink) = geometry.Open()
+        {
+            sink.SetFillMode(D2D1_FILL_MODE_ALTERNATE);
+            let mut open = false;
+            for seg in crate::brand::OWL_BODY {
+                match *seg {
+                    Seg::Move(x, y) => {
+                        if open {
+                            sink.EndFigure(D2D1_FIGURE_END_CLOSED);
+                        }
+                        sink.BeginFigure(p(x, y), D2D1_FIGURE_BEGIN_FILLED);
+                        open = true;
+                    }
+                    Seg::Line(x, y) => sink.AddLine(p(x, y)),
+                    Seg::Cubic(c) => sink.AddBezier(&D2D1_BEZIER_SEGMENT {
+                        point1: p(c[0], c[1]),
+                        point2: p(c[2], c[3]),
+                        point3: p(c[4], c[5]),
+                    }),
+                    Seg::Close if open => {
+                        sink.EndFigure(D2D1_FIGURE_END_CLOSED);
+                        open = false;
+                    }
+                    _ => {}
+                }
+            }
+            if open {
+                sink.EndFigure(D2D1_FIGURE_END_CLOSED);
+            }
+            let _ = sink.Close();
+            target.FillGeometry(&geometry, brush, None);
+        }
+        for shape in crate::brand::OWL_PUPILS {
+            if let Shape::Circle { c, r } = *shape {
+                let ellipse = D2D1_ELLIPSE {
+                    point: p(c.0, c.1),
+                    radiusX: r * k,
+                    radiusY: r * k,
+                };
+                target.FillEllipse(&ellipse, brush);
+            }
+        }
+    }
+}
+
 struct Formats {
     scale: f32,
     title: IDWriteTextFormat,
@@ -64,6 +126,9 @@ pub struct Painter {
     mono: HSTRING,
     preview: Option<(ID2D1Bitmap, u64)>,
     preview_ambient: Option<(ID2D1Bitmap, u64)>,
+    amb_a: Vec<[f32; 3]>,
+    amb_b: Vec<[f32; 3]>,
+    amb_out: Vec<u8>,
     layers: Vec<ID2D1Layer>,
     layer_depth: usize,
     pub scale: f32,
@@ -118,6 +183,9 @@ impl Painter {
                 mono,
                 preview: None,
                 preview_ambient: None,
+                amb_a: Vec::new(),
+                amb_b: Vec::new(),
+                amb_out: Vec::new(),
                 layers: Vec::new(),
                 layer_depth: 0,
                 scale: 1.0,
@@ -460,18 +528,27 @@ impl Painter {
     }
 
     pub fn line(&self, x1: f32, y1: f32, x2: f32, y2: f32, rgb: u32, width: f32) {
+        self.line_alpha((x1, y1), (x2, y2), rgb, 1.0, width);
+    }
+
+    pub fn line_alpha(&self, from: (f32, f32), to: (f32, f32), rgb: u32, alpha: f32, width: f32) {
         let s = self.scale;
         let p1 = Vector2 {
-            X: (x1 * s).round(),
-            Y: (y1 * s).round(),
+            X: (from.0 * s).round(),
+            Y: (from.1 * s).round(),
         };
         let p2 = Vector2 {
-            X: (x2 * s).round(),
-            Y: (y2 * s).round(),
+            X: (to.0 * s).round(),
+            Y: (to.1 * s).round(),
         };
         unsafe {
-            self.t()
-                .DrawLine(p1, p2, self.brush(rgb), width * s, &self.stroke);
+            self.t().DrawLine(
+                p1,
+                p2,
+                self.brush_alpha(rgb, alpha),
+                width * s,
+                &self.stroke,
+            );
         }
     }
 
@@ -555,58 +632,10 @@ impl Painter {
 
     pub fn fill_brand_owl(&self, cx: f32, cy: f32, size: f32, opacity: f32) {
         let s = self.scale;
-        let k = size * s / BOX;
-        let (ox, oy) = (cx * s - size * s / 2.0, cy * s - size * s / 2.0);
-        let p = move |x: f32, y: f32| Vector2 {
-            X: ox + x * k,
-            Y: oy + y * k,
-        };
         let brush = self.brush(0xFFFFFF);
         unsafe {
             brush.SetOpacity(opacity);
-            if let Ok(geometry) = self.d2d.CreatePathGeometry()
-                && let Ok(sink) = geometry.Open()
-            {
-                sink.SetFillMode(D2D1_FILL_MODE_ALTERNATE);
-                let mut open = false;
-                for seg in crate::brand::OWL_BODY {
-                    match *seg {
-                        Seg::Move(x, y) => {
-                            if open {
-                                sink.EndFigure(D2D1_FIGURE_END_CLOSED);
-                            }
-                            sink.BeginFigure(p(x, y), D2D1_FIGURE_BEGIN_FILLED);
-                            open = true;
-                        }
-                        Seg::Line(x, y) => sink.AddLine(p(x, y)),
-                        Seg::Cubic(c) => sink.AddBezier(&D2D1_BEZIER_SEGMENT {
-                            point1: p(c[0], c[1]),
-                            point2: p(c[2], c[3]),
-                            point3: p(c[4], c[5]),
-                        }),
-                        Seg::Close if open => {
-                            sink.EndFigure(D2D1_FIGURE_END_CLOSED);
-                            open = false;
-                        }
-                        _ => {}
-                    }
-                }
-                if open {
-                    sink.EndFigure(D2D1_FIGURE_END_CLOSED);
-                }
-                let _ = sink.Close();
-                self.t().FillGeometry(&geometry, brush, None);
-            }
-            for shape in crate::brand::OWL_PUPILS {
-                if let Shape::Circle { c, r } = *shape {
-                    let ellipse = D2D1_ELLIPSE {
-                        point: p(c.0, c.1),
-                        radiusX: r * k,
-                        radiusY: r * k,
-                    };
-                    self.t().FillEllipse(&ellipse, brush);
-                }
-            }
+            draw_brand_owl(&self.d2d, self.t(), brush, cx * s, cy * s, size * s);
             brush.SetOpacity(1.0);
         }
     }
@@ -826,6 +855,12 @@ impl Painter {
         }
     }
 
+    /// Drops cached GPU preview bitmaps when the camera stops or preview is cleared.
+    pub fn clear_preview(&mut self) {
+        self.preview = None;
+        self.preview_ambient = None;
+    }
+
     /// The camera preview (BGRA `w` x `h`), refreshed when `seq` changed.
     /// When `ambient` is `Some`, draws a blurred zoomed dimmed backdrop inside `ambient` first.
     pub fn picture(
@@ -882,23 +917,31 @@ impl Painter {
             .as_ref()
             .is_some_and(|(_, shown)| *shown != seq);
         if need_main || need_amb {
-            let mut amb_buf = need_amb.then(|| vec![0u8; AMB * AMB * 4]);
+            let need_amb_work = need_amb;
+            let preview_ref = self.preview.as_ref().map(|(b, _)| b.clone());
+            let amb_ref = self.preview_ambient.as_ref().map(|(b, _)| b.clone());
+            let amb_a = &mut self.amb_a;
+            let amb_b = &mut self.amb_b;
+            let amb_out = &mut self.amb_out;
             pixels(&mut |px: &[u8]| {
                 if px.len() < (w * h * 4) {
                     return;
                 }
-                if need_main && let Some((bitmap, _)) = self.preview.as_ref() {
+                if need_main && let Some(bitmap) = preview_ref.as_ref() {
                     let len = (w * 4) as u32;
                     unsafe {
                         let _ = bitmap.CopyFromMemory(None, px.as_ptr().cast(), len);
                     }
                 }
-                if let Some(out) = amb_buf.as_mut() {
-                    build_ambient_bgra::<AMB>(px, w, h, out);
-                    if let Some((amb_bmp, _)) = self.preview_ambient.as_ref() {
+                if need_amb_work {
+                    build_ambient_bgra::<AMB>(px, w, h, amb_a, amb_b, amb_out);
+                    if let Some(amb_bmp) = amb_ref.as_ref() {
                         unsafe {
-                            let _ =
-                                amb_bmp.CopyFromMemory(None, out.as_ptr().cast(), (AMB * 4) as u32);
+                            let _ = amb_bmp.CopyFromMemory(
+                                None,
+                                amb_out.as_ptr().cast(),
+                                (AMB * 4) as u32,
+                            );
                         }
                     }
                 }
@@ -928,34 +971,7 @@ impl Painter {
             return;
         };
         let bitmap = bitmap.clone();
-        let src_ar = w as f32 / h as f32;
-        let dst_ar = r.w / r.h.max(0.001);
-        let src_rect = if (src_ar - dst_ar).abs() < 0.005 {
-            D2D_RECT_F {
-                left: 0.0,
-                top: 0.0,
-                right: w as f32,
-                bottom: h as f32,
-            }
-        } else if src_ar > dst_ar {
-            let sw = (h as f32 * dst_ar).min(w as f32);
-            let sx = (w as f32 - sw) / 2.0;
-            D2D_RECT_F {
-                left: sx,
-                top: 0.0,
-                right: sx + sw,
-                bottom: h as f32,
-            }
-        } else {
-            let sh = (w as f32 / dst_ar).min(h as f32);
-            let sy = (h as f32 - sh) / 2.0;
-            D2D_RECT_F {
-                left: 0.0,
-                top: sy,
-                right: w as f32,
-                bottom: sy + sh,
-            }
-        };
+        let src_rect = cover_src_rect(w as f32, h as f32, r.w, r.h);
         unsafe {
             self.t().DrawBitmap(
                 &bitmap,
@@ -968,11 +984,50 @@ impl Painter {
     }
 }
 
+fn cover_src_rect(src_w: f32, src_h: f32, dst_w: f32, dst_h: f32) -> D2D_RECT_F {
+    let src_ar = src_w / src_h.max(0.001);
+    let dst_ar = dst_w / dst_h.max(0.001);
+    if (src_ar - dst_ar).abs() < 0.005 {
+        D2D_RECT_F {
+            left: 0.0,
+            top: 0.0,
+            right: src_w,
+            bottom: src_h,
+        }
+    } else if src_ar > dst_ar {
+        let sw = (src_h * dst_ar).min(src_w);
+        let sx = (src_w - sw) * 0.5;
+        D2D_RECT_F {
+            left: sx,
+            top: 0.0,
+            right: sx + sw,
+            bottom: src_h,
+        }
+    } else {
+        let sh = (src_w / dst_ar).min(src_h);
+        let sy = (src_h - sh) * 0.5;
+        D2D_RECT_F {
+            left: 0.0,
+            top: sy,
+            right: src_w,
+            bottom: sy + sh,
+        }
+    }
+}
+
 /// Downsamples `px` into a blurred, slightly zoomed (1.14x), dimmed (0.46) and boosted-saturation
-/// (1.18) `N x N` BGRA backdrop matching prototype `.cam-amb-canvas`.
-fn build_ambient_bgra<const N: usize>(px: &[u8], w: usize, h: usize, out: &mut [u8]) {
-    let mut a = vec![[0.0f32; 3]; N * N];
-    let mut b = vec![[0.0f32; 3]; N * N];
+/// (1.18) `N x N` BGRA backdrop matching prototype `.cam-amb-canvas`, reusing caller buffers.
+fn build_ambient_bgra<const N: usize>(
+    px: &[u8],
+    w: usize,
+    h: usize,
+    a: &mut Vec<[f32; 3]>,
+    b: &mut Vec<[f32; 3]>,
+    out: &mut Vec<u8>,
+) {
+    a.resize(N * N, [0.0; 3]);
+    b.resize(N * N, [0.0; 3]);
+    out.resize(N * N * 4, 0);
     let span = 1.0 / 1.14_f32;
     let pad = (1.0 - span) * 0.5;
     for y in 0..N {

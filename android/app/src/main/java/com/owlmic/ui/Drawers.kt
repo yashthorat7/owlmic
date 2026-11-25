@@ -104,7 +104,7 @@ fun AnimatedDrawer(seq: TurnSequence, drawer: Drawer?, state: AppState) {
         Column(Modifier.fillMaxSize().background(Theme.bg).upright(seq.layout, swap = true).graphicsLayer { alpha = fading }) {
             when (shown) {
                 Drawer.CONNECTION -> ConnectionDrawer(state)
-                Drawer.HELP -> InfoDrawer()
+                Drawer.HELP -> InfoDrawer(seq.layout.sideways)
             }
         }
     }
@@ -405,7 +405,7 @@ private fun Footer(state: AppState) {
 private enum class InfoPage { GRID, HOW_TO, PRIVACY, CREDITS }
 
 @Composable
-private fun ColumnScope.InfoDrawer() {
+private fun ColumnScope.InfoDrawer(sideways: Boolean) {
     var page by rememberSaveable { mutableStateOf(InfoPage.GRID) }
     BackHandler(page != InfoPage.GRID) { page = InfoPage.GRID }
     AnimatedContent(
@@ -415,7 +415,7 @@ private fun ColumnScope.InfoDrawer() {
         label = "info",
     ) { p ->
         when (p) {
-            InfoPage.GRID -> InfoGrid { page = it }
+            InfoPage.GRID -> InfoGrid(sideways) { page = it }
             InfoPage.HOW_TO -> SubPage(Copy.string.ui_how_to, { page = InfoPage.GRID }) { HowTo() }
             InfoPage.PRIVACY -> SubPage(Copy.string.ui_privacy, { page = InfoPage.GRID }) { Privacy() }
             InfoPage.CREDITS -> SubPage(Copy.string.ui_credits, { page = InfoPage.GRID }) { Credits() }
@@ -423,11 +423,22 @@ private fun ColumnScope.InfoDrawer() {
     }
 }
 
-/** 2x3 bento grid matching prototype: How-to, Privacy, Rate, GitHub, Donate, Credits; version at bottom. */
+private data class InfoTile(val glyph: Glyph, val label: Int, val onClick: () -> Unit)
+
+/** 2x3 bento grid in portrait, 3x2 in landscape: How-to, Privacy, Rate, GitHub, Donate, Credits; version at bottom. */
 @Composable
-private fun InfoGrid(onPage: (InfoPage) -> Unit) {
+private fun InfoGrid(sideways: Boolean, onPage: (InfoPage) -> Unit) {
     val context = LocalContext.current
     val version = remember { context.packageManager.getPackageInfo(context.packageName, 0).versionName.orEmpty() }
+    val tiles = listOf(
+        InfoTile(Glyph.LIST, Copy.string.ui_how_to) { onPage(InfoPage.HOW_TO) },
+        InfoTile(Glyph.SHIELD, Copy.string.ui_privacy) { onPage(InfoPage.PRIVACY) },
+        InfoTile(Glyph.STAR, Copy.string.ui_rate) { Links.rate(context) },
+        InfoTile(Glyph.GITHUB, Copy.string.ui_github) { Links.open(context, Links.REPO) },
+        InfoTile(Glyph.COFFEE, Copy.string.ui_donate) { Links.open(context, Links.DONATE) },
+        InfoTile(Glyph.USERS, Copy.string.ui_credits) { onPage(InfoPage.CREDITS) },
+    )
+    val columns = if (sideways) 3 else 2
     Column(
         Modifier
             .fillMaxSize()
@@ -439,21 +450,16 @@ private fun InfoGrid(onPage: (InfoPage) -> Unit) {
         Column(
             Modifier
                 .fillMaxWidth()
-                .widthIn(max = 236.dp),
+                .widthIn(max = if (sideways) 358.dp else 236.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                InfoBentoTile(Glyph.LIST, Copy.string.ui_how_to, Modifier.weight(1f)) { onPage(InfoPage.HOW_TO) }
-                InfoBentoTile(Glyph.SHIELD, Copy.string.ui_privacy, Modifier.weight(1f)) { onPage(InfoPage.PRIVACY) }
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                InfoBentoTile(Glyph.STAR, Copy.string.ui_rate, Modifier.weight(1f)) { Links.rate(context) }
-                InfoBentoTile(Glyph.GITHUB, Copy.string.ui_github, Modifier.weight(1f)) { Links.open(context, Links.REPO) }
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                InfoBentoTile(Glyph.COFFEE, Copy.string.ui_donate, Modifier.weight(1f)) { Links.open(context, Links.DONATE) }
-                InfoBentoTile(Glyph.USERS, Copy.string.ui_credits, Modifier.weight(1f)) { onPage(InfoPage.CREDITS) }
+            tiles.chunked(columns).forEach { row ->
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    row.forEach { tile ->
+                        InfoBentoTile(tile.glyph, tile.label, Modifier.weight(1f), tile.onClick)
+                    }
+                }
             }
         }
         BasicText(
